@@ -1,0 +1,11 @@
+# Normalise to LF in the repository. The analysis runs on Windows and Linux and the data
+# files are compared byte for byte in places, so mixed line endings would show up as
+# spurious diffs.
+* text=auto eol=lf
+
+# Binary, never normalised.
+*.png binary
+*.pdf binary
+
+# Keep notebook diffs readable rather than treating them as opaque.
+*.ipynb text eol=lf

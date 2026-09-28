@@ -1,0 +1,19 @@
+variation,market_risk_benefit,pv_claims,note,mrb_change,mrb_pct_of_premium
+base case,0.00,19302.83,,0.00,0.00
+long-run volatility +2 points,1169.89,20467.75,,1169.89,1.17
+long-run volatility -2 points,-1086.28,18222.89,,-1086.28,-1.09
+short-dated implied volatility +2 points,686.55,19982.83,,686.55,0.69
+short-dated implied volatility -2 points,-643.37,18665.91,,-643.37,-0.64
+par curve +100bp,-4627.09,14660.98,,-4627.09,-4.63
+par curve -100bp,5742.72,25054.95,,5742.72,5.74
+"mortality on the Period table, with margins",1039.12,20544.02,the reporting basis,1039.12,1.04
+"mortality, all male",-950.61,18138.03,,-950.61,-0.95
+"mortality, all female",950.61,20467.62,,950.61,0.95
+"fund expenses at the disclosed minimum, 0.52%",-1235.82,18603.43,,-1235.82,-1.24
+"fund expenses at the disclosed maximum, 2.38%",3817.92,21543.36,,3817.92,3.82
+no annual step-up,-3735.12,15380.35,,-3735.12,-3.74
+"sub-account at the book's equity exposure, 0.83",-2699.00,16625.24,FY2025 fund mix,-2699.00,-2.70
+"issue age 65, GAWA 5.55%",4252.63,24853.10,rate sheet band,4252.63,4.25
+"issue age 75, GAWA 5.95%",-4339.13,13228.48,rate sheet band,-4339.13,-4.34
+projection capped at age 110,-1.62,19301.20,truncation test,-1.62,-0.00
+projection to age 120,0.53,19326.25,truncation test,0.53,0.00

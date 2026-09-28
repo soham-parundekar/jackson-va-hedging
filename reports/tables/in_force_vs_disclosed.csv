@@ -1,0 +1,5 @@
+as_of,attained_age,account_value,benefit_base,gwb_over_av,model_value_pct_av,model_equity_up_10pct,model_equity_down_10pct,model_rates_up_50bp,model_rates_down_50bp,model_rates_up_100bp,model_rates_down_100bp,disclosed_equity_down_10pct,disclosed_equity_up_10pct,disclosed_rates_down_100bp,disclosed_rates_down_50bp,disclosed_rates_up_100bp,disclosed_rates_up_50bp,disclosed_value_pct_av
+2022-12-30,76,101467.7522,126431.6699,1.2460,-1.4164,-3.3856,3.9138,-2.0622,2.2665,-3.9330,4.7514,1.4661,-1.2181,,1.2595,,-1.1312,1.4078
+2023-12-29,77,111556.1568,126431.6699,1.1333,-7.8975,-2.8716,3.4594,-1.5032,1.6786,-2.8422,3.5449,1.1792,-0.9335,,1.1259,,-1.0087,-0.5178
+2024-12-31,78,122714.4464,126431.6699,1.0303,-11.8645,-2.0033,2.4894,-0.9466,1.0728,-1.7767,2.2817,0.9556,-0.7525,1.8606,0.8744,-1.4009,-0.7551,-2.1582
+2025-12-31,79,130722.3733,128785.7479,0.9852,-12.5632,-1.7607,2.2071,-0.7982,0.9106,-1.4928,1.9430,0.8494,-0.6658,1.6463,,-1.2605,,-1.7927

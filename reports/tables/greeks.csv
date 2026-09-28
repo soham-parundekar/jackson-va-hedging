@@ -1,0 +1,3 @@
+basis,value,equity_exposure,equity_exposure_pct_av,equity_gamma,rho_per_bp,rho_per_100bp_pct_av,vega_tradeable,vega_long_run,std_error,note
+"economic, Basic table",0.0000,-24902.0165,-24.9020,103663.7310,-51.5335,-5.1533,332.7250,569.1836,16.9033,hedging basis
+"reporting, Period table",1039.1230,-24858.8200,-24.8588,107656.8832,-55.0131,-5.5013,345.1239,590.8708,17.8392,margins included

@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Intermediates. data/raw is committed so the results reproduce exactly; data/processed is
+# rebuilt from it by `make data` and is large enough not to belong in history.
+data/processed/*
+!data/processed/.gitkeep
+
+# reports/ is committed. The tables and figures are the research output, and a reader should
+# be able to see them without running a ten-minute backtest first.
+
+# Reference material kept in the working directory alongside the project rather than as part
+# of it. PDFs in subdirectories are not covered, so a figure exported to reports/ still tracks.
+/*.pdf
+

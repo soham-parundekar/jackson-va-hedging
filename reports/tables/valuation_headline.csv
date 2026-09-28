@@ -1,0 +1,12 @@
+quantity,value
+premium and initial benefit base,100000.0000
+PV of guarantee payments,19302.8250
+PV of the explicit GMWB charge,13276.7363
+PV of the base contract charge,8911.9462
+PV of total attributable fees,22188.6825
+fee attribution percentage,0.8699
+market risk benefit at issue,0.0000
+Monte Carlo standard error,16.9033
+"gross guarantee value, % of premium",19.3028
+probability of exhaustion by year 20,0.8614
+"expected future lifetime, years",19.6444

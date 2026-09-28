@@ -1,0 +1,13 @@
+as_of,shock,disclosed_pct_av,model_range_low,model_range_high,implied_gwb_over_av,within_model_range
+2022-12-31,equity_down_10pct,1.4661,0.2742,6.8247,0.8442,True
+2023-12-31,equity_down_10pct,1.1792,0.2742,6.8247,0.8127,True
+2024-12-31,equity_down_10pct,0.9556,0.2742,6.8247,0.7807,True
+2025-12-31,equity_down_10pct,0.8494,0.2742,6.8247,0.7616,True
+2022-12-31,equity_up_10pct,-1.2181,-6.2657,-0.2742,0.9055,True
+2023-12-31,equity_up_10pct,-0.9335,-6.2657,-0.2742,0.8584,True
+2024-12-31,equity_up_10pct,-0.7525,-6.2657,-0.2742,0.8268,True
+2025-12-31,equity_up_10pct,-0.6658,-6.2657,-0.2742,0.8117,True
+2024-12-31,rates_up_100bp,-1.4009,-8.9029,-3.8941,,False
+2025-12-31,rates_up_100bp,-1.2605,-8.9029,-3.8941,,False
+2024-12-31,rates_down_100bp,1.8606,4.8404,10.6005,,False
+2025-12-31,rates_down_100bp,1.6463,4.8404,10.6005,,False

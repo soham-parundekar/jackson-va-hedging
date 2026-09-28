@@ -1,0 +1,5 @@
+table,valuation_year,expected_future_lifetime,survival_to_10y,survival_to_20y,survival_to_30y
+basic,2012,18.7110,0.8434,0.4978,0.0872
+basic,2025,19.6444,0.8682,0.5469,0.1048
+period,2012,19.4971,0.8580,0.5345,0.1129
+period,2025,20.4137,0.8806,0.5815,0.1331

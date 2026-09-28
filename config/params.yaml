@@ -1,0 +1,108 @@
+# Representative GMWB policy and model settings.
+#
+# Contract terms are taken from Jackson National's Perspective II prospectus
+# (485BPOS filed 2026-04-21) and the Rate Sheet Prospectus Supplement dated
+# 2026-04-27 (Form 497 filed 2026-04-09). Book statistics used to justify the
+# representative choices come from the Jackson Financial 10-K for FY2025.
+# Everything here is an explicit assumption; docs/research_design.md explains why
+# each number was chosen and what happens when it moves.
+
+valuation_date: 2025-12-31   # matches the balance-sheet date of the sensitivity table
+
+contract:
+  # Perspective II, Flex GMWB (Single), Core benefit option, elected at issue.
+  premium: 100000.0
+  issue_age: 70              # 10-K FY2025 reports weighted-average attained age of 70
+  sex_mix: {male: 0.5, female: 0.5}   # Jackson does not disclose the gender split
+
+  gawa_pct: 0.0575           # Core option, GAWA% for attained ages 70-74
+  rider_charge_pct: 0.0125   # Core option, 1.25% of the GWB per year
+  base_contract_charge: 0.0131   # 1.31% of contract value ("Base Contract" annual fee)
+  fund_expense: 0.0095       # inside the 0.52%-2.38% range disclosed for the fund menu
+
+  # Withdrawals start on the first contract anniversary. At age 70 the For Life
+  # Guarantee is already effective, so payments continue for life once the contract
+  # value is exhausted. Taking a withdrawal in year one voids the GWB adjustment
+  # provision and forfeits the bonus, so neither is modelled.
+  first_withdrawal_year: 1
+  annual_step_up: true       # Contract Anniversary Value method
+
+  # Policyholder behaviour. The base case is the static benchmark: full utilisation of
+  # the guaranteed amount every year, no surrender. That is an upper bound on the
+  # guarantee's value, and scripts/run_behaviour_reconciliation.py measures how far it
+  # sits above the disclosed sensitivities.
+  utilisation: 1.0
+  lapse_rate: 0.0
+  bonus_pct: 0.0             # not available once withdrawals begin
+  gwb_adjustment_pct: 0.0    # provision terminates on the first withdrawal
+
+  # Effective equity exposure of the sub-account allocation. 1.0 is a single
+  # broad-equity sub-account, which is the base case for the standalone valuation.
+  # The hedging backtest overrides this with the equity exposure implied by
+  # subaccount_mix below.
+  fund_equity_beta: 1.0
+
+# Separate-account fund split for variable annuities at 31 December 2025, from the
+# FY2025 10-K Note 11: equity 171,046, bond 19,711, balanced 43,317, money market
+# 2,332, out of 236,406 (all $m). Weights below are those figures over the total.
+subaccount_mix:
+  equity: 0.7235
+  bond: 0.0834
+  balanced: 0.1832
+  money_market: 0.0099
+  bond_duration: 6.0          # intermediate-term bond fund, stated assumption
+  balanced_equity_share: 0.60 # typical balanced-fund equity weight, stated assumption
+
+simulation:
+  n_paths: 200000
+  max_age: 115               # survival beyond this is immaterial; truncation is tested
+  antithetic: true
+  seed: 20251231
+
+volatility:
+  # Jackson's disclosure: implied volatility out to five years, grading to a
+  # long-run historical level by year ten, with an explicit risk margin in the
+  # long-run level. Implemented as a mean-reverting forward variance curve whose
+  # decay is pinned to that grading statement rather than fitted; see
+  # gmwb/volatility.py for why a flat front segment is not usable here.
+  short_tenor_years: 0.0833   # VIX
+  mid_tenor_years: 0.25       # VIX3M (VXVCLS)
+  grade_to_years: 10.0        # front level has graded to the long run by this maturity
+  grading_residual: 0.02      # 2% of the gap left at grade_to; sets the decay
+  long_run_lookback_years: 10
+  long_run_risk_margin: 0.01  # added to the realised long-run level
+
+dividend_yield: 0.015        # S&P 500 price index is used, so dividends enter explicitly
+
+curve:
+  # Treasury par yields are bootstrapped to continuously compounded zero rates.
+  par_tenors: [1, 2, 3, 5, 7, 10, 20, 30]
+  coupon_frequency: 2
+  extrapolate_flat_beyond: true
+
+shocks:
+  equity_pct: [0.10, -0.10]
+  rate_bp: [100, -100, 50, -50]
+  vol_points: 0.01
+
+greeks:
+  equity_bump_pct: 0.01
+  rate_bump_bp: 1.0
+  vol_bump: 0.01
+
+hedge:
+  start: 2016-09-26          # first S&P 500 observation available from FRED
+  end: 2026-09-25
+  rebalance: weekly
+  n_paths: 40000             # common random numbers hold the revaluation noise down
+  equity_cost_bp: 0.5        # round-trip cost on traded index futures notional
+  rate_cost_bp: 0.25         # round-trip cost on traded swap notional
+  swap_tenor_years: 10       # single-factor parallel rate hedge
+  hedge_ratio: 1.0
+
+accounting:
+  # The GAAP market risk benefit discounts at a rate that includes Jackson's own
+  # non-performance risk; the economic hedge target does not. BAA10Y is the spread
+  # proxy, scaled to reflect the insurance subsidiaries' higher ratings.
+  own_credit_scale: 0.6
+  spread_series: BAA10Y

@@ -1,0 +1,5 @@
+as_of,va_separate_account_musd,cash_surrender_value_musd,sa_equity_musd,sa_bond_musd,sa_balanced_musd,sa_money_market_musd,va_net_mrb_gross_musd,va_net_mrb_net_of_reins_musd,weighted_avg_attained_age,net_amount_at_risk_musd,pct_av_gmwb_for_life,pct_av_gmwb,pct_av_enhanced_gmdb,source_filing_fy
+2022-12-31,195550,190243,,,,,767,584,69,15592,,,,2023
+2023-12-31,219381,214395,,,,,-2000,-2090,69,8225,,,,2023
+2024-12-31,228851,224157,163904,19486,42909,2552,-5176,-5238,70,6360,73,3,11,2025
+2025-12-31,236406,231711,171046,19711,43317,2332,-4265,-4306,70,5471,72,3,10,2025
