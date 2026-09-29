@@ -40,9 +40,11 @@ NSS_PARAMETERS = DATA_PROCESSED / "nss_parameters.csv"
 CLEAN_CHAIN = DATA_PROCESSED / "option_chain_clean.csv"
 DISCLOSED_SCALED = DATA_PROCESSED / "disclosed_scaled.csv"
 
-# Built by the calibration step and read by everything downstream.
-HESTON_FIT = DATA_PROCESSED / "heston_calibration.json"
-HULL_WHITE_FIT = DATA_PROCESSED / "hull_white_calibration.json"
+# Built by the calibration step and read by everything downstream. One file rather than one
+# per model, because the pieces are only meaningful together: the Heston rho is also the
+# equity-variance correlation, and the curve the rate model is fitted around is the same curve
+# the liability discounts on.
+MARKET_CALIBRATION = DATA_PROCESSED / "market_calibration.json"
 
 
 def ensure_output_dirs() -> None:

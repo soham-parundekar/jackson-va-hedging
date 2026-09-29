@@ -72,6 +72,7 @@ class GmwbProjection:
     mean_death_benefit: np.ndarray
     claim_paths: np.ndarray        # (n_cohorts, n_paths) PV per path, for standard errors
     fee_paths: np.ndarray          # (n_cohorts, n_paths) PV per path
+    recorded: dict | None = None   # per-path state by year, only when record=True
 
     @property
     def pv_attributable_fees(self) -> np.ndarray:
@@ -90,6 +91,7 @@ def project(
     death_benefit=None,
     equity_shock: float = 0.0,
     equity_weight: float = 1.0,
+    record: bool = False,
 ) -> GmwbProjection:
     """Project every cohort in the book across every path.
 
@@ -161,7 +163,11 @@ def project(
         free_withdrawal = col(book.db_free_withdrawal_pct)
         death_charge_rate = col(book.db_charge_pct)
         rollup_base = np.broadcast_to(col(book.death_benefit_base), (n_cohorts, n_paths)).copy()
-        ratchet_base = rollup_base.copy()
+        ratchet_base = (
+            rollup_base.copy()
+            if getattr(book, "death_ratchet_base", None) is None
+            else np.broadcast_to(col(book.death_ratchet_base), (n_cohorts, n_paths)).copy()
+        )
         death_claim_pv = np.zeros((n_cohorts, n_paths))
         death_fee_pv = np.zeros((n_cohorts, n_paths))
         death_claims_by_year = np.zeros((n_cohorts, n_years))
@@ -189,6 +195,22 @@ def project(
     claim_pv = np.zeros((n_cohorts, n_paths))
     fee_pv = np.zeros((n_cohorts, n_paths))
     rider_fee_pv = np.zeros((n_cohorts, n_paths))
+
+    # Recording keeps the per-path state and cash flow at every anniversary, which is what
+    # the regression proxy regresses on. It is off by default because it costs one array per
+    # recorded quantity per year, and every valuation would pay for it.
+    if record:
+        if n_cohorts != 1:
+            raise ValueError("recording is for one cohort at a time; the arrays are per path")
+        recorded = {
+            name: np.empty((n_paths, n_years))
+            for name in ("account_value", "benefit_base", "bonus_base", "bonus_end",
+                         "adjustment_live", "death_rollup_base", "death_ratchet_base",
+                         "pv_claim", "pv_fee", "discount", "persistency",
+                         "variance", "zero_10y", "short_rate")
+        }
+    else:
+        recorded = None
 
     claims_by_year = np.zeros((n_cohorts, n_years))
     fees_by_year = np.zeros((n_cohorts, n_years))
@@ -296,6 +318,49 @@ def project(
             death_claims_by_year[:, year] = (death_weight * death_cost).mean(axis=1)
             mean_death_benefit[:, year] = death_base.mean(axis=1)
 
+        if recorded is not None:
+            # State the proxy regresses on, and the two cash-flow legs it combines. Both legs
+            # are discounted to time zero and carry the probability the contract is still there
+            # to pay - mortality and lapse together - so a continuation value is the sum of the
+            # years after t divided by the discount factor AND by that probability at t. Leaving
+            # the probability out values a contract that might already have lapsed, which is a
+            # different and much smaller number: at year twenty of a sixty-five-year-old's
+            # contract the persistency factor is around a half, and the proxy came out low by
+            # that much against the nested standard before the factor was recorded here.
+            # Recording the legs separately rather than netted lets one fit serve any
+            # attribution percentage.
+            recorded["account_value"][:, year] = account[0]
+            recorded["benefit_base"][:, year] = benefit_base[0]
+            recorded["discount"][:, year] = discount[0]
+            recorded["persistency"][:, year] = (
+                survival[:, year][:, None] * in_force * alive
+            )[0]
+            # The rest of the contract's state, which the proxy does not regress on but the
+            # nested check has to restart from. Three of these are path-dependent and none of
+            # them can be reconstructed from the account value and the benefit base: the bonus
+            # clock restarts on a step-up, and the death benefit base is cut by withdrawals on
+            # its own schedule and drifts a long way from the living-benefit base. Rebuilding a
+            # node with the death base set to the guaranteed withdrawal base instead of the
+            # recorded one turned a 0.34 life annuity into a 0.96 one.
+            recorded["bonus_base"][:, year] = bonus_base[0]
+            recorded["bonus_end"][:, year] = bonus_end[0]
+            recorded["adjustment_live"][:, year] = adjustment_live[0]
+            if has_death:
+                recorded["death_rollup_base"][:, year] = rollup_base[0]
+                recorded["death_ratchet_base"][:, year] = ratchet_base[0]
+            else:
+                recorded["death_rollup_base"][:, year] = 0.0
+                recorded["death_ratchet_base"][:, year] = 0.0
+            recorded["variance"][:, year] = paths.variance[:, year]
+            recorded["zero_10y"][:, year] = paths.zero_10y[:, year]
+            recorded["short_rate"][:, year] = paths.short_rate[:, year]
+            recorded["pv_claim"][:, year] = (weight * claim)[0] + (
+                (death_weight * death_cost)[0] if has_death else 0.0
+            )
+            recorded["pv_fee"][:, year] = (
+                weight * (rider_charge + base_charge + death_charge)
+            )[0]
+
         claims_by_year[:, year] = (weight * claim).mean(axis=1)
         fees_by_year[:, year] = (weight * (rider_charge + base_charge + death_charge)).mean(axis=1)
         exhaustion[:, year] = (account <= 0.0).mean(axis=1)
@@ -328,4 +393,5 @@ def project(
         mean_death_benefit=mean_death_benefit,
         claim_paths=claim_pv + death_claim_pv,
         fee_paths=fee_pv + death_fee_pv,
+        recorded=recorded,
     )

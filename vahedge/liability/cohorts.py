@@ -81,6 +81,10 @@ class CohortBook:
     db_charge_pct: np.ndarray
     db_free_withdrawal_pct: np.ndarray
     death_benefit: np.ndarray
+    # The highest-anniversary base, which starts equal to the roll-up base and then follows its
+    # own path. Only a book restarted part-way through its life needs to set it, so it defaults
+    # to None and the projection reads the roll-up base instead.
+    death_ratchet_base: np.ndarray | None = None
 
     @property
     def size(self) -> int:
@@ -119,7 +123,13 @@ class CohortBook:
                 "option": self.option,
                 "account_value": self.account_value,
                 "benefit_base": self.benefit_base,
-                "gwb_over_av": self.benefit_base / self.account_value,
+                # A spent contract has no moneyness rather than an infinite one, and a node taken
+                # off a projection is often exactly that.
+                "gwb_over_av": np.where(
+                    self.account_value > 0.0,
+                    self.benefit_base / np.where(self.account_value > 0.0, self.account_value, 1.0),
+                    np.nan,
+                ),
                 "deferral_years": self.deferral_years,
                 "adjustment_year": self.adjustment_year,
                 "gawa_pct": self.gawa_pct,

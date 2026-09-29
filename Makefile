@@ -1,9 +1,11 @@
-.PHONY: all data valuation greeks validate backtest accounting test clean help
+.PHONY: all data calibrate proxy valuation greeks validate backtest accounting test clean help
 
 PY ?= python3
 
 help:
 	@echo "data        validate inputs and bootstrap the curve history (run this first)"
+	@echo "calibrate   fit the market state: curve, Heston surface, short rate, correlations"
+	@echo "proxy       regression proxy against nested simulation (slow, around 6 minutes)"
 	@echo "valuation   at-issue valuation, cash flows, robustness, convergence"
 	@echo "greeks      Greeks and the moneyness profile"
 	@echo "validate    disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep"
@@ -17,6 +19,12 @@ all: data valuation greeks validate backtest accounting test
 
 data:
 	$(PY) -m scripts.build_dataset
+
+calibrate:
+	$(PY) -m scripts.run_calibration
+
+proxy: calibrate
+	$(PY) -m scripts.run_proxy_validation
 
 valuation:
 	$(PY) -m scripts.run_valuation

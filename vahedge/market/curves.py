@@ -63,9 +63,7 @@ class ZeroCurve:
 
     def par_equivalent(self, tenor: float, frequency: int = 2) -> float:
         """The par coupon this curve implies at a given tenor. Used to check a round trip."""
-        times = np.arange(1, int(round(tenor * frequency)) + 1) / frequency
-        dfs = self.discount(times)
-        return float(frequency * (1.0 - dfs[-1]) / dfs.sum())
+        return par_equivalent(self, tenor, frequency)
 
 
 class ParCurveBuilder:
@@ -181,6 +179,20 @@ class NelsonSiegelSvensson:
         """Sample onto a grid, for code that wants the ``ZeroCurve`` interface."""
         tenors = np.arange(step, max_tenor + step / 2, step)
         return ZeroCurve(tenors=tenors, zero_rates=np.asarray(self.zero(tenors), dtype=float))
+
+    def par_equivalent(self, tenor: float, frequency: int = 2) -> float:
+        return par_equivalent(self, tenor, frequency)
+
+
+def par_equivalent(curve, tenor: float, frequency: int = 2) -> float:
+    """The par coupon a curve implies at a tenor, from its own discount factors.
+
+    This is the round trip that says whether a fitted curve reproduces the Treasuries it came
+    from. Both curve types answer it the same way, so the arithmetic lives here once.
+    """
+    times = np.arange(1, int(round(tenor * frequency)) + 1) / frequency
+    dfs = np.asarray(curve.discount(times), dtype=float)
+    return float(frequency * (1.0 - dfs[-1]) / dfs.sum())
 
 
 def _nss_basis(t: np.ndarray, tau1: float, tau2: float) -> np.ndarray:

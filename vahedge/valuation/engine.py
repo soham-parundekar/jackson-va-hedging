@@ -64,6 +64,20 @@ class MarketState:
     valuation_year: int
     credit_spread: float = 0.0     # own non-performance risk, zero for the economic value
 
+    @classmethod
+    def from_calibration(cls, calibration, credit_spread: float = 0.0) -> "MarketState":
+        """The saved calibration, as the engine wants it. See vahedge.market.state."""
+        return cls(
+            curve=calibration.curve,
+            heston=calibration.heston,
+            correlations=calibration.correlations,
+            mix=calibration.mix,
+            mean_reversion=calibration.mean_reversion,
+            rate_vol=calibration.rate_vol,
+            valuation_year=int(calibration.as_of.year),
+            credit_spread=credit_spread,
+        )
+
     def hull_white(self) -> HullWhite:
         return HullWhite(a=self.mean_reversion, sigma=self.rate_vol, curve=self.curve)
 
@@ -238,7 +252,12 @@ class Valuer:
         by_cohort["pv_fees"] = projection.pv_attributable_fees
         by_cohort["attribution"] = attribution
         by_cohort["mrb"] = per_cohort
-        by_cohort["mrb_pct_of_account"] = per_cohort / (book.account_value * shock_factor)
+        shocked_account = book.account_value * shock_factor
+        by_cohort["mrb_pct_of_account"] = np.where(
+            shocked_account > 0.0,
+            per_cohort / np.where(shocked_account > 0.0, shocked_account, 1.0),
+            np.nan,
+        )
 
         return BookValuation(
             market_risk_benefit=mrb,
