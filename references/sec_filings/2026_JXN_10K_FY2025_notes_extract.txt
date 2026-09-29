@@ -1,0 +1,120 @@
+Source        Jackson Financial Inc., Form 10-K for the fiscal year ended 31 December 2025
+Filed         24 February 2026
+CIK           0001822993
+Accession     0001822993-26-000022
+Document      jxn-20251231.htm
+URL           https://www.sec.gov/Archives/edgar/data/1822993/000182299326000022/jxn-20251231.htm
+Retrieved     28 September 2026
+Used by       The volatility term structure, the attributed-fee valuation in the engine, the
+              own-credit adjustment in the GAAP lens, and the RILA payoff specification.
+
+--------------------------------------------------------------------------------------------
+Note 6, Fair Value Measurements: the valuation basis this project reproduces
+--------------------------------------------------------------------------------------------
+
+"At each valuation date, the fair value calculation reflects expected returns based on treasury
+rates as of that date to determine the value of expected future cash flows produced in a
+stochastic process. Volatility assumptions are based on available market data for implied
+market volatility for durations up to 5 years, grading to a historical volatility level by year
+10, where such long-term historical volatility levels contain an explicit risk margin.
+Non-performance risk is incorporated into the calculation through the adjustment of the
+risk-free rate curve based on credit spreads for debt and debt-like instruments issued by the
+Company or its insurance operating subsidiaries, adjusted, as necessary, to reflect the
+financial strength ratings of the issuing insurance subsidiaries. Risk margins are also
+incorporated into the model assumptions, particularly for policyholder behavior. Estimates of
+future policyholder behavior are subjective and are based primarily on the Company's
+experience."
+
+"Estimating these cash flows requires numerous estimates and subjective judgments related to
+capital market inputs, as well as actuarially determined assumptions related to expectations
+concerning policyholder behavior. Capital market inputs include expected market rates of
+return, market volatility, correlations of market index returns to fund returns, and discount
+rates, which include an adjustment for non-performance risk. The more significant actuarial
+assumptions include benefit utilization by policyholders, lapse, mortality, and withdrawal
+rates. Best estimate assumptions plus risk margins are used as applicable."
+
+Three things this passage settles for the model.
+
+  - Discounting is off treasury rates, with a separate own-credit adjustment. The economic
+    value the hedge targets and the reported market risk benefit are therefore two different
+    numbers off one cash flow projection, which is what the GAAP lens separates.
+  - The volatility input is implied out to five years, graded to a long-run historical level by
+    year ten. Nothing is said about the shape between. The project specifies that shape on
+    forward variance rather than on spot volatility, because a spot specification that is flat
+    to five years implies negative forward variance during a volatility spike.
+  - "correlations of market index returns to fund returns" is Jackson naming the sub-account
+    basis problem directly. It is an input to their model and it is unobservable from outside,
+    which is why this project treats it as a scenario parameter rather than a calibrated one.
+
+--------------------------------------------------------------------------------------------
+Note 6: the attributed fee method
+--------------------------------------------------------------------------------------------
+
+"Where the guaranteed benefit features have explicit fees, the fair value of the MRB is
+measured as the difference between the present value of projected future guaranteed benefits
+and the present value of projected attributed fees (the attributed fee method). At inception of
+the contract, the Company attributes a percentage of total projected future fees expected to be
+assessed against the policyholder to offset the projected future guaranteed benefits over the
+lifetime of the contract. Where the projected attributed fees are sufficient to offset the
+projected guaranteed benefits at issue, the MRB has an initial fair value of zero resulting in
+no gain or loss on issuance of the contract. If the projected attributed fees are insufficient
+to offset the projected guaranteed benefits at issue, an MRB liability is recognized and the
+value of the MRB is deducted from the host contract liability resulting in no gain or loss on
+issuance of the contract."
+
+"If the guaranteed benefits do not have explicit fees, the fair value of the MRB is measured as
+the present value of projected future guaranteed benefits."
+
+This is the definition the valuation engine implements, and the reason the attribution
+percentage is calibrated once at issue and then held static.
+
+--------------------------------------------------------------------------------------------
+Item 1, Business: the RILA product
+--------------------------------------------------------------------------------------------
+
+"Our RILA suite offers our customers access to market returns through market index-linked
+investment options, subject to a cap, and offers a variety of guarantees designed to modify or
+limit losses. Specifically, our RILA suite offers a number of options for a customizable
+product, including several combinations of crediting strategies, index options, term lengths,
+and levels of downside protection in the form of "floors" or "buffers." Downside protection
+beyond a specified percentage loss is provided through a "floor," which establishes the maximum
+percentage loss in the selected market index-linked investment option that a customer will
+experience in a down market. Any loss in excess of the floor is insured and borne by us.
+Partial downside protection is provided through a "buffer," which establishes an initial range
+of loss in the market index-linked investment option selected (e.g., the first 20% of loss)
+that we will insure and bear. Any loss that exceeds the buffer will result in a loss of account
+value and be experienced by the customer. Our RILA generally includes a guaranteed minimum
+payment to beneficiaries upon death as well as an optional guaranteed minimum payments for life
+benefit."
+
+"The RILA market has been the fastest growing category in the annuity market over the last five
+years, growing at a compound annual growth rate of 27% from 2021 through 2025."
+
+The only numeric term Jackson publishes here is the 20% buffer, given as an example. Cap rates
+are set at issue and reset by term and are not in the filings, so the project solves for the
+cap that makes the option package self-funding rather than assuming one. That is also how a
+cap is actually set.
+
+--------------------------------------------------------------------------------------------
+Note 10, Other Contract Holder Funds: the RILA balance
+--------------------------------------------------------------------------------------------
+
+Contract holder account balances, roll-forward ($ millions):
+
+                                          Variable Annuity      RILA
+  Balance as of January 1, 2024                      8,396     5,219
+  Balance as of December 31, 2024                    7,206    11,685
+  Balance as of December 31, 2025                    6,351    20,282
+
+  Deposits during 2025                                 855     6,926
+  Investment performance / change in
+    value of equity option, 2025                          -     2,002
+
+Cash surrender value at December 31, 2025:   Variable Annuity 6,330;  RILA 19,736
+Cash surrender value at December 31, 2024:   Variable Annuity 7,153;  RILA 11,285
+
+These are general-account balances, distinct from the separate-account variable annuity assets
+in Note 11. The RILA book nearly doubled in 2025, which is the most likely reason the disclosed
+equity sensitivity of the fixed index and RILA embedded derivatives jumped from +4 / -10 at
+December 2024 to +1,321 / -1,594 at December 2025. Any reading of the netting between the
+guarantee book and the RILA book has to allow for that.

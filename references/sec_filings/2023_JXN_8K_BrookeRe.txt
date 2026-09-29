@@ -1,0 +1,73 @@
+Source        Jackson Financial Inc., Form 8-K, Item 8.01 Other Events
+Date of event 14 December 2023
+Filed         15 December 2023
+CIK           0001822993
+Accession     0001104659-23-126174
+Document      tm2332652d1_8k.htm
+URL           https://www.sec.gov/Archives/edgar/data/1822993/000110465923126174/tm2332652d1_8k.htm
+Retrieved     28 September 2026
+Used by       The cash surrender value floor experiment in the capital workstream, and the
+              framing of the statutory lens in docs/methodology.md.
+
+Why this filing matters to the project. It is the one place where Jackson states, in its own
+words, that the cash surrender value floor imposes a cost that is not economic, and that the
+purpose of ceding the guarantee riders to a captive is to remove it. That is the mechanism the
+capital workstream reproduces: under an equity rally a hedged economic position is flat, but a
+reserve floored at cash surrender value cannot fall with the liability, so the hedge loss is
+realised against a reserve that does not release. The closing sentence below names the effect.
+
+--------------------------------------------------------------------------------------------
+Item 8.01, verbatim
+--------------------------------------------------------------------------------------------
+
+"Jackson Financial Inc. (the "Company," "we," or "our") has actively pursued methods to
+moderate the impact of the cash surrender value floor on the statutory capital and risk-based
+capital ratio of our primary life insurance subsidiary, Jackson National Life Insurance Company
+("Jackson"). On December 14, 2023, Jackson received initial approval from the Michigan
+Department of Insurance and Financial Services ("Michigan DIFS") to form an affiliated Michigan
+captive insurer, Brooke Life Reinsurance Company ("Brooke Re"). Under Michigan DIFS guidelines,
+the initial approval permits funding of Brooke Re in January 2024 with permanent approval that
+enables operations expected promptly after funding occurs.
+
+Jackson will then enter into a reinsurance transaction with Brooke Re, which is expected to
+close in the first quarter of 2024, and all economics of the transaction will be effective as
+of January 1, 2024. The transaction will provide for the cession from Jackson to Brooke Re of
+liabilities associated with certain guaranteed benefit riders under our variable annuity
+contracts and similar products of Jackson ("market risk benefits"), both in-force on the
+effective date of the reinsurance agreement and written in the future (i.e., on a "flow"
+basis). Brooke Re will utilize a modified GAAP approach primarily related to market risk
+benefits, with the intent to increase alignment between assets and liabilities in response to
+changes in economic factors. The transaction is anticipated to mitigate the impact of the cash
+surrender value floor on Jackson's total adjusted capital, statutory required capital, and
+risk-based capital ratio, as well as to allow for more efficient economic hedging of the
+underlying risks of Jackson's business. This outcome will serve the interests of policyholders
+by protecting statutory capital through avoidance of non-economic hedging costs.
+
+The transaction will be structured as a 100% coinsurance with funds withheld cession, with
+Jackson ceding the guaranteed benefit liabilities and related future fees, claims and other
+benefits, and maintenance expenses to Brooke Re in exchange for a ceding commission for the
+in-force business. Jackson will retain the variable annuity base contract, which will continue
+to be subject to the cash surrender value minimum reserve, and will accrue the related base
+contract cash flows, which should result in less volatile effects on capital requirements.
+Jackson will retain responsibility for investment management of the assets in the funds
+withheld account supporting the ceded liabilities. Jackson will also execute a hedging program
+on behalf of Brooke Re, which we expect will involve higher levels of interest rate hedging,
+while Jackson continues to maintain its own hedging programs for its retained liabilities, such
+as registered index-linked annuities. Jackson will retain the annuity contract administration
+of the ceded business."
+
+--------------------------------------------------------------------------------------------
+Three details the model depends on
+--------------------------------------------------------------------------------------------
+
+1. The cession is of the guarantee riders only. The base contract stays with Jackson and stays
+   subject to the cash surrender value minimum reserve. So the floor does not disappear from
+   the group; it stops binding on the piece the hedge is sized against.
+
+2. Brooke Re measures on "a modified GAAP approach", not on the statutory basis that carries
+   the floor. That is what lets the reserve fall when the economic liability falls.
+
+3. The transaction is expected "to allow for more efficient economic hedging". Jackson also
+   says the hedging programme executed on Brooke Re's behalf "will involve higher levels of
+   interest rate hedging", which is consistent with the rise in bond-forward notional from
+   $609m at December 2024 to $8,143m at December 2025 in the Item 7A derivative table.

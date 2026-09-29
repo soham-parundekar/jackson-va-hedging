@@ -1,0 +1,125 @@
+### Quarterly and annual XBRL facts pulled from the SEC company-facts API for Jackson
+### Financial Inc. (CIK 1822993), https://data.sec.gov/api/xbrl/companyfacts/CIK0001822993.json,
+### retrieved 28 September 2026.
+###
+### Values are as filed, in US dollars, taken from the most recent filing that reports each
+### period, so a restated figure supersedes the original. Where the same concept is reported
+### by both a 10-Q and a later 10-K the 10-K value is the one kept.
+###
+### Sign conventions are the filings' own. MarketRiskBenefitChangeInFairValueGainLoss is a
+### gain when positive. GainLossOnDerivativeInstrumentsNetPretax and
+### DerivativeGainLossOnDerivativeNet are the hedge side and are a gain when positive, so the
+### two series moving in opposite directions is the offset the hedging programme is built to
+### produce. OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax is
+### the own-credit movement routed to other comprehensive income, after tax.
+###
+### Fourth quarters are mostly untagged because the 10-K reports the year: derive them as the
+### annual figure less the three quarters rather than treating them as missing.
+concept,period_type,start,end,val_usd,form,filed
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2021-01-01,2021-03-31,6522000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2021-04-01,2021-06-30,-1512000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2021-07-01,2021-09-30,-1066000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2021-10-01,2021-12-31,22000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2022-01-01,2022-03-31,1907000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2022-04-01,2022-06-30,-1184000000,10-Q,2023-08-08
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2022-07-01,2022-09-30,913000000,10-Q,2023-11-08
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2022-10-01,2022-12-31,1900000000,8-K,2023-05-10
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2023-01-01,2023-03-31,174000000,10-Q,2024-05-08
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2023-04-01,2023-06-30,2570000000,10-Q,2024-08-07
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2023-07-01,2023-09-30,2376000000,10-Q,2024-11-06
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2024-01-01,2024-03-31,2718000000,10-Q,2025-05-07
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2024-04-01,2024-06-30,516000000,10-Q,2025-08-05
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2024-07-01,2024-09-30,-1172000000,10-Q,2025-11-04
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2025-01-01,2025-03-31,-2246000000,10-Q,2026-05-05
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2025-04-01,2025-06-30,2203000000,10-Q,2026-08-03
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2025-07-01,2025-09-30,226000000,10-Q,2025-11-04
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2026-01-01,2026-03-31,-1670000000,10-Q,2026-05-05
+MarketRiskBenefitChangeInFairValueGainLoss,quarter,2026-04-01,2026-06-30,2053000000,10-Q,2026-08-03
+MarketRiskBenefitChangeInFairValueGainLoss,year,2021-01-01,2021-12-31,3966000000,10-K,2024-02-28
+MarketRiskBenefitChangeInFairValueGainLoss,year,2022-01-01,2022-12-31,3536000000,10-K,2025-02-26
+MarketRiskBenefitChangeInFairValueGainLoss,year,2023-01-01,2023-12-31,3897000000,10-K,2026-02-24
+MarketRiskBenefitChangeInFairValueGainLoss,year,2024-01-01,2024-12-31,3809000000,10-K,2026-02-24
+MarketRiskBenefitChangeInFairValueGainLoss,year,2025-01-01,2025-12-31,-605000000,10-K,2026-02-24
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2020-07-01,2020-09-30,-2339000000,10-Q,2021-11-10
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2021-01-01,2021-03-31,2670000000,10-Q,2022-05-11
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2021-04-01,2021-06-30,-2310000000,10-Q,2022-08-10
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2021-07-01,2021-09-30,-1166000000,10-Q,2022-11-10
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2022-01-01,2022-03-31,-134000000,10-Q,2023-05-09
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2022-04-01,2022-06-30,4343000000,10-Q,2023-08-08
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2022-07-01,2022-09-30,710000000,10-Q,2023-11-08
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2023-01-01,2023-03-31,-3037000000,10-Q,2024-05-08
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2023-04-01,2023-06-30,-1973000000,10-Q,2024-08-07
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2023-07-01,2023-09-30,267000000,10-Q,2024-11-06
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2024-01-01,2024-03-31,-2842000000,10-Q,2025-05-07
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2024-04-01,2024-06-30,-1282000000,10-Q,2025-08-05
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2024-07-01,2024-09-30,-413000000,10-Q,2024-11-06
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2025-01-01,2025-03-31,1191000000,10-Q,2025-05-07
+GainLossOnDerivativeInstrumentsNetPretax,quarter,2025-04-01,2025-06-30,-2930000000,10-Q,2025-08-05
+GainLossOnDerivativeInstrumentsNetPretax,year,2019-01-01,2019-12-31,-6573000000,10-K,2022-03-07
+GainLossOnDerivativeInstrumentsNetPretax,year,2020-01-01,2020-12-31,-8323000000,8-K,2023-05-10
+GainLossOnDerivativeInstrumentsNetPretax,year,2021-01-01,2021-12-31,-4762000000,10-K,2024-02-28
+GainLossOnDerivativeInstrumentsNetPretax,year,2022-01-01,2022-12-31,707000000,10-K,2025-02-26
+GainLossOnDerivativeInstrumentsNetPretax,year,2023-01-01,2023-12-31,-6037000000,10-K,2025-02-26
+GainLossOnDerivativeInstrumentsNetPretax,year,2024-01-01,2024-12-31,-6922000000,10-K,2025-02-26
+DerivativeGainLossOnDerivativeNet,quarter,2020-04-01,2020-06-30,-5890500000,10-Q,2021-09-20
+DerivativeGainLossOnDerivativeNet,quarter,2021-01-01,2021-03-31,1655000000,10-Q,2022-05-11
+DerivativeGainLossOnDerivativeNet,quarter,2021-04-01,2021-06-30,-1768300000,10-Q,2021-09-20
+DerivativeGainLossOnDerivativeNet,quarter,2022-01-01,2022-03-31,-1436000000,10-Q,2023-05-09
+DerivativeGainLossOnDerivativeNet,quarter,2023-01-01,2023-03-31,-2658000000,10-Q,2024-05-08
+DerivativeGainLossOnDerivativeNet,quarter,2024-01-01,2024-03-31,-2885000000,10-Q,2025-05-07
+DerivativeGainLossOnDerivativeNet,quarter,2025-01-01,2025-03-31,1409000000,10-Q,2026-05-05
+DerivativeGainLossOnDerivativeNet,quarter,2026-01-01,2026-03-31,330000000,10-Q,2026-05-05
+DerivativeGainLossOnDerivativeNet,year,2019-01-01,2019-12-31,-6573000000,10-K,2022-03-07
+DerivativeGainLossOnDerivativeNet,year,2020-01-01,2020-12-31,-7268000000,8-K,2023-05-10
+DerivativeGainLossOnDerivativeNet,year,2021-01-01,2021-12-31,-5526000000,10-K,2024-02-28
+DerivativeGainLossOnDerivativeNet,year,2022-01-01,2022-12-31,-2664000000,10-K,2025-02-26
+DerivativeGainLossOnDerivativeNet,year,2023-01-01,2023-12-31,-5310000000,10-K,2026-02-24
+DerivativeGainLossOnDerivativeNet,year,2024-01-01,2024-12-31,-6801000000,10-K,2026-02-24
+DerivativeGainLossOnDerivativeNet,year,2025-01-01,2025-12-31,-3241000000,10-K,2026-02-24
+EmbeddedDerivativeGainLossOnEmbeddedDerivativeNet,quarter,2020-04-01,2020-06-30,3715900000,10-Q,2021-09-20
+EmbeddedDerivativeGainLossOnEmbeddedDerivativeNet,quarter,2021-04-01,2021-06-30,-1373700000,10-Q,2021-09-20
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2024-01-01,2024-03-31,-400000000,10-Q,2025-05-07
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2024-04-01,2024-06-30,-30000000,10-Q,2025-08-05
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2024-07-01,2024-09-30,-184000000,10-Q,2025-11-04
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2025-01-01,2025-03-31,256000000,10-Q,2026-05-05
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2025-04-01,2025-06-30,-209000000,10-Q,2026-08-03
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2025-07-01,2025-09-30,-458000000,10-Q,2025-11-04
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2026-01-01,2026-03-31,261000000,10-Q,2026-05-05
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,quarter,2026-04-01,2026-06-30,-49000000,10-Q,2026-08-03
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,year,2021-01-01,2021-12-31,-332000000,10-K,2024-02-28
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,year,2022-01-01,2022-12-31,1468000000,10-K,2025-02-26
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,year,2023-01-01,2023-12-31,-955000000,10-K,2026-02-24
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,year,2024-01-01,2024-12-31,-520000000,10-K,2026-02-24
+OciMarketRiskBenefitInstrumentSpecificCreditRiskGainLossAfterAdjustmentsAndTax,year,2025-01-01,2025-12-31,-261000000,10-K,2026-02-24
+MarketRiskBenefitAssetAmount,instant,,2021-12-31,1664000000,8-K,2023-05-10
+MarketRiskBenefitAssetAmount,instant,,2022-12-31,4865000000,10-K,2024-02-28
+MarketRiskBenefitAssetAmount,instant,,2023-03-31,5204000000,10-Q,2023-05-09
+MarketRiskBenefitAssetAmount,instant,,2023-06-30,5957000000,10-Q,2023-08-08
+MarketRiskBenefitAssetAmount,instant,,2023-09-30,6815000000,10-Q,2023-11-08
+MarketRiskBenefitAssetAmount,instant,,2023-12-31,6737000000,10-K,2025-02-26
+MarketRiskBenefitAssetAmount,instant,,2024-03-31,8025000000,10-Q,2024-05-08
+MarketRiskBenefitAssetAmount,instant,,2024-06-30,8556000000,10-Q,2024-08-07
+MarketRiskBenefitAssetAmount,instant,,2024-09-30,7615000000,10-Q,2024-11-06
+MarketRiskBenefitAssetAmount,instant,,2024-12-31,8899000000,10-K,2026-02-24
+MarketRiskBenefitAssetAmount,instant,,2025-03-31,7326000000,10-Q,2025-05-07
+MarketRiskBenefitAssetAmount,instant,,2025-06-30,8721000000,10-Q,2025-08-05
+MarketRiskBenefitAssetAmount,instant,,2025-09-30,8521000000,10-Q,2025-11-04
+MarketRiskBenefitAssetAmount,instant,,2025-12-31,7867000000,10-Q,2026-08-03
+MarketRiskBenefitAssetAmount,instant,,2026-03-31,6701000000,10-Q,2026-05-05
+MarketRiskBenefitAssetAmount,instant,,2026-06-30,8046000000,10-Q,2026-08-03
+MarketRiskBenefitLiabilityAmount,instant,,2021-12-31,8033000000,8-K,2023-05-10
+MarketRiskBenefitLiabilityAmount,instant,,2022-12-31,5662000000,10-K,2024-02-28
+MarketRiskBenefitLiabilityAmount,instant,,2023-03-31,5560000000,10-Q,2023-05-09
+MarketRiskBenefitLiabilityAmount,instant,,2023-06-30,4463000000,10-Q,2023-08-08
+MarketRiskBenefitLiabilityAmount,instant,,2023-09-30,3917000000,10-Q,2023-11-08
+MarketRiskBenefitLiabilityAmount,instant,,2023-12-31,4785000000,10-K,2025-02-26
+MarketRiskBenefitLiabilityAmount,instant,,2024-03-31,3843000000,10-Q,2024-05-08
+MarketRiskBenefitLiabilityAmount,instant,,2024-06-30,3890000000,10-Q,2024-08-07
+MarketRiskBenefitLiabilityAmount,instant,,2024-09-30,4384000000,10-Q,2024-11-06
+MarketRiskBenefitLiabilityAmount,instant,,2024-12-31,3774000000,10-K,2026-02-24
+MarketRiskBenefitLiabilityAmount,instant,,2025-03-31,4125000000,10-Q,2025-05-07
+MarketRiskBenefitLiabilityAmount,instant,,2025-06-30,3569000000,10-Q,2025-08-05
+MarketRiskBenefitLiabilityAmount,instant,,2025-09-30,3733000000,10-Q,2025-11-04
+MarketRiskBenefitLiabilityAmount,instant,,2025-12-31,3754000000,10-Q,2026-08-03
+MarketRiskBenefitLiabilityAmount,instant,,2026-03-31,3971000000,10-Q,2026-05-05
+MarketRiskBenefitLiabilityAmount,instant,,2026-06-30,3368000000,10-Q,2026-08-03

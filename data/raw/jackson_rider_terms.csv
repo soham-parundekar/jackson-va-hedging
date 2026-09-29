@@ -1,0 +1,57 @@
+### Flex GMWB and Flex Net GMWB rates, Perspective II (contracts sold on or after 24 June 2019).
+### Source: Rate Sheet Prospectus Supplement dated 27 April 2026, Form 497 filed 2026-04-09,
+### Jackson National Separate Account - I (CIK 927730), accession 0000927730-26-000157.
+### Rates are those applying to a benefit elected on the contract issue date. The separate
+### (lower) table for benefits elected on a later contract anniversary is not modelled.
+### charge_pct and gawa_pct are decimals of the GWB; bonus_pct is a decimal of the GWB.
+### gwb_adjustment_pct is the multiple of premium the GWB is compared against at the end of
+### the adjustment period; step_up names the contract-value observation the ratchet uses.
+benefit,life_basis,option,charge_pct,bonus_pct,step_up,gwb_adjustment_pct,age_low,age_high,gawa_pct
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,35,59,0.0300
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,60,64,0.0300
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,65,69,0.0400
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,70,74,0.0415
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,75,80,0.0425
+flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,81,120,0.0450
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,35,59,0.0400
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,60,64,0.0400
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,65,69,0.0555
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,70,74,0.0575
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,75,80,0.0595
+flex_gmwb,single,core,0.0125,0.06,annual_contract_value,1.05,81,120,0.0620
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,35,59,0.0400
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,60,64,0.0435
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,65,69,0.0585
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,70,74,0.0605
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,75,80,0.0625
+flex_gmwb,single,plus,0.0170,0.07,quarterly_contract_value,2.00,81,120,0.0650
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,35,59,0.0275
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,60,64,0.0275
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,65,69,0.0400
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,70,74,0.0415
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,75,80,0.0425
+flex_gmwb,joint,value,0.0060,0.05,annual_contract_value,1.05,81,120,0.0450
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,35,59,0.0375
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,60,64,0.0375
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,65,69,0.0520
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,70,74,0.0540
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,75,80,0.0560
+flex_gmwb,joint,core,0.0155,0.06,annual_contract_value,1.05,81,120,0.0585
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,35,59,0.0375
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,60,64,0.0410
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,65,69,0.0545
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,70,74,0.0565
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,75,80,0.0585
+flex_gmwb,joint,plus,0.0200,0.07,quarterly_contract_value,2.00,81,120,0.0610
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,35,59,0.0300
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,60,64,0.0300
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,65,69,0.0400
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,70,74,0.0415
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,75,80,0.0425
+flex_net_gmwb,single,value,0.0045,0.05,annual_contract_value,1.05,81,120,0.0450
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,35,59,0.0400
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,60,64,0.0400
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,65,69,0.0555
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,70,74,0.0575
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,75,80,0.0595
+flex_net_gmwb,single,core,0.0140,0.06,annual_contract_value,1.05,81,120,0.0620

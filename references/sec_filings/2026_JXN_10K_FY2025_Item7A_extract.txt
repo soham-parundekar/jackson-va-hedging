@@ -1,0 +1,136 @@
+Source        Jackson Financial Inc., Form 10-K for the fiscal year ended 31 December 2025
+Filed         24 February 2026
+CIK           0001822993
+Accession     0001822993-26-000022
+Document      jxn-20251231.htm
+URL           https://www.sec.gov/Archives/edgar/data/1822993/000182299326000022/jxn-20251231.htm
+Retrieved     28 September 2026
+Method        Rendered in a browser and the text of Item 7A copied verbatim. The filing is a
+              public SEC document; the extract below is the portion this project relies on.
+Used by       V1 (derivative-book reproduction), V2 (shock repricing), the disclosure data in
+              data/raw/jackson_derivative_sensitivities.csv and
+              data/raw/jackson_disclosed_sensitivities.csv, and the hedging-programme
+              description in docs/research_design.md.
+
+--------------------------------------------------------------------------------------------
+Risk Management / Our Hedging Approach
+--------------------------------------------------------------------------------------------
+
+"Equity Market Risk: We manage equity market risk by both holding sufficient capital and by
+using derivative-based hedges as described above in our hedging program. We hedge the equity
+risk embedded within our products by using equity options, total return swaps, and futures on
+a variety of indices that best represent the equity exposures inherent in the range of
+underlying investment options available on certain of our annuities."
+
+"Interest Rate Risk: We manage interest rate risk by employing product design, pricing and
+asset-liability management strategies intended to mitigate the potential effects of interest
+rate movements. ... Our asset-liability management strategies may include the use of
+derivatives, such as interest rate swaps, interest rate swaptions (also known as a swap
+option) and interest rate/bond futures/forwards, as well as fixed income assets. We manage
+interest rate risk in aggregate, contemplating natural offsets between products before
+pursuing hedging transactions."
+
+"Our hedging program seeks to balance three objectives: protecting against the economic impact
+of adverse market conditions, protecting our statutory capital, and stabilizing our statutory
+distributable earnings throughout market cycles. Our core dynamic hedging program seeks to
+offset impacts of equity market and interest rate movements on the economic liabilities
+associated with variable annuity guaranteed benefits and with annuities subject to index
+interest crediting (RILA and FIA), while our macro hedging program seeks to provide additional
+liquidity and statutory capital protection as needed."
+
+"Our hedging strategy manages equity and interest rate risk within risk tolerances through a
+mix of equity and interest rate derivatives and fixed income assets. We do not directly use
+hedging to offset the movement in our U.S. GAAP liabilities as market conditions change from
+period to period, which has resulted, and may continue to result, in U.S. GAAP net income
+volatility."
+
+--------------------------------------------------------------------------------------------
+Risk Measurement - Sensitivity Analysis: shock definition
+--------------------------------------------------------------------------------------------
+
+"This analysis estimates the potential changes in estimated fair value based on a hypothetical
+100 basis point parallel shift (increase or decrease) in risk-free interest rates and a 10%
+change (increase or decrease) in equity market prices. In performing the analysis summarized
+below, we used market rates and balance sheet positions as of December 31, 2025 and 2024,
+respectively."
+
+Stated limitations of the analysis, verbatim in summary form:
+  - interest-rate sensitive liabilities exclude $72.3 billion and $66.2 billion of policy and
+    contract liabilities as of December 31, 2025 and 2024, accounted for on a book value basis
+  - interest-rate sensitive assets exclude book-value assets, primarily $9.9 billion and
+    $9.5 billion of mortgage loans
+  - the analysis excludes assets and liabilities related to funds withheld reinsurance treaties
+  - the analysis excludes real estate holdings
+  - the analysis excludes the impact of changes in income taxes
+  - composition of assets and liabilities is held unchanged and management actions are excluded
+
+--------------------------------------------------------------------------------------------
+Rate sensitivity of debt securities and of the guarantee liabilities ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                          December 31, 2025              December 31, 2024
+                                   Fair Value   +100bps   -100bps   Fair Value  +100bps  -100bps
+Debt Securities
+  Floating Rate                         4,864       (20)        20        3,925      (8)       8
+  Fixed Rate                           37,974    (2,043)     2,244       30,236  (1,679)   1,890
+
+Fixed index and RILA embedded deriv.    6,216      (367)       407        3,174    (221)     234
+Market risk benefit - net (asset) liab (4,238)   (2,980)     3,892       (4,939) (3,206)   4,258
+
+"The fair value of certain market risk benefits reflects the present value of projected benefit
+payments less the present value of attributed fees. These benefit payments and fees are subject
+to differing degrees of discounting, as benefit payments are generally projected to occur
+further in the future as compared to attributed fees. As a result, the degree of sensitivity
+between the present values of projected fees as compared to the present values of projected
+benefit payments may result in disproportionate sensitivity impacts relative to the market risk
+benefits fair value."
+
+--------------------------------------------------------------------------------------------
+Equity sensitivity ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                          December 31, 2025              December 31, 2024
+                                   Fair Value     +10%      -10%   Fair Value    +10%     -10%
+Equity Securities and Limited Part.     2,228       223      (223)       1,814     181    (181)
+Fixed index and RILA embedded deriv.    6,216     1,321    (1,594)       3,174       4     (10)
+Market risk benefit - net (asset) liab (4,238)   (1,574)    2,008       (4,939) (1,722)  2,187
+
+"The fair value of our market risk benefits reflect our contract holders' exposure to equity
+market declines. When equity markets increase, this exposure and the related fair value
+decline."
+
+--------------------------------------------------------------------------------------------
+Derivative instruments: interest rate sensitivity ($ millions, 100bp parallel shift)
+--------------------------------------------------------------------------------------------
+
+                        Notional   Wtd Avg Term (y)   +100bps    Fair Value    -100bps
+December 31, 2025
+  Swaps                    3,864               4.88       107            19       (118)
+  Interest Rate Futures   21,874               0.25    (1,414)            --      1,700
+  Bond Forwards            8,143               0.85    (1,249)            83      1,489
+  Total                                                (2,556)           102      3,071
+December 31, 2024
+  Swaps                    7,703               4.70      (128)         (204)        133
+  Interest Rate Futures   20,592               0.25    (2,603)            --      3,154
+  Bond Forwards              609               0.87       (99)          (21)        123
+  Total                                                (2,830)         (225)      3,410
+
+--------------------------------------------------------------------------------------------
+Derivative instruments: equity sensitivity ($ millions, 10% move)
+--------------------------------------------------------------------------------------------
+
+                        Notional   Wtd Avg Term (y)      +10%    Fair Value      -10%
+December 31, 2025
+  Put Options             16,500               0.24       (95)          114        395
+  Equity Futures          43,905               0.84       551            --       (551)
+  Total Return Swaps       3,544               1.93      (322)          (21)       337
+  Total                                                   134            93        181
+December 31, 2024
+  Put Options             10,000               0.22       (68)           77        286
+  Equity Futures          33,104               1.29      (583)           --        583
+  Total Return Swaps       2,065               3.48      (203)           39        203
+  Total                                                  (854)          116      1,072
+
+Transcription check: on each of the eight blocks above, the instrument lines sum to the
+disclosed Total in every column. That arithmetic identity is what was used to verify the
+transcription, and tests/test_disclosures.py re-runs it against the committed CSV.

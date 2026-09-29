@@ -1,0 +1,127 @@
+Source        Rate Sheet Prospectus Supplement dated 27 April 2026, to the Perspective II
+              prospectus dated 27 April 2026 (contracts offered on and after 24 June 2019)
+Registrant    Jackson National Separate Account - I
+CIK           0000927730
+Form          497
+Filed         9 April 2026
+Accession     0000927730-26-000157
+Document      jnlpiiafter6-24x19rateshee.htm
+URL           https://www.sec.gov/Archives/edgar/data/927730/000092773026000157/jnlpiiafter6-24x19rateshee.htm
+Retrieved     28 September 2026
+Used by       data/raw/jackson_rider_terms.csv, config/params.yaml, and the age-banded
+              withdrawal table in the GMWB engine.
+
+Why the rate sheet and not the prospectus. The Perspective II statutory prospectus
+(Form N-4, 485BPOS filed 21 April 2026, accession 0000927730-26-000195) gives the mechanics
+but not the numbers: it states that "This prospectus utilizes Rate Sheet Prospectus
+Supplements to describe the current annual charges, Bonus percentages, Guaranteed Withdrawal
+Balance Adjustment percentages, and Guaranteed Annual Withdrawal Amount percentages for
+certain add-on living and death benefits." The prospectus quotes only a maximum charge of
+3.00% of the benefit base, which is a cap on what Jackson may charge and not what it does
+charge. Modelling the maximum would overstate fee income by more than a factor of two. The
+rates below are the current ones.
+
+"The charges and rates below apply for applications or benefit election forms signed on or
+after April 27, 2026."
+
+--------------------------------------------------------------------------------------------
+Current annual charges, add-on benefits elected on the contract issue date
+--------------------------------------------------------------------------------------------
+
+  Add-on Benefit Name                                    Current Annual Charge   Charge Basis
+  AutoGuard                                                             0.85%    GWB
+  Flex GMWB (Single)        Plus                                        1.70%    GWB
+                            Core                                        1.25%
+                            Value                                       0.30%
+  Flex GMWB (Joint)         Plus                                        2.00%    GWB
+                            Core                                        1.55%
+                            Value                                       0.60%
+  Flex Net GMWB (Single)    Core                                        1.40%    GWB
+                            Value                                       0.45%
+  Flex Net GMWB (Joint)     Core                                        1.70%    GWB
+                            Value                                       0.75%
+  Flex Strategic Income GMWB (Single)                                   1.75%    GWB
+  Flex Strategic Income GMWB (Joint)                                    1.85%    GWB
+  MarketGuard Stretch                                                   1.10%    GMWB Charge Base
+  Roll-up GMDB                                                          0.90%    GMDB Benefit Base
+  Highest Quarterly Anniversary Value GMDB                              0.30%    GMDB Benefit Base
+  Combination Roll-up and HQAV GMDB                                     1.00%    GMDB Benefit Base
+  Flex DB (with Flex Value or Flex Core)                                0.80%    GMWB Death Benefit
+
+--------------------------------------------------------------------------------------------
+Flex GMWB (Single), benefit options elected at issue
+--------------------------------------------------------------------------------------------
+
+  Benefit Option                    Value                Core                 Plus
+  Bonus                                5%                  6%                   7%
+  Step-Up             Annual Contract Value   Annual Contract Value   Quarterly Contract Value
+  GWB Adjustment                     105%                105%                 200%
+
+  GAWA percentages by attained age at the time of the first withdrawal:
+  Ages        Value      Core      Plus
+  35-59       3.00%     4.00%     4.00%
+  60-64       3.00%     4.00%     4.35%
+  65-69       4.00%     5.55%     5.85%
+  70-74       4.15%     5.75%     6.05%
+  75-80       4.25%     5.95%     6.25%
+  81+         4.50%     6.20%     6.50%
+
+--------------------------------------------------------------------------------------------
+Flex GMWB (Joint), benefit options elected at issue
+--------------------------------------------------------------------------------------------
+
+  Benefit Option                    Value                Core                 Plus
+  Bonus                                5%                  6%                   7%
+  Step-Up             Annual Contract Value   Annual Contract Value   Quarterly Contract Value
+  GWB Adjustment                     105%                105%                 200%
+
+  Ages        Value      Core      Plus
+  35-59       2.75%     3.75%     3.75%
+  60-64       2.75%     3.75%     4.10%
+  65-69       4.00%     5.20%     5.45%
+  70-74       4.15%     5.40%     5.65%
+  75-80       4.25%     5.60%     5.85%
+  81+         4.50%     5.85%     6.10%
+
+--------------------------------------------------------------------------------------------
+Flex Net GMWB (Single) and (Joint), elected at issue
+--------------------------------------------------------------------------------------------
+
+  Single          Value      Core            Joint           Value      Core
+  Bonus              5%        6%            Bonus              5%        6%
+  Step-Up       Annual    Annual             Step-Up       Annual    Annual
+  GWB Adjust.     105%      105%             GWB Adjust.     105%      105%
+  35-59          3.00%     4.00%             35-59          2.75%     3.75%
+  60-64          3.00%     4.00%             60-64          2.75%     3.75%
+  65-69          4.00%     5.55%             65-69          4.00%     5.20%
+  70-74          4.15%     5.75%             70-74          4.15%     5.40%
+  75-80          4.25%     5.95%             75-80          4.25%     5.60%
+  81+            4.50%     6.20%             81+            4.50%     5.85%
+
+--------------------------------------------------------------------------------------------
+Death benefit rates elected at issue
+--------------------------------------------------------------------------------------------
+
+  Flex DB step-up percentage                                           100.00%
+  Roll-up GMDB roll-up percentage         age 69 or younger  6.00%   age 70 or older  5.00%
+  Combination Roll-up and HQAV GMDB       age 69 or younger  6.00%   age 70 or older  5.00%
+
+--------------------------------------------------------------------------------------------
+Other rates quoted in the same supplement
+--------------------------------------------------------------------------------------------
+
+  AutoGuard GAWA percentage                                              5.00%
+  MarketGuard Stretch GAWA percentage      ages 0-54  4.50%   55-59  5.00%   60+  5.50%
+  Flex Strategic Income GMWB (Single)  Bonus 5%; Accelerated GAWA% 5.35/5.60/7.00/7.25/7.35/7.60
+                                       across the same six age bands; Standard GAWA%
+                                       3.00/3.00/4.00/4.00/4.00/4.00
+  Flex Strategic Income GMWB (Joint)   Bonus 5%; Accelerated 5.00/5.00/6.25/6.40/6.50/6.75;
+                                       Standard 2.75/2.75/4.00/4.00/4.00/4.00
+
+A separate, lower schedule applies to a Flex GMWB elected on a later contract anniversary
+rather than at issue (Core charge 1.45%, bonus 6%, GAWA% 3.75/3.75/5.00/5.00/5.25/5.50 single).
+That schedule is not modelled: every cohort in this project elects the rider at issue.
+
+Ongoing fee context quoted in the same supplement: optional benefits elected for an additional
+charge range from a minimum of 0.30% to a maximum of 2.00% for a single optional benefit, the
+minimum being a percentage of the GMDB benefit base and the maximum a percentage of the GWB.

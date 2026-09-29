@@ -1,12 +1,23 @@
-# Deliberately short. Nothing here needs SciPy: the curve bootstrap is a forward
-# substitution, the volatility term structure integrates in closed form, and the one
-# regression in the hedging residual analysis goes through numpy.linalg.lstsq. The test
-# suite needs no test framework either, so a clean interpreter with these four packages runs
-# everything.
+# Five packages, and each one earns its place.
+#
+# numpy, pandas, matplotlib and PyYAML carry the original project: the curve bootstrap is a
+# forward substitution, the deterministic volatility term structure integrates in closed form,
+# and the regressions go through numpy.linalg.lstsq.
+#
+# SciPy arrived with the expanded scope and is used in three places that genuinely need it:
+# least_squares for the Heston calibration, brentq for Black implied volatility and for the
+# break-even fee, and the normal distribution in the Black-76 helpers. Writing those by hand
+# would be worse code, not more independent code.
+#
+# Numba is deliberately absent. The liability recursion steps a policy year at a time over an
+# array of cohorts by paths, so the inner loop runs at most fifty-five times per valuation and
+# the work inside it is already vectorised. A compiled kernel would add a dependency, a
+# compilation wait and a second code path to keep correct, and would save seconds.
 #
 # Version floors are the oldest releases this has been run against, not the versions it was
 # developed on.
 numpy>=1.24
 pandas>=2.0
+scipy>=1.10
 matplotlib>=3.7
 PyYAML>=6.0

@@ -1,0 +1,84 @@
+### Item 7A derivative sensitivity tables, transcribed from the filings named in source_filing_fy.
+### FY2025 10-K (accession 0001822993-26-000022) uses a 100bp parallel shift; FY2022 10-K
+### (accession 0001822993-23-000009) uses 50bp. The shock size is a property of the filing,
+### not of the date, so never assume one from the other.
+###
+### level is 'instrument' for a line that is a component of the disclosed Total, 'component'
+### for the Calls and Puts breakdown that sits inside the FY2022 'Options' line, and 'total'
+### for the disclosed Total row. Summing level='instrument' reproduces level='total' exactly
+### on every one of the eight blocks, which is how this transcription was checked.
+###
+### Futures fair values are shown as a dash in the filings and are recorded here as 0:
+### a futures position is marked to market daily, so its carrying fair value is nil.
+### Notional is gross of offsetting long and short positions and is not an exposure measure.
+source_filing_fy,as_of,risk,instrument,level,notional_musd,avg_term_years,fair_value_musd,shock,impact_musd
+2025,2025-12-31,rates,swaps,instrument,3864,4.88,19,rates_up_100bp,107
+2025,2025-12-31,rates,swaps,instrument,3864,4.88,19,rates_down_100bp,-118
+2025,2025-12-31,rates,interest_rate_futures,instrument,21874,0.25,0,rates_up_100bp,-1414
+2025,2025-12-31,rates,interest_rate_futures,instrument,21874,0.25,0,rates_down_100bp,1700
+2025,2025-12-31,rates,bond_forwards,instrument,8143,0.85,83,rates_up_100bp,-1249
+2025,2025-12-31,rates,bond_forwards,instrument,8143,0.85,83,rates_down_100bp,1489
+2025,2025-12-31,rates,total,total,,,102,rates_up_100bp,-2556
+2025,2025-12-31,rates,total,total,,,102,rates_down_100bp,3071
+2025,2024-12-31,rates,swaps,instrument,7703,4.70,-204,rates_up_100bp,-128
+2025,2024-12-31,rates,swaps,instrument,7703,4.70,-204,rates_down_100bp,133
+2025,2024-12-31,rates,interest_rate_futures,instrument,20592,0.25,0,rates_up_100bp,-2603
+2025,2024-12-31,rates,interest_rate_futures,instrument,20592,0.25,0,rates_down_100bp,3154
+2025,2024-12-31,rates,bond_forwards,instrument,609,0.87,-21,rates_up_100bp,-99
+2025,2024-12-31,rates,bond_forwards,instrument,609,0.87,-21,rates_down_100bp,123
+2025,2024-12-31,rates,total,total,,,-225,rates_up_100bp,-2830
+2025,2024-12-31,rates,total,total,,,-225,rates_down_100bp,3410
+2025,2025-12-31,equity,put_options,instrument,16500,0.24,114,equity_up_10pct,-95
+2025,2025-12-31,equity,put_options,instrument,16500,0.24,114,equity_down_10pct,395
+2025,2025-12-31,equity,equity_futures,instrument,43905,0.84,0,equity_up_10pct,551
+2025,2025-12-31,equity,equity_futures,instrument,43905,0.84,0,equity_down_10pct,-551
+2025,2025-12-31,equity,total_return_swaps,instrument,3544,1.93,-21,equity_up_10pct,-322
+2025,2025-12-31,equity,total_return_swaps,instrument,3544,1.93,-21,equity_down_10pct,337
+2025,2025-12-31,equity,total,total,,,93,equity_up_10pct,134
+2025,2025-12-31,equity,total,total,,,93,equity_down_10pct,181
+2025,2024-12-31,equity,put_options,instrument,10000,0.22,77,equity_up_10pct,-68
+2025,2024-12-31,equity,put_options,instrument,10000,0.22,77,equity_down_10pct,286
+2025,2024-12-31,equity,equity_futures,instrument,33104,1.29,0,equity_up_10pct,-583
+2025,2024-12-31,equity,equity_futures,instrument,33104,1.29,0,equity_down_10pct,583
+2025,2024-12-31,equity,total_return_swaps,instrument,2065,3.48,39,equity_up_10pct,-203
+2025,2024-12-31,equity,total_return_swaps,instrument,2065,3.48,39,equity_down_10pct,203
+2025,2024-12-31,equity,total,total,,,116,equity_up_10pct,-854
+2025,2024-12-31,equity,total,total,,,116,equity_down_10pct,1072
+2022,2022-12-31,rates,swaps,instrument,11053,6.01,-257,rates_up_50bp,-165
+2022,2022-12-31,rates,swaps,instrument,11053,6.01,-257,rates_down_50bp,174
+2022,2022-12-31,rates,swaptions,instrument,25000,1.07,-1711,rates_up_50bp,-685
+2022,2022-12-31,rates,swaptions,instrument,25000,1.07,-1711,rates_down_50bp,647
+2022,2022-12-31,rates,interest_rate_futures,instrument,105261,0.91,0,rates_up_50bp,-102
+2022,2022-12-31,rates,interest_rate_futures,instrument,105261,0.91,0,rates_down_50bp,83
+2022,2022-12-31,rates,total,total,,,-1968,rates_up_50bp,-952
+2022,2022-12-31,rates,total,total,,,-1968,rates_down_50bp,904
+2022,2021-12-31,rates,swaps,instrument,10995,6.99,450,rates_up_50bp,-226
+2022,2021-12-31,rates,swaps,instrument,10995,6.99,450,rates_down_50bp,238
+2022,2021-12-31,rates,swaptions,instrument,19000,2.07,133,rates_up_50bp,-427
+2022,2021-12-31,rates,swaptions,instrument,19000,2.07,133,rates_down_50bp,416
+2022,2021-12-31,rates,interest_rate_futures,instrument,912,0.25,0,rates_up_50bp,-66
+2022,2021-12-31,rates,interest_rate_futures,instrument,912,0.25,0,rates_down_50bp,73
+2022,2021-12-31,rates,total,total,,,583,rates_up_50bp,-719
+2022,2021-12-31,rates,total,total,,,583,rates_down_50bp,727
+2022,2022-12-31,equity,options,instrument,48000,0.53,1064,equity_up_10pct,225
+2022,2022-12-31,equity,options,instrument,48000,0.53,1064,equity_down_10pct,916
+2022,2022-12-31,equity,calls,component,17500,0.10,106,equity_up_10pct,698
+2022,2022-12-31,equity,calls,component,17500,0.10,106,equity_down_10pct,-99
+2022,2022-12-31,equity,puts,component,30500,0.77,958,equity_up_10pct,-473
+2022,2022-12-31,equity,puts,component,30500,0.77,958,equity_down_10pct,1015
+2022,2022-12-31,equity,equity_futures,instrument,19760,1.78,0,equity_up_10pct,-1988
+2022,2022-12-31,equity,equity_futures,instrument,19760,1.78,0,equity_down_10pct,1988
+2022,2022-12-31,equity,total_return_swaps,instrument,739,4.34,31,equity_up_10pct,-71
+2022,2022-12-31,equity,total_return_swaps,instrument,739,4.34,31,equity_down_10pct,71
+2022,2022-12-31,equity,total,total,,,1095,equity_up_10pct,-1834
+2022,2022-12-31,equity,total,total,,,1095,equity_down_10pct,2975
+2022,2021-12-31,equity,options,instrument,48500,0.20,756,equity_up_10pct,1549
+2022,2021-12-31,equity,options,instrument,48500,0.20,756,equity_down_10pct,-115
+2022,2021-12-31,equity,calls,component,21000,0.20,606,equity_up_10pct,1672
+2022,2021-12-31,equity,calls,component,21000,0.20,606,equity_down_10pct,-569
+2022,2021-12-31,equity,puts,component,27500,0.20,150,equity_up_10pct,-123
+2022,2021-12-31,equity,puts,component,27500,0.20,150,equity_down_10pct,454
+2022,2021-12-31,equity,equity_futures,instrument,18258,0.21,0,equity_up_10pct,-1826
+2022,2021-12-31,equity,equity_futures,instrument,18258,0.21,0,equity_down_10pct,1826
+2022,2021-12-31,equity,total,total,,,756,equity_up_10pct,-277
+2022,2021-12-31,equity,total,total,,,756,equity_down_10pct,1711

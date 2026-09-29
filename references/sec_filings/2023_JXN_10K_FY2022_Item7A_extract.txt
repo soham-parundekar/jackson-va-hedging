@@ -1,0 +1,106 @@
+Source        Jackson Financial Inc., Form 10-K for the fiscal year ended 31 December 2022
+Filed         28 February 2023
+CIK           0001822993
+Accession     0001822993-23-000009
+Document      jxn-20221231.htm
+URL           https://www.sec.gov/Archives/edgar/data/1822993/000182299323000009/jxn-20221231.htm
+Retrieved     28 September 2026
+Method        Rendered in a browser and the text of Item 7A copied verbatim.
+Used by       V2 (scale-free liability asymmetry at Dec 2021 and Dec 2022) and the swaption
+              and call/put detail behind the instrument library in the hedging engine.
+
+Why this filing rather than a later one. This is the last 10-K in which the variable annuity
+guarantee sits on the balance sheet under the pre-LDTI measurement, as a carrying value that
+is positive at both disclosed dates. Every filing from FY2023 onward reports a market risk
+benefit that is a net asset, so a level comparison against a model that prices a single
+in-force contract is meaningless. What survives the regime change is the ratio of the down
+impact to the up impact, which is scale-free, and the sign of the year-on-year move. Those are
+what V2 tests.
+
+The rate shock in this filing is 50 basis points. The FY2025 filing uses 100. The shock size
+is a property of the filing.
+
+--------------------------------------------------------------------------------------------
+Rate sensitivity ($ millions, 50bp parallel shift)
+--------------------------------------------------------------------------------------------
+
+                                          December 31, 2022              December 31, 2021
+                                    Fair Value   +50bps   -50bps   Fair Value  +50bps  -50bps
+Debt Securities
+  Floating Rate                          3,025       --        1        2,418     (17)      4
+  Fixed Rate                            27,956     (906)     946       31,698  (1,567)  1,067
+
+                                  Carrying Value   +50bps   -50bps  Carrying Val +50bps  -50bps
+Fixed Index and Variable Annuity
+  Guarantee Liabilities                     499   (1,531)   1,726        4,031  (2,646)  2,997
+
+"The carrying value of variable and fixed index annuity guarantee liabilities reflects the
+present value of projected benefit payments less the present value of attributed fees. These
+benefit payments and fees are subject to differing degrees of discounting, as benefit payments
+are generally projected to occur further in the future as compared to attributed fees. As a
+result, the degree of sensitivity between the present values of projected fees as compared to
+the present values of projected benefit payments may result in disproportionate sensitivity
+impacts relative to the liability carrying value."
+
+--------------------------------------------------------------------------------------------
+Equity sensitivity ($ millions, 10% move)
+--------------------------------------------------------------------------------------------
+
+                                          December 31, 2022              December 31, 2021
+                                    Fair Value     +10%     -10%   Fair Value    +10%    -10%
+Equity Securities and Limited Part.      2,734     (273)     273        2,279    (228)    228
+
+                                  Carrying Value     +10%     -10%  Carrying Val   +10%    -10%
+Fixed Index and Variable Annuity
+  Guarantee Liabilities                     499   (1,793)   2,202        4,031    (663)  1,526
+
+"The carrying value of our annuity guarantee liabilities reflect our contract holders' exposure
+to equity market declines. When equity markets increase, this exposure and the related
+liability declines."
+
+Derived quantities used in V2, computed from the table above rather than quoted from it:
+  asymmetry ratio at Dec 2021 = 1,526 / 663   = 2.30
+  asymmetry ratio at Dec 2022 = 2,202 / 1,793 = 1.23
+  average equity impact per 10% at Dec 2021 = (663 + 1,526) / 2   = 1,095
+  average equity impact per 10% at Dec 2022 = (1,793 + 2,202) / 2 = 1,998
+  carrying value fell 88% between the two dates while the average equity impact roughly doubled
+
+--------------------------------------------------------------------------------------------
+Derivative instruments: interest rate sensitivity ($ millions, 50bp parallel shift)
+--------------------------------------------------------------------------------------------
+
+                        Notional   Wtd Avg Term (y)    +50bps    Fair Value     -50bps
+December 31, 2022
+  Swaps                   11,053               6.01      (165)         (257)       174
+  Swaptions               25,000               1.07      (685)       (1,711)       647
+  Interest Rate Futures  105,261               0.91      (102)           --         83
+  Total                                                  (952)       (1,968)       904
+December 31, 2021
+  Swaps                   10,995               6.99      (226)          450        238
+  Swaptions               19,000               2.07      (427)          133        416
+  Interest Rate Futures      912               0.25       (66)           --         73
+  Total                                                  (719)          583        727
+
+--------------------------------------------------------------------------------------------
+Derivative instruments: equity sensitivity ($ millions, 10% move)
+--------------------------------------------------------------------------------------------
+
+                        Notional   Wtd Avg Term (y)      +10%    Fair Value      -10%
+December 31, 2022
+  Options                 48,000               0.53       225         1,064        916
+    Calls                 17,500               0.10       698           106        (99)
+    Puts                  30,500               0.77      (473)          958      1,015
+  Equity Futures          19,760               1.78    (1,988)           --      1,988
+  Total Return Swaps         739               4.34       (71)           31         71
+  Total                                                (1,834)        1,095      2,975
+December 31, 2021
+  Options                 48,500               0.20     1,549           756       (115)
+    Calls                 21,000               0.20     1,672           606       (569)
+    Puts                  27,500               0.20      (123)          150        454
+  Equity Futures          18,258               0.21    (1,826)           --      1,826
+  Total                                                  (277)          756      1,711
+
+Calls and Puts are the components of the Options line, not additional positions: in both years
+their notionals, fair values and both impacts add to the Options line exactly. The committed
+CSV marks them level='component' for that reason, and summing level='instrument' reproduces
+the Total.

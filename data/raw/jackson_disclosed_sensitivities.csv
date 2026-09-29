@@ -1,4 +1,27 @@
+### Disclosed sensitivities of Jackson's annuity guarantee liabilities, Item 7A of the
+### 10-K named in source_filing_fy. Two measurement regimes appear here and they are not
+### comparable in level.
+###
+### market_risk_benefits and fia_rila_embedded_derivatives are post-LDTI (ASU 2018-12), net
+### of reinsurance, with the market risk benefit shown as a net (asset) liability: the
+### negative fair values from 2023 onward are a net asset.
+###
+### fixed_index_and_va_guarantee_liabilities is the pre-LDTI carrying value disclosed in the
+### FY2022 10-K, which is the only filing that publishes the guarantee liability on a basis
+### old enough to carry a positive balance at both dates. It is used for the scale-free
+### asymmetry test, never for a level comparison.
+###
+### The rate shock is 50bp in the FY2021 to FY2024 filings and 100bp in FY2025. Where two
+### filings disclose the same date, both rows are kept so the agreement can be checked.
 source_filing_fy,as_of,line_item,fair_value_musd,shock,impact_musd
+2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,equity_up_10pct,-663
+2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,equity_down_10pct,1526
+2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,rates_up_50bp,-2646
+2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,rates_down_50bp,2997
+2022,2022-12-31,fixed_index_and_va_guarantee_liabilities,499,equity_up_10pct,-1793
+2022,2022-12-31,fixed_index_and_va_guarantee_liabilities,499,equity_down_10pct,2202
+2022,2022-12-31,fixed_index_and_va_guarantee_liabilities,499,rates_up_50bp,-1531
+2022,2022-12-31,fixed_index_and_va_guarantee_liabilities,499,rates_down_50bp,1726
 2023,2022-12-31,market_risk_benefits,2753,equity_up_10pct,-2382
 2023,2022-12-31,market_risk_benefits,2753,equity_down_10pct,2867
 2023,2022-12-31,market_risk_benefits,2753,rates_up_50bp,-2212
