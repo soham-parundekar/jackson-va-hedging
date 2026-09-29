@@ -69,6 +69,8 @@ class CohortBook:
     annual_step_up: np.ndarray
     utilisation: np.ndarray
     lapse_rate: np.ndarray
+    lapse_beta: np.ndarray
+    lapse_floor: np.ndarray
     account_drag: np.ndarray
     insurer_drag_share: np.ndarray
     projection_years: np.ndarray
@@ -143,6 +145,8 @@ class GridSpec:
     income_start_age: int = 70
     utilisation: float = 1.0
     lapse_rate: float = 0.0
+    lapse_beta: float = 0.0
+    lapse_floor: float = 0.0
     max_age: int = 115
     premium: float = 100.0
 
@@ -239,6 +243,8 @@ def build(
                         "annual_step_up": terms.annual_step_up,
                         "utilisation": spec.utilisation,
                         "lapse_rate": spec.lapse_rate,
+                        "lapse_beta": spec.lapse_beta,
+                        "lapse_floor": spec.lapse_floor,
                         "account_drag": drag,
                         "insurer_drag_share": base_contract_charge / drag if drag > 0 else 0.0,
                         "projection_years": spec.max_age - attained,
@@ -289,6 +295,8 @@ def single_contract(
     max_age: int = 115,
     utilisation: float = 1.0,
     lapse_rate: float = 0.0,
+    lapse_beta: float = 0.0,
+    lapse_floor: float = 0.0,
     death_benefit: DeathBenefitTerms | None = None,
 ) -> CohortBook:
     """A one-cohort book, for the at-issue valuation and for the hedging backtest.
@@ -326,6 +334,8 @@ def single_contract(
         annual_step_up=np.array([terms.annual_step_up], dtype=bool),
         utilisation=array(utilisation),
         lapse_rate=array(lapse_rate),
+        lapse_beta=array(lapse_beta),
+        lapse_floor=array(lapse_floor),
         account_drag=array(drag),
         insurer_drag_share=array(base_contract_charge / drag if drag > 0 else 0.0),
         projection_years=array(max_age - attained, int),

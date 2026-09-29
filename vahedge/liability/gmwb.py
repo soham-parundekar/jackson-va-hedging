@@ -44,6 +44,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import behaviour
+
 BONUS_PERIOD_YEARS = 10
 BONUS_RESTART_MAX_AGE = 80
 # Roll-up accrual and the anniversary ratchet both stop at "the Contract Anniversary
@@ -139,6 +141,9 @@ def project(
     adjustment_year = np.asarray(book.adjustment_year, dtype=int).reshape(-1, 1)
     adjustment_amount = col(book.adjustment_amount)
     lapse_rate = col(book.lapse_rate)
+    lapse_beta = col(book.lapse_beta)
+    lapse_floor = col(book.lapse_floor)
+    dynamic = bool(np.any(lapse_beta > 0.0))
 
     drag_factor = np.exp(-drag)
     collected_per_unit = 1.0 - drag_factor
@@ -297,9 +302,15 @@ def project(
         mean_account[:, year] = account.mean(axis=1)
         mean_base[:, year] = benefit_base.mean(axis=1)
 
-        # Surrender can only happen while there is a contract value to surrender.
+        # Surrender can only happen while there is a contract value to surrender. With a
+        # dynamic rate the decision also depends on how far the guarantee is in the money,
+        # which is state the loop already has and a survival curve could never carry.
+        period_lapse = (
+            behaviour.dynamic_lapse(benefit_base, account, lapse_rate, lapse_beta, lapse_floor)
+            if dynamic else lapse_rate
+        )
         np.multiply(
-            in_force, np.where(account > 0.0, 1.0 - lapse_rate, 1.0), out=in_force
+            in_force, np.where(account > 0.0, 1.0 - period_lapse, 1.0), out=in_force
         )
 
     return GmwbProjection(

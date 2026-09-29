@@ -305,3 +305,45 @@ def test_net_amount_at_risk_counts_only_contracts_in_the_money():
     assert np.any(in_the_money) and np.any(~in_the_money)
     assert book.net_amount_at_risk > 0
     assert book.net_amount_at_risk < book.total_benefit_base
+
+
+# ---------------------------------------------------------------- policyholder behaviour
+
+
+def test_dynamic_lapse_only_damps_once_the_guarantee_is_in_the_money():
+    """At or below a moneyness of one the base rate is untouched; above it the rate decays and
+    stops at the floor. A model that lets lapse fall to zero for a deep in-the-money contract
+    ignores the surrenders that happen for reasons unrelated to the guarantee."""
+    from vahedge.liability.behaviour import dynamic_lapse
+
+    account = np.array([100.0, 100.0, 100.0, 100.0])
+    base_bases = np.array([80.0, 100.0, 120.0, 160.0])
+    rates = dynamic_lapse(base_bases, account, base_lapse=0.06, beta=4.0, floor=0.01)
+    assert float(rates[0]) == approx(0.06)          # out of the money, base rate
+    assert float(rates[1]) == approx(0.06)          # at the money, base rate
+    assert 0.01 < float(rates[2]) < 0.06            # in the money, damped
+    assert float(rates[3]) == approx(0.01)          # deep in the money, at the floor
+
+
+def test_damping_lapse_makes_the_guarantee_more_expensive():
+    """This is the direction that matters. A guarantee is worth more to the insurer when
+    policyholders leave, so a behaviour model that keeps in-the-money contracts in force has to
+    raise the claim, and by enough to notice."""
+    static = _contract(issue_age=70, deferral_years=0, max_age=90, lapse_rate=0.06)
+    damped = _contract(issue_age=70, deferral_years=0, max_age=90,
+                       lapse_rate=0.06, lapse_beta=4.0, lapse_floor=0.01)
+    market, survival = _flat_market(growth=0.9, years=20), _survival(years=20)
+    static_claim = float(gmwb.project(static, market, survival).pv_claims[0])
+    damped_claim = float(gmwb.project(damped, market, survival).pv_claims[0])
+    assert damped_claim > static_claim * 1.1
+
+
+def test_the_behaviour_grid_is_admissible():
+    from vahedge.liability.behaviour import BEHAVIOUR_GRID, BehaviourAssumptions
+
+    assert len(BEHAVIOUR_GRID) >= 5
+    assert BEHAVIOUR_GRID[0].utilisation == 1.0 and BEHAVIOUR_GRID[0].base_lapse == 0.0
+    with raises(ValueError, match="lapse_floor"):
+        BehaviourAssumptions(base_lapse=0.02, lapse_floor=0.05)
+    with raises(ValueError, match="lapse_beta"):
+        BehaviourAssumptions(lapse_beta=-1.0)
