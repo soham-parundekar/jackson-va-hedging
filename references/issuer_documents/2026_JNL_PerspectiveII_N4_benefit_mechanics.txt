@@ -1,0 +1,164 @@
+Source        Perspective II statutory prospectus, Form N-4
+Registrant    Jackson National Separate Account - I
+CIK           0000927730
+Form          485BPOS (Post-Effective Amendment No. 15)
+Filed         21 April 2026
+Accession     0000927730-26-000195
+Document      ck0000927730-20260421.htm
+Commission    File Nos. 333-228802 and 811-08664
+URL           https://www.sec.gov/Archives/edgar/data/927730/000092773026000195/ck0000927730-20260421.htm
+Retrieved     28-29 September 2026
+Used by       The GMWB projection (bonus, step-up, GWB adjustment) and the death-benefit
+              projection, both in vahedge/liability/gmwb.py, and the cohort construction in
+              vahedge/liability/cohorts.py.
+
+The prospectus gives the mechanics and defers every percentage to the rate sheet: "This
+prospectus utilizes Rate Sheet Prospectus Supplements to describe the current annual charges,
+Bonus percentages, Guaranteed Withdrawal Balance Adjustment percentages, and Guaranteed Annual
+Withdrawal Amount percentages for certain add-on living and death benefits." The percentages
+are in the companion extract for Form 497.
+
+============================================================================================
+BONUS
+============================================================================================
+
+"A bonus equal to a percentage of the Bonus Base (defined below) will be applied to the GWB at
+the end of each Contract Year within the Bonus Period (also defined below) if no withdrawals
+are taken during that Contract Year."
+
+On the Bonus Base:
+
+"When this GMWB is added to the Contract, the Bonus Base equals the GWB."
+
+"With a withdrawal, if that withdrawal, and all prior withdrawals in the current Contract Year,
+exceeds the Earnings-Sensitive Adjustments during that Contract Year plus the greater of the
+GAWA or the RMD, as applicable, then the Bonus Base is set to the lesser of the GWB after, and
+the Bonus Base before, the withdrawal. Otherwise, there is no adjustment to the Bonus Base with
+withdrawals."
+
+"A withdrawal in a Contract Year during the Bonus Period precludes a bonus for that Contract
+Year."
+
+"With any step-up (if the GWB increases upon step-up), the Bonus Base is set to the greater of
+the GWB after, and the Bonus Base before, the step-up."
+
+"The GWB is recalculated, increasing by a percentage of the Bonus Base." and "Applying the
+bonus to the GWB does not affect the Bonus Base or GWB adjustment."
+
+On the Bonus Period:
+
+"The Bonus Period begins on the effective date of this GMWB endorsement. In addition, the Bonus
+Period will re-start at the time the Bonus Base increases due to a step-up so long as the
+step-up occurs on or before the Contract Anniversary immediately following the Designated
+Life's 80th birthday."
+
+"The Bonus Period ends on the earlier of: The tenth Contract Anniversary following (1) the
+effective date of the endorsement or (2) the most recent increase to the Bonus Base due to a
+step-up, if later; or The date the Contract Value is zero."
+
+What this settles for the model. The bonus is simple on the Bonus Base, not compound on the
+GWB, because applying it does not feed the base. The only thing that lifts the base is a
+step-up that itself raises the GWB, or a premium. An implementation that treats any rise in the
+GWB as a step-up turns a 6% simple bonus into a 6% compound roll-up: 179 against 160 on a base
+of 100 over a ten-year deferral. The clock restarting on step-ups also means a contract in a
+rising market can collect a bonus for far longer than ten years, which is the path where the
+guarantee is worth least, so the feature costs the insurer less than its headline suggests.
+
+============================================================================================
+GUARANTEED WITHDRAWAL BALANCE ADJUSTMENT
+============================================================================================
+
+"If no withdrawals are taken from the Contract on or prior to the GWB Adjustment Date (as
+defined below), then you will receive a GWB adjustment."
+
+"The GWB Adjustment Date is the later of: The Contract Anniversary on or immediately following
+the Designated Life's 70th birthday, Or The 12th Contract Anniversary following the effective
+date of this endorsement."
+
+"On the effective date of this endorsement, the GWB adjustment is equal to a percentage of the
+GWB, subject to a maximum of $10 million."
+
+"If no withdrawals are taken on or prior to the GWB Adjustment Date, the GWB will be re-set on
+that date to equal the greater of the current GWB or the GWB adjustment. No adjustments are
+made to the Bonus Base or the GMWB. Once the GWB is re-set, this GWB adjustment provision
+terminates. In addition, if a withdrawal is taken on or before the GWB Adjustment Date, this
+GWB adjustment provision terminates without value."
+
+What this settles. The adjustment is a floor on the benefit base equal to 105% of the benefit
+base at issue on the Core and Value options and 200% on Plus, and it is paid for by never
+taking a withdrawal - not even a required minimum distribution, which the prospectus flags
+separately for tax-qualified contracts. A contract that starts income on the anniversary at
+age 70 loses it, because that withdrawal falls on the adjustment date. The provision is
+therefore dormant for most of the base-case grid and live only for cohorts that defer past it,
+which is one reason the deferral-phase cohorts had to be modelled separately.
+
+============================================================================================
+BASIC DEATH BENEFIT
+============================================================================================
+
+"The death benefit equals the greater of: your Contract Value on the date we receive all
+required documentation from your Beneficiary; or the total Premiums you have paid since your
+Contract was issued reduced for prior withdrawals (including any applicable charges and
+adjustments) in the same proportion that the Contract Value was reduced on the date of the
+withdrawal."
+
+Proportional, not dollar for dollar. A withdrawal taken while the contract is down cuts the
+death benefit by more than the cash withdrawn.
+
+============================================================================================
+ADD-ON DEATH BENEFITS
+============================================================================================
+
+Availability: "The Roll-up GMDB, Highest Quarterly Anniversary Value GMDB, and Combination
+Roll-up and Highest Quarterly Anniversary Value GMDB are available if you are 79 years of age
+or younger on the Contract's Issue Date."
+
+Highest quarterly anniversary value, from Appendix E:
+
+  "The death benefit payable under the Contract will be equal to the larger of your current
+  Contract Value or GMDB Benefit Base."
+  Set at election to the contract value. Re-determined on each Contract Quarterly Anniversary
+  to "the larger of your Contract Value or GMDB Benefit Base".
+  Withdrawals: base cut by "a reduction of 10%, the same proportion that the Contract Value is
+  reduced for the withdrawal" - worked through at $15,000 out of $150,000 taking a base from
+  $160,000 to $144,000.
+  "The Contract Quarterly Anniversaries in the above scenarios are assumed to occur prior to
+  the oldest Covered Life's 81st birthday."
+
+Roll-up, from Appendix E:
+
+  Base set at election to the initial premium, and compounded annually. "Your GMDB Benefit Base
+  becomes $105,000 ($100,000 * (1 + 5%) = $105,000) on the first Contract Anniversary...
+  becomes $110,250 at the second Contract Anniversary". Compound, unlike the GMWB bonus.
+  "The compounding at an annual interest rate only occurs until the Contract Anniversary
+  immediately preceding the oldest Covered Life's 81st birthday."
+  Withdrawals: "reduced first dollar-for-dollar for up to 5% of your GMDB Benefit Base... The
+  GMDB Benefit Base is then reduced by the percentage reduction in the Contract Value
+  attributable to the withdrawals in excess of the 5%". Worked example: a $24,000 withdrawal
+  against a $150,000 contract value and a $200,000 base gives
+  ($200,000 - $10,000) * (1 - ($24,000 - $10,000)/($150,000 - $10,000)) = $171,000.
+  A withdrawal inside the 5% is dollar for dollar only: $5,000 takes $200,000 to $195,000.
+
+  Note on rates. The Appendix E examples use 5% up to issue age 69 and 4% from 70, which were
+  the rates when those examples were written. The current rate sheet gives 6% and 5%, and those
+  are what the model uses. Both tests in tests/test_liability.py that reproduce the appendix
+  arithmetic use the appendix's own numbers, so they check the mechanics rather than the rates.
+
+Combination: "your GMDB Benefit Base is the greater of your Roll-Up Component and Highest
+Quarterly Anniversary Value" component.
+
+============================================================================================
+WHAT IS NOT MODELLED, AND WHY
+============================================================================================
+
+The Earnings-Sensitive Adjustment on the Flex Net GMWB, which lets the owner draw more than the
+GAWA in a year when the contract value has grown. It interacts with the Bonus Base rule quoted
+above and there is no free data on how often owners use it.
+
+Subsequent premium payments. Every cohort is single premium, so the recalculation rules for the
+GWB, the Bonus Base and the GMDB benefit base on later premiums are not exercised.
+
+The quarterly step-up on the Plus option and the quarterly ratchet on the highest-anniversary
+death benefit, both modelled annually. An annual ratchet is a floor on a quarterly one, so both
+are understated, and by how much depends on how far the contract value round-trips inside a
+year.

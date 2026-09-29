@@ -83,19 +83,36 @@ def load(path=None) -> dict[tuple[str, str, str], RiderTerms]:
 
 @dataclass(frozen=True)
 class DeathBenefitTerms:
-    """The GMDB variants Jackson sells alongside the withdrawal rider.
+    """The death benefits, with the mechanics taken from the prospectus rather than assumed.
 
-    The rate sheet gives three: a roll-up benefit base growing at 6% below age 70 and 5% from
-    70, a highest quarterly anniversary value benefit, and the combination of the two, charged
-    at 0.90%, 0.30% and 1.00% of the death benefit base. The return-of-premium benefit is
-    included at no charge in the base contract.
+    Every contract carries the basic benefit for nothing: the greater of the contract value and
+    total premiums, reduced for prior withdrawals "in the same proportion that the Contract
+    Value was reduced on the date of the withdrawal". Proportional, not dollar for dollar -
+    which means a withdrawal taken when the contract is down cuts the death benefit by more
+    than the cash taken out.
 
-    The highest-anniversary variant is modelled on annual anniversaries, not quarterly. The
-    liability recursion steps a policy year at a time because every living-benefit event does,
-    and re-stepping it quarterly to catch the death benefit's ratchet would cost four times as
-    much for a benefit that is a small fraction of the book's value. The direction of the
-    error is known and stated: an annual ratchet is a floor on a quarterly one, so this
-    understates the highest-anniversary death benefit.
+    Three add-ons replace that benefit base, at 0.90%, 0.30% and 1.00% of the base per the
+    current rate sheet:
+
+    *Roll-up.* The base starts at premium and compounds annually at 6% for an owner 69 or
+    younger at election and 5% from 70, per the rate sheet. Compounding stops at the contract
+    anniversary immediately preceding the owner's 81st birthday. Withdrawals cut the base
+    dollar for dollar up to 5% of it and proportionally beyond that. (The prospectus's own
+    worked examples use 5% and 4%, which were the rates when those examples were written; the
+    rate sheet is the current schedule and is what is used here.)
+
+    *Highest quarterly anniversary value.* The base ratchets to the contract value at each
+    quarterly anniversary until the same 81st-birthday cut-off, and falls proportionally with
+    withdrawals.
+
+    *Combination.* The base is the greater of the two components.
+
+    The ratchet is modelled annually rather than quarterly. Every living-benefit event lands on
+    a policy anniversary, so the recursion steps a year at a time, and re-stepping it quarterly
+    for the death benefit would quadruple the cost of the loop that dominates every valuation.
+    The direction of the error is known and worth stating: an annual ratchet is a floor on a
+    quarterly one, so the highest-anniversary base here is understated by however much the
+    contract value peaked and fell back within a year.
     """
 
     name: str
@@ -103,24 +120,25 @@ class DeathBenefitTerms:
     rollup_pct_below_70: float = 0.0
     rollup_pct_from_70: float = 0.0
     highest_anniversary: bool = False
-    rollup_cap_multiple: float = 2.0
+    free_withdrawal_pct: float = 0.0   # cut dollar for dollar up to this share of the base
 
-    def rollup_rate(self, attained_age):
-        age = np.asarray(attained_age)
+    def rollup_rate(self, age_at_election):
+        age = np.asarray(age_at_election)
         return np.where(age < 70, self.rollup_pct_below_70, self.rollup_pct_from_70)
 
 
 DEATH_BENEFITS = {
-    "return_of_premium": DeathBenefitTerms(name="return_of_premium", charge_pct=0.0),
+    "basic": DeathBenefitTerms(name="basic", charge_pct=0.0),
     "rollup": DeathBenefitTerms(
         name="rollup", charge_pct=0.0090,
-        rollup_pct_below_70=0.06, rollup_pct_from_70=0.05,
+        rollup_pct_below_70=0.06, rollup_pct_from_70=0.05, free_withdrawal_pct=0.05,
     ),
     "highest_anniversary": DeathBenefitTerms(
         name="highest_anniversary", charge_pct=0.0030, highest_anniversary=True,
     ),
     "combination": DeathBenefitTerms(
         name="combination", charge_pct=0.0100,
-        rollup_pct_below_70=0.06, rollup_pct_from_70=0.05, highest_anniversary=True,
+        rollup_pct_below_70=0.06, rollup_pct_from_70=0.05,
+        highest_anniversary=True, free_withdrawal_pct=0.05,
     ),
 }
