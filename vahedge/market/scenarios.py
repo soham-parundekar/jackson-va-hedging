@@ -78,6 +78,12 @@ class DailyPath:
     implied_vol: np.ndarray        # at the reference tenor, decimal
     variance: np.ndarray           # Heston instantaneous variance implied by the quote
     cash_rate: np.ndarray          # overnight financing, decimal
+    # Own non-performance spread over the ten-year Treasury, decimal. The economic valuation
+    # never touches it; the reporting basis discounts at the Treasury curve plus this, because
+    # a market risk benefit is a fair value and a fair value of the insurer's own obligation
+    # includes the insurer's own credit. Its movement is what goes to other comprehensive
+    # income rather than through net income.
+    own_credit_spread: np.ndarray | None = None
     label: str = "path"
 
     def __len__(self) -> int:
@@ -102,6 +108,8 @@ class DailyPath:
             implied_vol=self.implied_vol[keep],
             variance=self.variance[keep],
             cash_rate=self.cash_rate[keep],
+            own_credit_spread=(None if self.own_credit_spread is None
+                               else self.own_credit_spread[keep]),
             label=label or f"{self.label} {start} to {end}",
         )
 
@@ -197,6 +205,11 @@ def load_history(
     vol_column: str = "VIXCLS",
     vol_tenor: float = VIX_TENOR_YEARS,
     cash_column: str = "DFF",
+    # Moody's Baa spread over the ten-year Treasury, which is the own non-performance proxy.
+    # BAMLC0A4CBBB is the better instrument and is unusable here: 775 observations from
+    # September 2023, so it cannot span the 2020 stress. BAA10Y has the full history and both
+    # stay in the panel so the two can be compared where they overlap.
+    credit_column: str = "BAA10Y",
     dividend_yield: float = 0.0,
     reference_tenor: float = 1.0,
     label: str = "realised history",
@@ -236,8 +249,31 @@ def load_history(
         implied_vol=implied_at_tenor(quoted, heston, vol_tenor, reference_tenor),
         variance=instantaneous_variance(quoted, heston, vol_tenor),
         cash_rate=cash_rate,
+        own_credit_spread=_filled_spread(panel, dates, credit_column),
         label=label,
     )
+
+
+def _filled_spread(panel: pd.DataFrame, dates: pd.DatetimeIndex, column: str):
+    """The credit spread on the equity trading calendar, carried forward where it is missing.
+
+    Deliberately not added to the columns a date has to have. Requiring it drops two of the
+    2,491 replay dates, and two dates is immaterial to every conclusion while being enough to
+    move every figure in every hedging table - a silent renumbering of results that are quoted
+    in commit messages and notes. The credit series publishes on federal business days and the
+    equity series on NYSE days, which is the same calendar mismatch the rates already have, so
+    this uses the same remedy: carry forward by at most five days and refuse if a gap is longer.
+    """
+    if not column or column not in panel.columns:
+        return None
+    series = panel[column].reindex(dates).ffill(limit=5)
+    if series.isna().any():
+        missing = series.index[series.isna()]
+        raise ValueError(
+            f"{column} has a gap longer than five days at {missing[0].date()} "
+            f"({series.isna().sum()} dates unfilled); check the panel rather than widening the fill"
+        )
+    return series.to_numpy(dtype=float) / 100.0
 
 
 def available_episodes(path: DailyPath) -> dict:

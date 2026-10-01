@@ -134,6 +134,9 @@ def build(backtest_start: str = "2016-09-26"):
         "calibration": calibration, "state": state, "proxy": proxy, "policy": policy,
         "survival": policy_survival, "deaths": policy_deaths,
         "history": history, "smile": smile, "surface": surface,
+        # Kept so another script can fit a second basis on the same simulation rather than
+        # paying for its own. The reporting lens needs four fits off one set of paths.
+        "at_issue": at_issue, "market_paths": market_paths,
     }
 
 
