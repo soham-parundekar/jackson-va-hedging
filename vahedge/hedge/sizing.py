@@ -80,29 +80,56 @@ class HedgePositions:
         ]))
 
 
-def insurer_exposures(greeks, vega: str = "current") -> Exposures:
+def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current") -> Exposures:
     """The insurer's own exposure through the guarantee, which is what has to be offset.
 
-    ``greeks`` is a ``valuation.greeks.Greeks``. Its fields are the market risk benefit's
-    sensitivities, and the insurer is short that, so every sign flips here.
+    ``greeks`` is a ``valuation.greeks.Greeks`` or the dictionary the proxy returns. Its fields
+    are the market risk benefit's sensitivities, and the insurer is short that, so every sign
+    flips here.
 
-    The vega choice is not cosmetic. The current-variance vega is what listed options reach; the
-    long-run vega is an assumption about a level no option expires at. Sizing a put position
-    against the long-run number would be hedging a model parameter with a traded instrument, so
-    the default is the tradeable one and the unhedged remainder is reported rather than hedged.
+    ``equity_weight`` is the conversion the hedge cannot do without. The liability's delta is
+    per unit log move in the *contract value*; the instruments' is per unit log move in the
+    *index*. A contract three-quarters in equity funds does not move one for one with the index,
+    so for a continuously rebalanced sub-account
+
+        d ln(contract) / d ln(index) = equity weight,
+
+    which makes the index delta the contract delta times that weight and the index gamma the
+    contract gamma times its square - the second derivative of the log contract value in the
+    log index being zero for fixed weights. Leaving the conversion out oversizes the hedge by
+    one over the weight, about eighteen per cent on Jackson's disclosed fund split, and the
+    error is a pure short index position that shows up as a loss in every rising market.
+
+    What the conversion does not capture is the part of the sub-account no index reaches: the
+    funds are managed and their returns are not the index's. That is the sub-account basis, it
+    is a scenario parameter rather than a calibrated one, and it is swept rather than hedged.
+
+    The vega choice is not cosmetic either. The current-variance vega is what listed options
+    reach; the long-run vega is an assumption about a level no option expires at. Sizing a put
+    position against the long-run number would be hedging a model parameter with a traded
+    instrument, so the default is the tradeable one and the remainder is reported unhedged.
     """
     if vega not in ("current", "long_run", "none"):
         raise ValueError(f"vega must be current, long_run or none; got {vega}")
-    vega_value = {
-        "current": greeks.vega_current,
-        "long_run": greeks.vega_long_run,
-        "none": 0.0,
-    }[vega]
+
+    if isinstance(greeks, dict):
+        delta = float(np.ravel(greeks["delta"])[0])
+        gamma = float(np.ravel(greeks["gamma"])[0])
+        rho = float(np.ravel(greeks["rho_per_bp"])[0])
+        vega_value = 0.0 if vega == "none" else float(np.ravel(greeks["vega"])[0])
+    else:
+        delta, gamma, rho = greeks.equity_exposure, greeks.equity_gamma, greeks.rho_per_bp
+        vega_value = {
+            "current": greeks.vega_current,
+            "long_run": greeks.vega_long_run,
+            "none": 0.0,
+        }[vega]
+
     return Exposures(
-        delta=-greeks.equity_exposure,
-        gamma=-greeks.equity_gamma,
+        delta=-delta * equity_weight,
+        gamma=-gamma * equity_weight ** 2,
         vega=-vega_value,
-        rho=-greeks.rho_per_bp,
+        rho=-rho,
     )
 
 

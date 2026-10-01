@@ -108,6 +108,11 @@ def main() -> None:
         summary["delta_rmse_pct_of_account_in_range"] = float(
             np.sqrt((inside["delta_error"] ** 2).mean()) / PREMIUM
         ) if not inside.empty else np.nan
+        summary["gamma_rmse_pct_of_account_in_range"] = float(
+            np.sqrt((inside["gamma_error"] ** 2).mean()) / PREMIUM
+        ) if not inside.empty else np.nan
+        summary["mean_abs_nested_delta"] = float(inside["nested_delta"].abs().mean())
+        summary["mean_abs_nested_gamma"] = float(inside["nested_gamma"].abs().mean())
         delta_rows.append(bumped.assign(year=year))
         print(
             f"year {year:2d}  all rmse {100*summary['rmse_pct_of_account']:5.2f}% of premium"
@@ -117,6 +122,9 @@ def main() -> None:
             f"  R2 {summary['r_squared_in_range']:.4f}"
             f" | flagged {100*summary['share_outside_design_range']:3.0f}%"
             f"  delta rmse {100*summary['delta_rmse_pct_of_account_in_range']:5.2f}%"
+            f" of {summary['mean_abs_nested_delta']:5.1f}"
+            f"  gamma rmse {100*summary['gamma_rmse_pct_of_account_in_range']:6.2f}%"
+            f" of {summary['mean_abs_nested_gamma']:6.1f}"
             f"  inner se {summary['mean_nested_std_error']:.3f}",
             flush=True,
         )
@@ -125,14 +133,15 @@ def main() -> None:
         "year", "nodes", "r_squared", "rmse", "rmse_pct_of_account", "worst_pct_of_account",
         "nodes_in_range", "r_squared_in_range", "rmse_pct_of_account_in_range",
         "worst_pct_of_account_in_range", "delta_rmse_pct_of_account_in_range",
-        "share_outside_design_range",
+        "gamma_rmse_pct_of_account_in_range", "mean_abs_nested_delta",
+        "mean_abs_nested_gamma", "share_outside_design_range",
         "mean_nested_std_error", "mean_nested_value", "exhausted_share",
     ]]
     table.to_csv(paths.TABLES / "proxy_accuracy.csv", index=False)
     pd.concat(delta_rows, ignore_index=True)[[
         "year", "path", "account_value", "benefit_base", "variance", "zero_10y",
         "nested_value", "proxy_value", "nested_delta", "proxy_delta", "delta_error",
-        "outside_design_range",
+        "nested_gamma", "proxy_gamma", "gamma_error", "outside_design_range",
     ]].to_csv(paths.TABLES / "proxy_delta_nodes.csv", index=False)
 
     usable = table[table["rmse_pct_of_account_in_range"] < 0.03]["year"]

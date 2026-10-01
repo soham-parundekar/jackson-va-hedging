@@ -290,7 +290,13 @@ def test_every_analytic_greek_is_the_derivative_of_the_fitted_value():
     base = rng.uniform(80.0, 200.0, count)
     account = moneyness * base
     attribution = 0.9
-    greeks = proxy.greeks(3, account, base, volatility ** 2, rate, attribution=attribution)
+    # gamma_step zero asks for the point second derivative, which is what this test is about.
+    # What ``greeks`` returns by default is an average curvature across a ten per cent move,
+    # because the point derivative of a regression on realised cash flows is not a risk number;
+    # the arithmetic still has to be right, and a column-order mismatch between the basis and
+    # its derivatives would show up here and nowhere else.
+    greeks = proxy.greeks(3, account, base, volatility ** 2, rate, attribution=attribution,
+                          gamma_step=0.0)
 
     def value(acc, variance, rate_level):
         out, _ = proxy.value(3, acc, base, variance, rate_level, attribution=attribution,
@@ -327,17 +333,57 @@ def test_every_analytic_greek_is_the_derivative_of_the_fitted_value():
     ) == greeks["rho_per_bp"]
 
 
-def test_the_value_between_anniversaries_moves_smoothly_between_the_two_fits():
+def test_the_value_between_anniversaries_brackets_the_post_and_pre_event_fits():
     """A hedge rebalances weekly and the fits are annual. Taking the nearer fit would step the
-    liability at every anniversary and put a jump in the P&L that the contract never made."""
+    liability at every anniversary and put a jump in the P&L that the contract never made.
+
+    The far end of the bracket is the pre-event fit on purpose. Halfway through a policy year
+    the contract has grown away from its benefit base and its year-end events are still ahead
+    of it, and the post-event family has no design points up there because the step-up caps
+    the moneyness it records.
+    """
     proxy = _proxy()
     state = dict(account_value=90.0, benefit_base=130.0, variance=0.03, zero_10y=0.045)
     at_eight = proxy.greeks(7, **state)["value"][0]       # the fit keyed 7 applies at year 8
-    at_nine = proxy.greeks(8, **state)["value"][0]
-    midpoint = proxy.greeks_at(8.5, **state)["value"][0]
-    assert approx(0.5 * (at_eight + at_nine), rel=1e-12) == midpoint
+    before_nine = proxy.greeks(8, **state, pre_event=True)["value"][0]
+    assert approx(0.5 * (at_eight + before_nine), rel=1e-12) == proxy.greeks_at(8.5, **state)["value"][0]
     assert approx(at_eight, rel=1e-12) == proxy.greeks_at(8.0, **state)["value"][0]
-    assert approx(at_nine, rel=1e-12) == proxy.greeks_at(9.0, **state)["value"][0]
+    assert approx(proxy.greeks(8, **state)["value"][0], rel=1e-12) == (
+        proxy.greeks_at(9.0, **state)["value"][0]
+    )
+
+
+def test_the_pre_event_fit_is_the_post_event_fit_plus_that_year_s_cash_flows():
+    """The identity the two families have to satisfy, which is what makes them one model.
+
+    An instant before an anniversary the contract is worth everything from that anniversary's
+    own charges and withdrawal onward; an instant after, it is worth everything after them. The
+    difference is that year's net cash flow, and it has to come out of the two fits rather than
+    being imposed. Checked on the design points in aggregate, because each fit is a conditional
+    mean and only their means are comparable path by path.
+    """
+    _, _, _, _, _, projection = _projection()
+    recorded = projection.recorded
+    proxy = _proxy()
+    for year in (3, 8, 12):
+        if year not in proxy.pre_fits:
+            continue
+        live = recorded["discount"][:, year] > 0
+        after = proxy.greeks(
+            year, recorded["account_value"][live, year], recorded["benefit_base"][live, year],
+            recorded["variance"][live, year], recorded["zero_10y"][live, year],
+        )["value"]
+        before = proxy.greeks(
+            year, recorded["pre_account_value"][live, year],
+            recorded["pre_benefit_base"][live, year],
+            recorded["variance"][live, year], recorded["zero_10y"][live, year],
+            pre_event=True,
+        )["value"]
+        scale = (recorded["discount"][live, year]
+                 * np.maximum(recorded["persistency"][live, year], 1e-12))
+        this_year = (recorded["pv_claim"][live, year] - recorded["pv_fee"][live, year]) / scale
+        gap = float(np.mean(before - after - this_year))
+        assert abs(gap) < 0.02 * float(np.mean(np.abs(before))) + 0.05, (year, gap)
 
 
 def test_a_dead_guarantee_has_no_equity_exposure():
@@ -384,16 +430,45 @@ def test_a_state_inside_the_range_but_with_no_paths_around_it_is_still_flagged()
     assert bool(outside[0])
 
 
-def test_the_exhausted_replicates_are_capped_and_the_live_rows_are_not():
-    """A spent contract is one state repeated, so thirty thousand of them carry no more
-    information than a couple of thousand, and left at full weight they take the fit over."""
-    account = np.concatenate([np.zeros(30_000), np.linspace(1.0, 200.0, 500)])
-    weights = lsmc._replicate_weights(account)
-    assert approx(1.0, rel=1e-12) == weights[-1]
-    assert approx(float(lsmc.EXHAUSTED_EFFECTIVE_ROWS), rel=1e-9) == float(weights[:30_000].sum())
+def test_a_repeated_state_is_capped_and_a_varying_one_is_not():
+    """The moneyness distribution has a point mass at each end - exhaustion at the bottom, the
+    step-up ceiling at the top - and each is one state repeated rather than a dense region.
+    Thirty thousand copies of the same state carry no more information than a couple of
+    thousand, and left at full weight they take the fit over."""
+    moneyness = np.concatenate([
+        np.zeros(30_000),                     # exhausted
+        np.full(20_000, 0.9435),              # stepped up, every one at the same ratio
+        np.linspace(0.1, 0.9, 500),           # genuinely varying
+    ])
+    weights = lsmc._replicate_weights(moneyness)
+    cap = float(lsmc.REPLICATE_EFFECTIVE_ROWS)
+    assert approx(cap, rel=1e-9) == float(weights[:30_000].sum())
+    assert approx(cap, rel=1e-9) == float(weights[30_000:50_000].sum())
+    assert approx(np.ones(500), rel=1e-12) == weights[50_000:]
 
     few = lsmc._replicate_weights(np.zeros(10))
     assert approx(np.ones(10), rel=1e-12) == few
+
+
+def test_only_the_pre_event_design_reaches_above_the_step_up_ceiling():
+    """Which is the whole reason the second family exists.
+
+    The step-up resets the benefit base to the contract value at every anniversary, so a
+    post-event state can never have a contract value above its base - the recorded moneyness
+    is capped at one less that year's charges. An instant earlier it is not capped, and nor is
+    a Wednesday in the middle of a good year, which is when a hedge is being sized.
+    """
+    recorded = _projection()[5].recorded
+    proxy = _proxy()
+    for year in (2, 8, 15):
+        after = (recorded["account_value"][:, year]
+                 / np.maximum(recorded["benefit_base"][:, year], 1e-12))
+        before = (recorded["pre_account_value"][:, year]
+                  / np.maximum(recorded["pre_benefit_base"][:, year], 1e-12))
+        assert after.max() <= 1.0 + 1e-9, (year, after.max())
+        assert before.max() > 1.0, (year, before.max())
+        assert proxy.pre_fits[year].knots[-1] > 1.0
+        assert proxy.fits[year].knots[0] == 0.0
 
 
 def test_fitting_needs_a_recorded_projection():

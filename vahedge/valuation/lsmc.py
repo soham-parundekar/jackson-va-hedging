@@ -55,7 +55,7 @@ the paths effectively never reached.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -76,16 +76,26 @@ DESIGN_TAIL = 0.001
 SUPPORT_BIN = 0.05           # bin width in units of contract value over benefit base
 MIN_SUPPORT_SHARE = 0.001    # ...of the fitting paths, below which a bin has nothing to say
 MIN_SUPPORT_ROWS = 25
-# Exhausted contracts are not a dense region of the design space, they are one state repeated:
-# every one of them sits at a moneyness of exactly zero. By year twenty-five that single state
-# is ninety-two per cent of the fitting rows, and least squares will happily give up the live
-# region - where the guarantee is actually decided - to shave a residual at a point it has
-# already pinned thirty thousand times over. So the replicates are given a weight that makes
-# them count as this many rows. Two thousand independent realisations estimate a conditional
-# mean far more precisely than anything else in the fit, so nothing is lost by the cap, and
-# only the exhausted state is capped: a dense but genuinely varying region carries information
-# in every row and is left alone.
-EXHAUSTED_EFFECTIVE_ROWS = 2_000
+# The moneyness distribution has two point masses, not one, and both of them are a single
+# state repeated rather than a dense region. At the bottom, an exhausted contract sits at
+# exactly zero, and by year twenty-five that is ninety-two per cent of the fitting rows. At the
+# top, the annual step-up resets the benefit base to the contract value, so every contract that
+# stepped up ends the year at the same ratio of one less that year's charges. Least squares will
+# give up the region in between - where the guarantee is actually decided - to shave a residual
+# at a point it has already pinned tens of thousands of times over, and at the top the crowding
+# also drags the spline's curvature into a spike. So any repeated value is weighted to count as
+# this many rows between them. Two thousand independent realisations estimate a conditional mean
+# far more precisely than anything else in the fit, so nothing is lost; a dense but genuinely
+# varying region carries information in every row and is left alone.
+REPLICATE_EFFECTIVE_ROWS = 2_000
+REPLICATE_TOLERANCE = 1e-6       # moneyness values this close together count as the same state
+# Smoothing strengths tried for the roughness penalty, and how much better a score has to be
+# to prefer a rougher fit. Scored on held-out paths; see _choose_smoothing.
+SMOOTHING_GRID = (0.0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0)
+# Size of the move the reported gamma is averaged over, in log contract value. See ProxyFit.greeks:
+# ten per cent is the scale a convexity hedge is sized for and wide enough that the second
+# difference is not dominated by the spline's own wiggle.
+GAMMA_STEP = 0.10
 
 
 def _knots(moneyness: np.ndarray, live: np.ndarray, n_knots: int = N_KNOTS) -> np.ndarray:
@@ -103,6 +113,12 @@ def _knots(moneyness: np.ndarray, live: np.ndarray, n_knots: int = N_KNOTS) -> n
     live = np.asarray(live, dtype=bool)
     sample = moneyness[live] if live.sum() > 50 else moneyness
     quantiles = np.linspace(0.01, 0.99, max(n_knots - 1, 3))
+    # Boundary knots at the ends of the design, not past them. A natural spline is straight
+    # beyond its outermost knots, and straight is the right behaviour where there is no data:
+    # the slope carries on, so the delta stays continuous and signed correctly and only the
+    # curvature goes to zero. Putting the top knot a margin further out instead - which was
+    # tried, to stop the curvature collapsing where the contract lives - leaves a cubic segment
+    # with nothing in it, and the fit used it to send the value back up and the delta positive.
     knots = np.unique(np.round(np.concatenate([[0.0], np.quantile(sample, quantiles)]), 6))
     return _separate(knots)
 
@@ -299,6 +315,7 @@ class _YearFit:
     support: np.ndarray        # fitting rows per moneyness bin
     min_support: float
     n_exhausted: int
+    smoothing: float = 0.0     # the roughness penalty strength chosen for this year
 
     def thin(self, moneyness: np.ndarray) -> np.ndarray:
         """True where the fitting paths left this part of the moneyness axis empty."""
@@ -308,12 +325,24 @@ class _YearFit:
 
 @dataclass(frozen=True)
 class ProxyFit:
-    """Fitted coefficients by year, with the design range they are valid over."""
+    """Fitted coefficients by year, with the design range they are valid over.
+
+    Two families per year. ``fits`` is the value at an anniversary after that year's charges,
+    withdrawal and step-up; ``pre_fits`` is the value an instant before them, of everything
+    from that year's cash flows onward. They are not redundant. A hedge rebalancing inside a
+    policy year sees a contract whose value has grown away from its benefit base and whose
+    year-end events are still ahead of it, which is a pre-event state; the post-event family
+    has no design points up there, because the step-up resets the base every anniversary and
+    caps the moneyness it records. Bracketing an intra-year date between the post-event fit at
+    the anniversary behind it and the pre-event fit at the anniversary ahead gives both
+    endpoints a state their own design contains.
+    """
 
     fits: dict
     order: int
     n_paths: int
     diagnostics: pd.DataFrame
+    pre_fits: dict = field(default_factory=dict)
 
     @property
     def years(self):
@@ -328,6 +357,7 @@ class ProxyFit:
         zero_10y,
         attribution: float = 1.0,
         flag_extrapolation: bool = True,
+        pre_event: bool = False,
     ):
         """The market risk benefit at a state, per the fitted year.
 
@@ -336,9 +366,10 @@ class ProxyFit:
         marked so the caller can report how often it happened rather than discover it in a
         result.
         """
-        if year not in self.fits:
+        family = self.pre_fits if pre_event else self.fits
+        if year not in family:
             raise KeyError(f"no fit for year {year}; fitted years are {self.years}")
-        fit_year = self.fits[year]
+        fit_year = family[year]
 
         account = np.atleast_1d(np.asarray(account_value, dtype=float))
         base = np.atleast_1d(np.asarray(benefit_base, dtype=float))
@@ -390,7 +421,8 @@ class ProxyFit:
 
     def greeks(
         self, year: int, account_value, benefit_base, variance, zero_10y,
-        attribution: float = 1.0,
+        attribution: float = 1.0, pre_event: bool = False,
+        gamma_step: float = GAMMA_STEP,
     ) -> dict:
         """Value, delta, gamma, vega and rho at a state, all from the fitted basis.
 
@@ -399,15 +431,27 @@ class ProxyFit:
         the value: a bumped second derivative on a spline either straddles a knot or sits inside
         double precision's floor, and a bumped vega has to re-clip the state.
 
-        Units match the Greeks module, so a hedge can be sized off either without conversion.
-        Delta and gamma are per unit log move in the contract value, vega is per volatility
-        point, and rho is per basis point of the ten-year zero rate with the curve's shape held.
-        That last one is a one-factor rate exposure and is all a one-factor rate state can
-        support; a curve-shape hedge would need a slope state in the basis and does not get one.
+        Gamma is the exception and is deliberately not a point second derivative. A regression
+        on single-path realisations estimates a conditional mean well, its slope reasonably, and
+        its curvature not at all: against nested bumps the analytic second derivative of this
+        fit oscillated between plus twelve hundred and minus six hundred across neighbouring
+        states. What is returned instead is the average curvature across a move of
+        ``gamma_step`` in the log contract value, which averages that oscillation out and is the
+        quantity a convexity hedge actually wants - a hedge is sized for moves of several per
+        cent, not for the limit as the move goes to zero. Pass ``gamma_step=0`` for the point
+        derivative, which is exact for the fitted function and useless as a risk number.
+
+        Units otherwise match the Greeks module, so a hedge can be sized off either without
+        conversion. Delta and gamma are per unit log move in the contract value, vega is per
+        volatility point, and rho is per basis point of the ten-year zero rate with the curve's
+        shape held. That last one is a one-factor rate exposure and is all a one-factor rate
+        state can support; a curve-shape hedge would need a slope state in the basis and does
+        not get one.
         """
-        if year not in self.fits:
+        family = self.pre_fits if pre_event else self.fits
+        if year not in family:
             raise KeyError(f"no fit for year {year}; fitted years are {self.years}")
-        fit_year = self.fits[year]
+        fit_year = family[year]
 
         account = np.atleast_1d(np.asarray(account_value, dtype=float))
         base = np.atleast_1d(np.asarray(benefit_base, dtype=float))
@@ -429,12 +473,21 @@ class ProxyFit:
         in_rate = combine(_design_in("rate", moneyness, volatility, rate_level, fit_year.knots))
 
         delta = account * slope
-        return {
-            "value": per_unit * unit,
-            "delta": delta,
+        value = per_unit * unit
+        if gamma_step > 0.0:
+            up = self.value(year, account * np.exp(gamma_step), base, variance, rate,
+                            attribution, flag_extrapolation=False, pre_event=pre_event)[0]
+            down = self.value(year, account * np.exp(-gamma_step), base, variance, rate,
+                              attribution, flag_extrapolation=False, pre_event=pre_event)[0]
+            gamma = (up - 2.0 * value + down) / gamma_step ** 2
+        else:
             # d2V/d(ln AV)2 = AV f'(m) + AV m f''(m), the second term being the curvature of
             # the value per unit of benefit base.
-            "gamma": delta + account * moneyness * curvature,
+            gamma = delta + account * moneyness * curvature
+        return {
+            "value": value,
+            "delta": delta,
+            "gamma": gamma,
             "vega": unit * in_vol,
             "rho_per_bp": unit * in_rate * 1e-4,
         }
@@ -443,42 +496,122 @@ class ProxyFit:
         self, years_since_issue: float, account_value, benefit_base, variance, zero_10y,
         attribution: float = 1.0,
     ) -> dict:
-        """The same, between anniversaries, by interpolating the two fits that bracket the date.
+        """The value and its Greeks at any date, not only on an anniversary.
 
-        Each annual fit is the value at the end of its own policy year, so the fit keyed ``k``
-        applies at ``k + 1`` years since issue. A weekly hedge sits between two of them, and
-        taking the nearer one would step the liability's value at every anniversary and put a
-        jump into the P&L that is an artefact of the fitting grid rather than anything the
-        contract does. Interpolating linearly in time removes the jump and makes the slope
-        between anniversaries the liability's time decay, which is what the attribution's theta
-        term needs.
+        The fit keyed ``k`` is the value at ``k + 1`` years since issue. A date inside policy
+        year ``k`` is bracketed by the post-event fit at its start and the pre-event fit at its
+        end, both evaluated at the state as it stands, and interpolated linearly in time.
+
+        Two reasons for that construction rather than the obvious one. Taking the nearer annual
+        fit would step the liability at every anniversary and put a jump in the hedge P&L that
+        the contract never made. And bracketing with two post-event fits would ask the one
+        ahead about a state it has no design points for: the step-up caps the moneyness a
+        post-event state can reach, while a contract halfway through a good year sits above
+        that cap. The pre-event family is fitted on exactly those states. Where it is missing -
+        the last year, or a year with too few surviving paths - the post-event fit is used and
+        the result is flagged by the usual support test rather than quietly extrapolated.
         """
         keys = self.years
-        lower_key = int(np.floor(years_since_issue)) - 1
-        lower_key = min(max(lower_key, keys[0]), keys[-1])
-        upper_key = min(lower_key + 1, keys[-1])
-        if upper_key not in self.fits:
-            upper_key = lower_key
-        weight = float(np.clip(years_since_issue - (lower_key + 1), 0.0, 1.0))
+        policy_year = int(np.floor(years_since_issue + 1e-9))
+        start_key = min(max(policy_year - 1, keys[0]), keys[-1])
+        end_key = min(max(policy_year, keys[0]), keys[-1])
+        weight = float(np.clip(years_since_issue - policy_year, 0.0, 1.0))
 
-        first = self.greeks(lower_key, account_value, benefit_base, variance, zero_10y,
+        start = self.greeks(start_key, account_value, benefit_base, variance, zero_10y,
                             attribution)
-        if upper_key == lower_key or weight == 0.0:
-            return first
-        second = self.greeks(upper_key, account_value, benefit_base, variance, zero_10y,
-                             attribution)
-        return {name: (1.0 - weight) * first[name] + weight * second[name] for name in first}
+        if weight <= 0.0:
+            return start
+        use_pre = end_key in self.pre_fits
+        end = self.greeks(end_key, account_value, benefit_base, variance, zero_10y,
+                          attribution, pre_event=use_pre)
+        return {name: (1.0 - weight) * start[name] + weight * end[name] for name in start}
 
 
-def _replicate_weights(account_value: np.ndarray) -> np.ndarray:
-    """One for a live contract; for the exhausted replicates, whatever makes them count as
-    ``EXHAUSTED_EFFECTIVE_ROWS`` between them."""
-    weights = np.ones(account_value.size)
-    spent = account_value <= 1e-8
-    n_spent = int(spent.sum())
-    if n_spent > EXHAUSTED_EFFECTIVE_ROWS:
-        weights[spent] = EXHAUSTED_EFFECTIVE_ROWS / n_spent
-    return weights
+def _roughness(knots: np.ndarray, width: int, n_grid: int = 400) -> np.ndarray:
+    """The integrated squared second derivative of the basis, as a matrix.
+
+    A ridge on the coefficients is the wrong penalty for this fit and the Greeks are what
+    showed it. With twenty basis functions and eight knots crowded into the narrow band of
+    moneyness the contract actually occupies, the fitted level came out smooth and accurate
+    while its second derivative oscillated between plus twelve hundred and minus six hundred
+    from one state to the next. A ridge cannot see that: it penalises the size of the
+    coefficients, and a wildly wiggly function can have small ones. This penalises wiggliness
+    itself, which is the thing that is wrong, and leaves the level free.
+
+    Only the moneyness block is penalised. The volatility and rate terms are already linear and
+    quadratic, so there is no roughness in them to control, and penalising them would quietly
+    shrink two exposures the hedge needs.
+    """
+    grid = np.linspace(float(knots[0]), float(knots[-1]), n_grid)
+    curvature = np.column_stack(_spline_curvature(grid, knots))
+    # Trapezoid weights for the integral over the knot range.
+    step = grid[1] - grid[0]
+    weight = np.full(n_grid, step)
+    weight[0] = weight[-1] = 0.5 * step
+    block = curvature.T @ (curvature * weight[:, None])
+    penalty = np.zeros((width, width))
+    penalty[:block.shape[0], :block.shape[1]] = block
+    return penalty
+
+
+def _penalised_solve(design, target, ridge, weights, penalty, strength) -> np.ndarray:
+    weighted = design * weights[:, None]
+    gram = weighted.T @ weighted
+    scale = np.trace(gram) / max(np.trace(penalty), 1e-300)
+    total = gram + strength * scale * penalty
+    total = total + ridge * np.trace(gram) / total.shape[0] * np.eye(total.shape[0])
+    return np.linalg.solve(total, weighted.T @ (target * weights))
+
+
+def _choose_smoothing(design, target, weights, penalty, ridge, score_design, score_target,
+                      grid=SMOOTHING_GRID) -> tuple:
+    """Pick the smoothing strength on held-out paths, by the one-standard-error rule.
+
+    Choosing the strength that minimises held-out error and then using the fit's second
+    derivative is a mistake with a name: estimating a derivative from noisy data needs more
+    smoothing than estimating the level, so a selection made on the level leaves the curvature
+    under-smoothed. Here it left it oscillating between plus twelve hundred and minus six
+    hundred across neighbouring states while the level stayed accurate to a fraction of a per
+    cent, and the gamma is what the convexity leg of the hedge is sized from.
+
+    The one-standard-error rule was the first thing tried, and measuring it against the nested
+    standard is what ruled it out. The residual here is a single path's realised cash flow
+    against a conditional mean, so its error bars are enormous, and the rule duly selected the
+    strongest smoothing on the grid for every early year - which flattened the value function
+    almost to a straight line. Values went from 0.6 to 1.1 per cent of premium at year one and
+    from 0.2 to 3.3 at year thirty, deltas roughly doubled in error, and the gamma was no better
+    for it, only differently wrong: over-smoothed rather than noisy.
+
+    So the strength is chosen at the held-out minimum, which is the best available answer for
+    the level and the slope, and the curvature is not taken as a point second derivative of
+    this fit at all. See ``greeks``: it is an average over a move of a stated size, which is
+    both the estimable quantity and the one a convexity hedge is sized for.
+    """
+    scores, errors, betas = [], [], []
+    for strength in grid:
+        beta = _penalised_solve(design, target, ridge, weights, penalty, strength)
+        squared = (score_design @ beta - score_target) ** 2
+        scores.append(float(squared.mean()))
+        errors.append(float(squared.std(ddof=1) / np.sqrt(squared.size)))
+        betas.append(beta)
+
+    return grid[int(np.argmin(scores))], scores
+
+
+def _replicate_weights(moneyness: np.ndarray) -> np.ndarray:
+    """One per row, except where the same moneyness repeats more than it can inform.
+
+    Any value that occurs more than ``REPLICATE_EFFECTIVE_ROWS`` times is a point mass in the
+    design rather than a dense region, and its rows share that many rows' worth of weight
+    between them. Exhaustion and the step-up ceiling are both caught by the same rule, which is
+    better than naming either: whatever produces a repeated state, the statistical argument for
+    capping it is the same.
+    """
+    rounded = np.round(np.asarray(moneyness, dtype=float) / REPLICATE_TOLERANCE)
+    values, inverse, counts = np.unique(rounded, return_inverse=True, return_counts=True)
+    scale = np.where(counts > REPLICATE_EFFECTIVE_ROWS,
+                     REPLICATE_EFFECTIVE_ROWS / np.maximum(counts, 1), 1.0)
+    return scale[inverse]
 
 
 def _ridge_solve(design: np.ndarray, target: np.ndarray, ridge: float,
@@ -540,7 +673,7 @@ def fit(
     future_claims = np.cumsum(recorded["pv_claim"][:, ::-1], axis=1)[:, ::-1]
     future_fees = np.cumsum(recorded["pv_fee"][:, ::-1], axis=1)[:, ::-1]
 
-    fits, rows = {}, []
+    fits, pre_fits, rows = {}, {}, []
     for year in range(n_years - 1):
         discount = recorded["discount"][:, year]
         persistency = recorded["persistency"][:, year]
@@ -564,28 +697,30 @@ def fit(
         if fit_rows.sum() < min_paths:
             continue
 
-        knots = _knots(moneyness[fit_rows], account[fit_rows] > 1e-8)
-        design = _design(moneyness, volatility, rate_level, knots)
-        # Square roots, because the solve multiplies design and target by these and the
-        # objective is the square of what it sees.
-        weights = np.sqrt(_replicate_weights(account[fit_rows]))
-        claim_beta = _ridge_solve(design[fit_rows], claim_target[fit_rows], ridge, weights)
-        fee_beta = _ridge_solve(design[fit_rows], fee_target[fit_rows], ridge, weights)
+        fits[year] = _fit_year(
+            moneyness, volatility, rate_level, claim_target, fee_target, fit_rows, ridge,
+            live=account > 1e-8, score_rows=usable & test,
+        )
 
-        observed = np.column_stack([moneyness, volatility, rate_level])
-        n_bins = int(np.ceil(MONEYNESS_CAP / SUPPORT_BIN)) + 1
-        support = np.bincount(
-            np.clip((moneyness[fit_rows] / SUPPORT_BIN).astype(int), 0, n_bins - 1),
-            minlength=n_bins,
+        # The same year, seen an instant before its anniversary. Its state is the contract
+        # after the year's growth and before the year's charges, withdrawal and step-up, so its
+        # contract value can sit above its benefit base - and that is the only kind of state a
+        # hedge sees between anniversaries. Its target is everything from this year's cash
+        # flows onward, because none of them have happened yet.
+        pre_base = recorded["pre_benefit_base"][:, year]
+        pre_usable = (discount > 0) & (pre_base > 1e-9) & (persistency > 1e-9)
+        pre_scale = np.where(pre_usable, discount * persistency * pre_base, 1.0)
+        pre_account = recorded["pre_account_value"][:, year]
+        pre_moneyness, _, _, _ = _state_parts(
+            pre_account, pre_base, recorded["variance"][:, year], recorded["zero_10y"][:, year]
         )
-        fits[year] = _YearFit(
-            claim=claim_beta, fee=fee_beta, knots=knots,
-            lower=np.quantile(observed[fit_rows], DESIGN_TAIL, axis=0),
-            upper=np.quantile(observed[fit_rows], 1.0 - DESIGN_TAIL, axis=0),
-            support=support,
-            min_support=max(MIN_SUPPORT_ROWS, MIN_SUPPORT_SHARE * fit_rows.sum()),
-            n_exhausted=int((usable & (account <= 1e-8)).sum()),
-        )
+        pre_rows = pre_usable & train
+        if pre_rows.sum() >= min_paths:
+            pre_fits[year] = _fit_year(
+                pre_moneyness, volatility, rate_level,
+                future_claims[:, year] / pre_scale, future_fees[:, year] / pre_scale,
+                pre_rows, ridge, live=pre_account > 1e-8, score_rows=pre_usable & test,
+            )
 
         scored = usable & test
         fitted, _ = ProxyFit(fits={year: fits[year]}, order=order, n_paths=n_paths,
@@ -602,6 +737,7 @@ def fit(
             "n_train": int(fit_rows.sum()),
             "n_test": int(scored.sum()),
             "n_exhausted": fits[year].n_exhausted,
+            "smoothing": fits[year].smoothing,
             "r_squared": float(1.0 - (residual @ residual) / (total @ total))
             if total @ total > 0 else np.nan,
             "rmse": float(np.sqrt((residual @ residual) / max(residual.size, 1))),
@@ -611,7 +747,44 @@ def fit(
     if not fits:
         raise ValueError("no year had enough surviving paths to fit")
 
-    return ProxyFit(fits=fits, order=order, n_paths=n_paths, diagnostics=pd.DataFrame(rows))
+    return ProxyFit(fits=fits, pre_fits=pre_fits, order=order, n_paths=n_paths,
+                    diagnostics=pd.DataFrame(rows))
+
+
+def _fit_year(moneyness, volatility, rate, claim_target, fee_target, fit_rows, ridge,
+              live, score_rows=None) -> _YearFit:
+    """One year's coefficients for both legs, plus the record of where its design points fell."""
+    knots = _knots(moneyness[fit_rows], live[fit_rows])
+    design = _design(moneyness, volatility, rate, knots)
+    # Square roots, because the solve multiplies design and target by these and the objective
+    # is the square of what it sees.
+    weights = np.sqrt(_replicate_weights(moneyness[fit_rows]))
+    penalty = _roughness(knots, design.shape[1])
+    if score_rows is None or score_rows.sum() < 100:
+        score_rows = fit_rows
+    strength, _ = _choose_smoothing(
+        design[fit_rows], claim_target[fit_rows], weights, penalty, ridge,
+        design[score_rows], claim_target[score_rows],
+    )
+    observed = np.column_stack([moneyness, volatility, rate])
+    n_bins = int(np.ceil(MONEYNESS_CAP / SUPPORT_BIN)) + 1
+    support = np.bincount(
+        np.clip((moneyness[fit_rows] / SUPPORT_BIN).astype(int), 0, n_bins - 1),
+        minlength=n_bins,
+    )
+    return _YearFit(
+        claim=_penalised_solve(design[fit_rows], claim_target[fit_rows], ridge, weights,
+                               penalty, strength),
+        fee=_penalised_solve(design[fit_rows], fee_target[fit_rows], ridge, weights,
+                             penalty, strength),
+        knots=knots,
+        smoothing=float(strength),
+        lower=np.quantile(observed[fit_rows], DESIGN_TAIL, axis=0),
+        upper=np.quantile(observed[fit_rows], 1.0 - DESIGN_TAIL, axis=0),
+        support=support,
+        min_support=max(MIN_SUPPORT_ROWS, MIN_SUPPORT_SHARE * fit_rows.sum()),
+        n_exhausted=int((live[fit_rows] == False).sum()),  # noqa: E712 - count, not a filter
+    )
 
 
 def accuracy_report(proxy: ProxyFit, account_value: float) -> pd.DataFrame:

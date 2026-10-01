@@ -100,6 +100,7 @@ def gold_standard(
     attribution: float = 1.0,
     seed: int = 21,
     equity_bump: float = 0.0,
+    gamma_bump: float = 0.10,
 ) -> pd.DataFrame:
     """Value the contract exactly at nodes taken off the simulated paths.
 
@@ -161,14 +162,25 @@ def gold_standard(
             "nested_std_error": valuation.std_error,
         }
         if equity_bump:
-            up = valuer.value(_bumped(node_book, 1.0 + equity_bump), node_state,
-                              attribution=attributed)
-            down = valuer.value(_bumped(node_book, 1.0 - equity_bump), node_state,
-                                attribution=attributed)
+            # Two step sizes, because the two Greeks need different ones. The slope is a local
+            # quantity and a two per cent move keeps it local while the shared draws keep the
+            # difference out of the noise. The curvature is reported as an average over a move
+            # of the size a convexity hedge is sized for, ten per cent, which is the only form
+            # in which it is estimable at all - the proxy's point second derivative is not, and
+            # comparing against a point second derivative here would be comparing two numbers
+            # that neither of them can produce.
+            bumps = {}
+            for name, size in (("up", equity_bump), ("down", -equity_bump),
+                               ("wide_up", gamma_bump), ("wide_down", -gamma_bump)):
+                bumps[name] = valuer.value(
+                    _bumped(node_book, np.exp(size)), node_state, attribution=attributed
+                ).market_risk_benefit
             row["nested_delta"] = (
-                (up.market_risk_benefit - down.market_risk_benefit)
-                / np.log((1.0 + equity_bump) / (1.0 - equity_bump))
+                (bumps["up"] - bumps["down"]) / (2.0 * equity_bump)
             )
+            row["nested_gamma"] = (
+                bumps["wide_up"] - 2.0 * valuation.market_risk_benefit + bumps["wide_down"]
+            ) / gamma_bump ** 2
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -189,7 +201,7 @@ def compare(proxy, truth: pd.DataFrame, attribution: float = 1.0) -> pd.DataFram
     out["error"] = out["proxy_value"] - out["nested_value"]
     out["outside_design_range"] = outside
     if "nested_delta" in truth.columns:
-        out["proxy_delta"] = proxy.delta(
+        greeks = proxy.greeks(
             year,
             truth["account_value"].to_numpy(),
             truth["benefit_base"].to_numpy(),
@@ -197,7 +209,10 @@ def compare(proxy, truth: pd.DataFrame, attribution: float = 1.0) -> pd.DataFram
             truth["zero_10y"].to_numpy(),
             attribution=attribution,
         )
+        out["proxy_delta"] = greeks["delta"]
+        out["proxy_gamma"] = greeks["gamma"]
         out["delta_error"] = out["proxy_delta"] - out["nested_delta"]
+        out["gamma_error"] = out["proxy_gamma"] - out["nested_gamma"]
     return out
 
 

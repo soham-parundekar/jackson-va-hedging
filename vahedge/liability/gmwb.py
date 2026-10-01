@@ -206,6 +206,7 @@ def project(
             name: np.empty((n_paths, n_years))
             for name in ("account_value", "benefit_base", "bonus_base", "bonus_end",
                          "adjustment_live", "death_rollup_base", "death_ratchet_base",
+                         "pre_account_value", "pre_benefit_base",
                          "pv_claim", "pv_fee", "discount", "persistency",
                          "variance", "zero_10y", "short_rate")
         }
@@ -226,6 +227,15 @@ def project(
         account_before_drag = account * growth
         account = account_before_drag * drag_factor
         base_charge = insurer_share * account_before_drag * collected_per_unit
+        if recorded is not None:
+            # The state an instant before the anniversary's events: the year's growth and the
+            # continuous drag have happened, the charges, the withdrawal and the step-up have
+            # not. This is the only state in the recursion whose contract value can sit above
+            # its benefit base, because the step-up exists precisely to stop that lasting, and
+            # it is the shape of every state a hedge sees between anniversaries. A proxy fitted
+            # only on post-event states has no design points there at all and extrapolates.
+            recorded["pre_account_value"][:, year] = account[0]
+            recorded["pre_benefit_base"][:, year] = benefit_base[0]
 
         rider_charge = np.minimum(rider_rate * benefit_base, np.maximum(account, 0.0))
         account = account - rider_charge
