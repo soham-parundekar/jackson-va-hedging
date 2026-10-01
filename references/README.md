@@ -50,5 +50,8 @@ references/
   references.md              the annotated bibliography, with why each source is used
   sec_filings/               extracts from Jackson Financial's filings
   issuer_documents/          product filings: rate sheets and prospectus extracts
-  data_documentation/        what each market and mortality series is and what it does not cover
 ```
+
+What each market and mortality series is, what it covers and what it does not, lives in
+`docs/data_sources.md` rather than in a directory here. It belongs next to the loader that
+reads it, and the register points at it.
