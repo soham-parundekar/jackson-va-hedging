@@ -51,6 +51,7 @@ import numpy as np
 
 from ..market.curves import par_equivalent
 from ..market.heston_cos import black76, cos_price, implied_vol
+from ..valuation.greeks import EQUITY_CURVATURE_STEP
 
 # Round-trip transaction costs, as a share of traded notional unless noted. These are
 # assumptions, not quotes; scripts/run_hedge_experiments.py sweeps half, one and two times.
@@ -277,7 +278,7 @@ class IndexPut:
         return float(black76(forward, strike, maturity, vol, discount, is_call=False))
 
     def exposures(self, market: HedgeMarket, maturity: float | None = None,
-                  delta_step: float = 1e-3, gamma_step: float = 0.02,
+                  delta_step: float = 1e-3, gamma_step: float = EQUITY_CURVATURE_STEP,
                   vol_step: float = 1e-4) -> Exposures:
         """Sensitivities of the price this instrument is actually marked at.
 
@@ -303,8 +304,14 @@ class IndexPut:
         at a tenth of a per cent. A second difference at that step is not: the quantity being
         differenced is a part in ten million of a premium of order one, which is double
         precision's floor, and the first version of this returned a gamma of sixteen hundred
-        where the real figure is a tenth of that. Two per cent is both numerically safe and the
-        size of move a convexity hedge is actually sized for.
+        where the real figure is a tenth of that.
+
+        The width of the second difference is not a free numerical choice, which cost this a
+        correction. Any step from about one to fifteen per cent is numerically safe, so the first
+        version took two and the liability's regression took ten, and the solve then matched one
+        definition of curvature against another. At a one-year ten per cent out-of-the-money
+        strike the two differ by five per cent of the gamma, and more at shorter tenors where the
+        option's own curvature is sharper. Both now come from EQUITY_CURVATURE_STEP.
         """
         maturity, strike, discount, forward, vol = self._terms(market, maturity)
         if maturity <= 1e-8 or vol <= 0:

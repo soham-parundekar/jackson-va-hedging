@@ -45,6 +45,9 @@ DISCLOSED_SCALED = DATA_PROCESSED / "disclosed_scaled.csv"
 # equity-variance correlation, and the curve the rate model is fitted around is the same curve
 # the liability discounts on.
 MARKET_CALIBRATION = DATA_PROCESSED / "market_calibration.json"
+# The nested curvature surface the hedge's option leg is sized from, because the regression
+# proxy's own second derivative is not a risk number. Built by scripts/run_convexity_surface.py.
+GAMMA_SURFACE = DATA_PROCESSED / "gamma_surface.csv"
 
 
 def ensure_output_dirs() -> None:

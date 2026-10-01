@@ -60,6 +60,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from . import greeks as greeks_module
+
 DEFAULT_RIDGE = 1e-8
 MONEYNESS_CAP = 3.0      # contract value over benefit base, above which the guarantee is dead
 N_KNOTS = 10             # knots of the moneyness spline, boundaries included
@@ -92,10 +94,9 @@ REPLICATE_TOLERANCE = 1e-6       # moneyness values this close together count as
 # Smoothing strengths tried for the roughness penalty, and how much better a score has to be
 # to prefer a rougher fit. Scored on held-out paths; see _choose_smoothing.
 SMOOTHING_GRID = (0.0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0)
-# Size of the move the reported gamma is averaged over, in log contract value. See ProxyFit.greeks:
-# ten per cent is the scale a convexity hedge is sized for and wide enough that the second
-# difference is not dominated by the spline's own wiggle.
-GAMMA_STEP = 0.10
+# Size of the move the reported gamma is averaged over, in log contract value. Shared with the
+# hedge instruments, so the solve matches one curvature against another of the same definition.
+GAMMA_STEP = greeks_module.EQUITY_CURVATURE_STEP
 
 
 def _knots(moneyness: np.ndarray, live: np.ndarray, n_knots: int = N_KNOTS) -> np.ndarray:

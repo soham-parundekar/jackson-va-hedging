@@ -26,7 +26,8 @@ import pandas as pd
 from tests.checks import approx, raises
 from vahedge.hedge import attribution, instruments as inst, simulator, sizing, strategies
 from vahedge.market.curves import ZeroCurve, fit_curve
-from vahedge.valuation.greeks import Greeks
+from vahedge.valuation import lsmc
+from vahedge.valuation.greeks import EQUITY_CURVATURE_STEP, Greeks
 
 EQUITY_WEIGHT = 0.8334
 
@@ -120,12 +121,27 @@ def test_the_put_s_gamma_survives_being_differenced():
     a gamma twenty times too large. Checked against a hand-rolled wide difference."""
     market = _market()
     put = inst.IndexPut(maturity=1.0, strike_over_spot=0.90).struck(market)
-    step = 0.02
+    step = EQUITY_CURVATURE_STEP
     here = put.value(market)
     wide = (put.value(replace(market, index=market.index * np.exp(step)))
             - 2.0 * here
             + put.value(replace(market, index=market.index * np.exp(-step)))) / step ** 2
     assert approx(wide, rel=1e-9) == put.exposures(market).gamma
+
+
+def test_the_put_and_the_liability_measure_curvature_the_same_way():
+    """A solve that matches one definition of gamma against another is sizing off a unit error.
+
+    The two were different for a while - two per cent on the option, ten on the regression - and
+    nothing failed, because both numbers are perfectly well conditioned. At a one-year ten per
+    cent out-of-the-money strike they differ by about five per cent of the gamma, which goes
+    straight into the put position.
+    """
+    assert lsmc.GAMMA_STEP == EQUITY_CURVATURE_STEP
+    market = _market()
+    put = inst.IndexPut(maturity=1.0, strike_over_spot=0.90).struck(market)
+    narrow = put.exposures(market, gamma_step=0.02).gamma
+    assert put.exposures(market).gamma != approx(narrow, rel=1e-3)
 
 
 def test_a_receive_fixed_swap_gains_when_rates_fall():

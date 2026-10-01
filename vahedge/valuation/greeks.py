@@ -35,6 +35,17 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+# How wide a move the reported curvature is averaged over, as a log move in the index. Every
+# second difference in the project uses this one number, and the reason it lives here rather
+# than in whichever module needed it first is that a gamma is only a hedgeable quantity if the
+# liability and the instrument sold against it are measured the same way. They were not: the
+# regression proxy averaged over ten per cent while the listed puts used two, which is a three
+# to nine per cent difference in the put's gamma depending on strike and tenor, and a solve
+# matching one against the other is sizing a position off a unit mismatch. Ten rather than two
+# because the liability's own second difference at two per cent is mostly noise, and because a
+# convexity hedge on a guarantee is bought for moves of that order rather than for the limit.
+EQUITY_CURVATURE_STEP = 0.10
+
 
 @dataclass(frozen=True)
 class Greeks:

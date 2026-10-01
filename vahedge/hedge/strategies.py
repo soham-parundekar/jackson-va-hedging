@@ -42,10 +42,19 @@ import numpy as np
 from . import instruments as inst
 from .sizing import DEFAULT_WEIGHTS
 
-# Strike and tenor of the puts in S3. One year out, ten per cent down: far enough out of the
-# money to be cheap, near enough to carry real gamma in a fall of the size the liability cares
-# about. Both are assumptions and E3 sweeps them.
-PUT_TENOR_YEARS = 1.0
+# Strike and tenor of the puts in S3, picked off the sweep in E3 rather than assumed, and a
+# trade-off rather than a winner. The first version held a one-year put ten per cent down with
+# nothing behind the choice. Against it, six months at the same strike costs 13.7 per cent of
+# account value over the ten-year window instead of 21.2 and leaves a slightly smaller average
+# residual, 0.137 against 0.142 per cent a day, because a listed option's spread is charged on
+# its vega while the hedge is bought for its gamma and that ratio rises as the tenor shortens.
+# What it gives up is the tail: through covid the one-year put returned 3.5 per cent of account
+# value against the six-month's 2.0. So the short tenor buys a third off the running cost for
+# about a point and a half of crisis upside, which is the trade taken here and is reversible by
+# changing these two numbers. The whole grid is on the frontier once the crisis outcome is an
+# axis, and E3 prints it. Jackson's own equity option book averaged 0.24 years of remaining
+# term at 31 December 2025, shorter than either.
+PUT_TENOR_YEARS = 0.5
 PUT_STRIKE = 0.90
 # The macro hedge in S6: a two-year put spread well out of the money. A spread rather than a
 # put because the far wing is where the premium goes and the floor it buys is below the level
@@ -114,8 +123,15 @@ def rate_instruments() -> tuple:
     return (inst.InterestRateSwap(tenor=10.0, receive_fixed=True),)
 
 
-def put_leg() -> tuple:
-    return (inst.IndexPut(maturity=PUT_TENOR_YEARS, strike_over_spot=PUT_STRIKE),)
+def put_leg(tenor: float = PUT_TENOR_YEARS, strike: float = PUT_STRIKE) -> tuple:
+    """The convexity leg. Both arguments are swept in E3 rather than argued for.
+
+    The tenor is the single largest lever on what convexity costs, because a listed option's
+    spread is charged on its vega while the hedge wants its gamma, and short-dated options carry
+    far more of the second per unit of the first. The defaults come from the sweep; see the
+    constants above.
+    """
+    return (inst.IndexPut(maturity=tenor, strike_over_spot=strike),)
 
 
 def macro_leg(notional_share: float = MACRO_NOTIONAL_SHARE) -> tuple:
@@ -150,7 +166,9 @@ def matrix() -> dict:
             instruments=delta_and_rho,
         ),
         "S3": Strategy(
-            name="S3", description="adds one-year 10% out-of-the-money puts for gamma and vega",
+            name="S3",
+            description=(f"adds {PUT_TENOR_YEARS:g}-year {1 - PUT_STRIKE:.0%} out-of-the-money "
+                         "puts for gamma and vega"),
             instruments=with_puts,
         ),
         "S4": Strategy(

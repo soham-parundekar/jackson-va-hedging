@@ -32,6 +32,14 @@ from ..market.curves import ZeroCurve, fit_curve
 
 CURVE_TENORS = np.array([0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0])
 
+# Where the convexity surface stops walking a node upward, and which nodes are worth walking.
+# The anniversary states the nodes are taken from cannot have an account above the benefit base,
+# because the ratchet resets the base to the account whenever it is higher, so a surface built
+# only at those states ends at moneyness one. The hedge spends much of its time above that, since
+# the account rises between anniversaries while the base sits still.
+LADDER_FROM = 0.80
+LADDER_TO = 1.45
+
 
 def curve_at_node(hull_white, time: float, short_rate: float):
     """The zero curve an observer sees at a node, from the Hull-White bond formula."""
@@ -247,3 +255,107 @@ def summarise(comparison: pd.DataFrame, account_value: float) -> dict:
     out["mean_nested_std_error"] = float(comparison["nested_std_error"].mean())
     out["share_outside_design_range"] = float(comparison["outside_design_range"].mean())
     return out
+
+
+def gamma_surface(
+    valuer,
+    book,
+    state,
+    recorded: dict,
+    years,
+    n_nodes: int = 25,
+    attribution: float = 1.0,
+    equity_bump: float = 0.10,
+) -> pd.DataFrame:
+    """Curvature per unit of benefit base against moneyness, one curve per policy year.
+
+    Built by valuing each node three times - at its own contract value and at that value moved
+    up and down - and taking the second difference. The three share one simulation, because
+    under Heston the return distribution does not depend on the index level, so a node costs
+    barely more than a single valuation. Two hundred nodes is a few minutes.
+
+    The step is ten per cent rather than a basis point, and that is a definition rather than a
+    numerical convenience. A point second derivative of a Monte Carlo valuation is noise divided
+    by the square of a small number; what a convexity hedge is sized for is the average
+    curvature across a move of the size that actually happens, and ten per cent is that size.
+    The same step is used when the proxy's own curvature is measured against this, so the two
+    are comparable.
+
+    Nodes are stratified on moneyness rather than drawn at random, because the curve is wanted
+    across the whole range the hedge will visit and a lognormal sample puts almost nothing at
+    the ends.
+
+    One part of the range no node can reach on its own. These states are read off anniversaries,
+    and an anniversary is where the ratchet has just lifted the benefit base to the account value
+    if the account was higher, so the moneyness of a live contract there is at most one. Between
+    anniversaries it is routinely more: the account grows and the base does not. A node near the
+    base is therefore valued along a ladder of equity shifts rather than at three points, each
+    rung spaced by the same bump, so consecutive rungs share valuations and the ladder costs one
+    call per rung instead of three. Interior rungs give the second difference, and the top of the
+    ladder reaches the moneyness the hedge actually sees in a rising market.
+
+    What the ladder does not fix is which paths supplied those states. The rungs above one all
+    come from paths that happened to finish the year close to their base, so the variance and the
+    short rate attached to a point at moneyness 1.3 are those of a path at 0.9 rather than of a
+    path that genuinely ran that far above its guarantee. The surface is indexed on moneyness
+    alone, so this only matters through that correlation, and the size of it is what the spread
+    reported by the build script measures.
+    """
+    rows = []
+    hull_white = state.hull_white()
+    for year in years:
+        account = recorded["account_value"][:, year]
+        benefit = recorded["benefit_base"][:, year]
+        variance = recorded["variance"][:, year]
+        short_rate = recorded["short_rate"][:, year]
+        alive = (account > 1e-8) & (benefit > 1e-9)
+        if alive.sum() < n_nodes:
+            continue
+        moneyness = account[alive] / benefit[alive]
+        order = np.argsort(moneyness)
+        picked = np.asarray(np.where(alive)[0])[order[
+            np.linspace(0, order.size - 1, n_nodes).round().astype(int)
+        ]]
+
+        for path in picked:
+            node_curve = curve_at_node(hull_white, float(year + 1), float(short_rate[path]))
+            node_state = replace(
+                state, curve=node_curve,
+                heston=replace(state.heston, v0=float(max(variance[path], 1e-8))),
+                valuation_year=state.valuation_year + year + 1,
+            )
+            node_book = _advance(book, recorded, int(path), year)
+            attributed = np.array([attribution])
+            base = float(benefit[path])
+            spot = float(account[path]) / base
+
+            top_rung = 0
+            if spot > LADDER_FROM:
+                top_rung = max(int(np.ceil(np.log(LADDER_TO / spot) / equity_bump)), 0)
+            priced = {}
+            for rung in range(-1, top_rung + 2):
+                shifted = (node_book if rung == 0
+                           else _bumped(node_book, float(np.exp(rung * equity_bump))))
+                result = valuer.value(shifted, node_state, attribution=attributed)
+                priced[rung] = (float(np.ravel(result.market_risk_benefit)[0]),
+                                float(np.ravel(result.std_error)[0]))
+
+            for rung in range(0, top_rung + 1):
+                second = priced[rung + 1][0] - 2.0 * priced[rung][0] + priced[rung - 1][0]
+                rows.append({
+                    # The fit keyed ``year`` applies at ``year + 1`` years since issue, and the
+                    # surface is indexed the way the simulator asks for it.
+                    "policy_year": float(year + 1),
+                    "moneyness": spot * float(np.exp(rung * equity_bump)),
+                    "gamma": second / equity_bump ** 2,
+                    "gamma_per_unit": second / equity_bump ** 2 / base,
+                    "value": priced[rung][0],
+                    "benefit_base": base,
+                    "variance": float(variance[path]),
+                    "zero_10y": float(node_curve.zero(10.0)),
+                    "std_error": priced[rung][1],
+                    # Zero marks a state a path actually produced; above that the account has
+                    # been walked up from one, which is the only way past the ratchet's cap.
+                    "rung": rung,
+                })
+    return pd.DataFrame(rows)

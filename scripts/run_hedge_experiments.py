@@ -23,9 +23,13 @@ long-run variance, which is the parameter no option expires at and the one the v
 exposed to. The extra residual is the cost of model risk in hedging, and it is the honest answer
 to "how much does the calibration matter", which no amount of fit diagnostics can give.
 
-A fifth table comes out alongside: the share of rebalances on which the proxy was asked for a
-state outside its design. That is not an experiment but a condition on all of them, and a
-hedging result built on a quarter of its decisions being extrapolated is not a result.
+Two tables come out alongside. The first is the share of rebalances on which the proxy was asked
+for a state outside its design, which is not an experiment but a condition on all of them: a
+hedging result built on a quarter of its decisions being extrapolated is not a result. The second
+compares the two places the liability's curvature can come from, since the regression's second
+derivative is wrong by about its own size and the strategies holding puts are sized off a nested
+surface instead. That substitution has to earn its keep, and the table is where it does or
+does not.
 
 Usage:  python -m scripts.run_hedge_experiments
 """
@@ -46,6 +50,7 @@ from vahedge.market import state as market_state
 from vahedge.market.heston_cos import HestonParameters
 from vahedge.market.simulate import simulate
 from vahedge.valuation import lsmc
+from vahedge.valuation.convexity import ConvexitySurface, with_nested_gamma
 from vahedge.valuation.engine import MarketState
 
 ISSUE_AGE = 70
@@ -65,6 +70,10 @@ DIVIDEND_YIELD = 0.015        # assumption; the S&P 500 series on FRED is a pric
 STRATEGY_ORDER = ("S0", "S1", "S2", "S3", "S4", "S5", "S6")
 COST_MULTIPLES = (0.5, 1.0, 2.0)
 FREQUENCIES = ("daily", "weekly", "monthly")
+# The option leg's two free parameters. The short end brackets the 0.24-year average term of
+# Jackson's own equity option book at 31 December 2025; the long end is what S3 assumes.
+PUT_TENORS = (0.25, 0.5, 1.0)
+PUT_STRIKES = (0.95, 0.90, 0.85)
 
 
 def build(backtest_start: str = "2016-09-26"):
@@ -118,19 +127,40 @@ def build(backtest_start: str = "2016-09-26"):
     history = scenarios.load_history(panel, calibration.heston, calibration.mix,
                                      dividend_yield=DIVIDEND_YIELD)
     smile = inst.smile_from_heston(calibration.heston, calibration.curve, maturity=1.0)
+    surface = (ConvexitySurface.from_csv(paths.GAMMA_SURFACE)
+               if paths.GAMMA_SURFACE.exists() else None)
     return {
         "calibration": calibration, "state": state, "proxy": proxy, "policy": policy,
         "survival": policy_survival, "deaths": policy_deaths,
-        "history": history, "smile": smile,
+        "history": history, "smile": smile, "surface": surface,
     }
 
 
-def _run(setup, path, strategy, cost_multiple: float = 1.0, greeks_override=None):
+def _run(setup, path, strategy, cost_multiple: float = 1.0, greeks_override=None,
+         nested_gamma: bool = True):
+    """One strategy over one path.
+
+    ``nested_gamma`` decides where the liability's curvature comes from. The proxy's own second
+    derivative is off by about the size of the quantity at every horizon, so by default it is
+    replaced by the tabulated surface built in scripts/run_convexity_surface.py - for every
+    strategy, not only the ones holding puts, because the curvature is a property of the
+    liability rather than of the hedge. Futures and swaps carry no gamma, so on S1 and S2 the
+    substitution changes the target and not the trade.
+
+    E4 turns it off. Its arms are all misspecified in a named way and measured against the
+    calibrated arm, and a surface built under the calibrated model would hand every arm one
+    correct Greek, which is the opposite of what that experiment is asking.
+    """
+    source = greeks_override or setup["proxy"]
+    if nested_gamma and setup["surface"] is not None:
+        source = with_nested_gamma(source, setup["surface"])
+    elif greeks_override is None:
+        source = None             # the simulator's own default path
     return simulator.run(
         path, setup["policy"], setup["survival"], setup["deaths"], setup["proxy"], strategy,
         setup["smile"], years_at_start=float(DURATION_AT_START),
         equity_weight=setup["state"].mix.equity_weight, dividend_yield=DIVIDEND_YIELD,
-        cost_multiple=cost_multiple, greeks_override=greeks_override,
+        cost_multiple=cost_multiple, greeks_override=source,
     )
 
 
@@ -213,6 +243,118 @@ def frequency_and_cost(setup) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def put_design(setup) -> pd.DataFrame:
+    """E3, second half. What the option leg's tenor and strike cost, which S3 asserts.
+
+    S3's first version held a one-year put ten per cent out of the money and nothing chose those
+    numbers; the comment in strategies.py had promised a sweep since it was written. This is it.
+    The quantity that drives the answer is gamma per unit of trading cost, because the spread on
+    a listed option is charged on its vega and a short-dated option carries far more curvature per
+    unit of vega than a long one.
+
+    Two measurements per design, because one of them alone picks the wrong point, and that is not
+    a hypothetical. On the whole replay window's two axes the three one-year designs are all
+    dominated and the sweep reads as a clean verdict for short tenors. Add the worst window in the
+    sample as a third axis and nothing is dominated: the long-dated puts pay more through the
+    crash, which is what they were bought for. The first version of this function measured only
+    the window and the conclusion it supported was an artefact of the ten years in which nothing
+    happened.
+
+    The disclosure is the reason this is worth running rather than a tidy-up. Jackson's equity
+    option book averaged 0.24 years of remaining term at 31 December 2025 - three months, against
+    the twelve first assumed here - so a sweep that puts the short tenors anywhere near the
+    frontier agrees with what the issuer does, and one that does not needs an explanation.
+    """
+    matrix = strategies.matrix()
+    base = matrix["S3"]
+    linear = strategies.equity_only() + strategies.rate_instruments()
+    episodes = scenarios.available_episodes(setup["history"])
+    stress_name = max(
+        episodes["covered"],
+        key=lambda name: -setup["history"].window(
+            *episodes["covered"][name][:2], label=name).index[-1],
+    )
+    stress = setup["history"].window(*episodes["covered"][stress_name][:2], label=stress_name)
+    rows = []
+    for tenor in PUT_TENORS:
+        for strike in PUT_STRIKES:
+            variant = replace(base, instruments=linear + strategies.put_leg(tenor, strike))
+            run = _run(setup, setup["history"], variant)
+            crisis = _run(setup, stress, variant)
+            put = inst.IndexPut(maturity=tenor, strike_over_spot=strike)
+            reference = inst.HedgeMarket(
+                index=100.0, curve=setup["calibration"].curve, volatility=0.18,
+                smile=inst.smile_from_heston(setup["calibration"].heston,
+                                             setup["calibration"].curve, maturity=tenor),
+            )
+            exposure = put.struck(reference).exposures(reference)
+            rows.append({
+                "tenor_years": tenor, "strike_over_spot": strike,
+                "pnl_sd_pct": run.summary["pnl_sd_pct"],
+                "total_cost_pct": run.summary["total_cost_pct"],
+                "total_pnl_pct": run.summary["total_pnl_pct"],
+                "worst_day_pct": run.summary["worst_day_pct"],
+                "rebalances": run.summary["rebalances"],
+                "stress_episode": stress_name,
+                "stress_pnl_sd_pct": crisis.summary["pnl_sd_pct"],
+                "stress_total_pnl_pct": crisis.summary["total_pnl_pct"],
+                "stress_worst_day_pct": crisis.summary["worst_day_pct"],
+                # Why the sweep comes out the way it does, at one reference market rather than
+                # along the path: curvature bought per dollar of spread paid.
+                "gamma_per_cost": exposure.gamma / (exposure.vega * inst.OPTION_COST_VOL_POINTS),
+                "premium_pct_of_index": put.struck(reference).value(reference) / 100.0,
+            })
+    table = pd.DataFrame(rows)
+    table["on_frontier"] = [
+        not ((table["total_cost_pct"] <= row["total_cost_pct"])
+             & (table["pnl_sd_pct"] <= row["pnl_sd_pct"])
+             & (table["stress_total_pnl_pct"] >= row["stress_total_pnl_pct"])
+             & (table.index != index)).any()
+        for index, row in table.iterrows()
+    ]
+    return table
+
+
+def convexity_source(setup) -> pd.DataFrame:
+    """What sizing the option leg off nested curvature is worth, against the regression's own.
+
+    The surface costs a few minutes of nested valuation and a file on disk, and the case for it
+    is an error measurement rather than a hedging result: the proxy's gamma is wrong by roughly
+    its own size. Whether that matters to a hedge is a separate question, because gamma enters
+    the solve at a tenth of the weight of delta and the put leg is the only instrument that
+    answers to it. This runs the strategies that hold puts both ways over the same paths.
+
+    Run only where the surface exists, which is the usual case; without it the experiments fall
+    back to the regression and this table is empty rather than fabricated.
+    """
+    if setup["surface"] is None:
+        return pd.DataFrame()
+    matrix = strategies.matrix()
+    episodes = scenarios.available_episodes(setup["history"])
+    rows = []
+    for name in list(episodes["covered"]) + ["whole window"]:
+        path = (setup["history"] if name == "whole window"
+                else setup["history"].window(*episodes["covered"][name][:2], label=name))
+        for key in ("S3", "S4", "S5", "S6"):
+            both = {
+                source: _run(setup, path, matrix[key], nested_gamma=(source == "nested"))
+                for source in ("regression", "nested")
+            }
+            rows.append({
+                "episode": name, "strategy": key,
+                "sd_regression_pct": both["regression"].summary["pnl_sd_pct"],
+                "sd_nested_pct": both["nested"].summary["pnl_sd_pct"],
+                "cost_regression_pct": both["regression"].summary["total_cost_pct"],
+                "cost_nested_pct": both["nested"].summary["total_cost_pct"],
+                "worst_day_regression_pct": both["regression"].summary["worst_day_pct"],
+                "worst_day_nested_pct": both["nested"].summary["worst_day_pct"],
+            })
+    table = pd.DataFrame(rows)
+    table["sd_change_pct"] = table["sd_nested_pct"] - table["sd_regression_pct"]
+    table["cost_change_pct"] = table["cost_nested_pct"] - table["cost_regression_pct"]
+    return table
+
+
 def _wrong_model_greeks(setup, heston: HestonParameters, fixed_variance: float | None = None):
     """Greeks from a proxy fitted under a different market model, on the same contract.
 
@@ -283,7 +425,8 @@ def model_risk(setup) -> pd.DataFrame:
             path = (setup["history"] if name == "whole window"
                     else setup["history"].window(*episodes["covered"][name][:2], label=name))
             for key in ("S1", "S2", "S3"):
-                run = _run(setup, path, matrix[key], greeks_override=override)
+                run = _run(setup, path, matrix[key], greeks_override=override,
+                           nested_gamma=False)
                 rows.append({
                     "model": label, "episode": name, "strategy": key,
                     "pnl_sd_pct": run.summary["pnl_sd_pct"],
@@ -346,6 +489,47 @@ def main() -> None:
                   f"delta left {100*row['delta_left_pct']:5.2f}%  "
                   f"outside design {100*row['outside_design_share']:4.0f}%")
 
+    design = put_design(setup)
+    design.to_csv(paths.TABLES / "hedge_put_design.csv", index=False)
+    stress_name = design["stress_episode"].iloc[0]
+    print(f"\nE3, option leg: the put's tenor and strike, over the whole window and in "
+          f"{stress_name}")
+    for _, row in design.sort_values(["tenor_years", "strike_over_spot"]).iterrows():
+        print(f"  {row['tenor_years']:.2f}y  K/S {row['strike_over_spot']:.2f}  "
+              f"sd {100*row['pnl_sd_pct']:6.3f}%  cost {100*row['total_cost_pct']:6.2f}%  "
+              f"{stress_name} total {100*row['stress_total_pnl_pct']:+6.2f}% "
+              f"worst day {100*row['stress_worst_day_pct']:+6.2f}%  "
+              f"gamma per unit of cost {row['gamma_per_cost']:7.0f}"
+              f"{'  <- frontier' if row['on_frontier'] else ''}")
+    held = design[(design.tenor_years == strategies.PUT_TENOR_YEARS)
+                  & (design.strike_over_spot == strategies.PUT_STRIKE)]
+    if not held.empty:
+        row = held.iloc[0]
+        print(f"  S3 holds {row['tenor_years']:.2f}y at K/S {row['strike_over_spot']:.2f}: "
+              f"on the frontier {bool(row['on_frontier'])}")
+    dominated = design[~design["on_frontier"]]
+    if not dominated.empty:
+        print("  dominated on all three of cost, residual and the stress outcome: "
+              + ", ".join(f"{r['tenor_years']:.2f}y/{r['strike_over_spot']:.2f}"
+                          for _, r in dominated.iterrows()))
+
+    sources = convexity_source(setup)
+    if not sources.empty:
+        sources.to_csv(paths.TABLES / "hedge_convexity_source.csv", index=False)
+        print("\nCurvature from the nested surface against the regression's own, on the "
+              "strategies that hold puts")
+        for _, row in sources[sources["episode"] == "whole window"].iterrows():
+            print(f"  {row['strategy']}  sd {100*row['sd_regression_pct']:6.3f}% -> "
+                  f"{100*row['sd_nested_pct']:6.3f}%   "
+                  f"cost {100*row['cost_regression_pct']:5.2f}% -> "
+                  f"{100*row['cost_nested_pct']:5.2f}%")
+        worst = sources.loc[sources["sd_change_pct"].abs().idxmax()]
+        print(f"  largest move in any episode: {worst['strategy']} in {worst['episode']}, "
+              f"sd {100*worst['sd_change_pct']:+.3f} points")
+    else:
+        print("\nNo curvature surface on disk; the option leg is sized off the regression. "
+              "Run scripts/run_convexity_surface.py first.")
+
     misspecified = model_risk(setup)
     misspecified.to_csv(paths.TABLES / "hedge_model_risk.csv", index=False)
     print("\nE4 model risk, extra standard deviation against the calibrated hedge")
@@ -353,7 +537,7 @@ def main() -> None:
         index="model", columns="strategy", values="extra_sd_pct"
     )
     print((100 * pivot).round(4).to_string())
-    print(f"\nwrote {paths.TABLES / 'hedge_crisis_replays.csv'} and four others")
+    print(f"\nwrote seven tables under {paths.TABLES}")
 
 
 if __name__ == "__main__":
