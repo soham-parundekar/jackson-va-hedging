@@ -519,12 +519,17 @@ class ProxyFit:
 
         start = self.greeks(start_key, account_value, benefit_base, variance, zero_10y,
                             attribution)
-        if weight <= 0.0:
-            return start
         use_pre = end_key in self.pre_fits
         end = self.greeks(end_key, account_value, benefit_base, variance, zero_10y,
                           attribution, pre_event=use_pre)
-        return {name: (1.0 - weight) * start[name] + weight * end[name] for name in start}
+        out = (start if weight <= 0.0 else
+               {name: (1.0 - weight) * start[name] + weight * end[name] for name in start})
+        # Theta is the interpolation's own slope: the value is linear in time between the two
+        # anniversaries, so its rate of change per year is the difference between the ends.
+        # Without it a P&L attribution has no term for the passage of time at all, and on a
+        # forty-year guarantee that is not a small omission - it was fifteen per cent of
+        # account value over three years, sitting in the residual where it read as model error.
+        return {**out, "theta": end["value"] - start["value"]}
 
 
 def _roughness(knots: np.ndarray, width: int, n_grid: int = 400) -> np.ndarray:

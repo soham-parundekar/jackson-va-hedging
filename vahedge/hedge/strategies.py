@@ -57,6 +57,13 @@ MACRO_STRIKES = (0.80, 0.60)
 # and the payout caps at five per cent below forty per cent down. That is a capital floor
 # rather than an economic hedge, which is the distinction W5 is built to measure.
 MACRO_NOTIONAL_SHARE = 0.25
+# S4's band, as a share of account value of delta left open. Sized to be a cost-control device
+# rather than a disguise for daily rebalancing: the liability's curvature is around a quarter of
+# the account value, so a one per cent index move opens about a quarter of a per cent of delta,
+# and a band of two per cent takes a sustained move of several days to breach. The first version
+# used a quarter of a per cent, which fired most days and made S4 cost twice what weekly
+# rebalancing did - the opposite of what the strategy is for. Swept in E3.
+BAND_SHARE = 0.02
 
 
 @dataclass(frozen=True)
@@ -88,14 +95,23 @@ def equity_only() -> tuple:
 
 
 def rate_instruments() -> tuple:
-    """Two durations rather than one.
+    """One, not three, and the reason is the rate model rather than the instruments.
 
-    A single note future hedges the ten-year point and leaves the long end open, and the long
-    end is where most of a lifetime guarantee's discounting sits. Giving the solve both lets it
-    find the mix, and the ridge in the sizing is what stops it taking offsetting monsters in the
-    two when their exposures are nearly proportional.
+    A note future, a bond forward and a receive-fixed swap are three different trades with
+    three different costs and liquidity. Under a one-factor short-rate model they are not three
+    different risks: each one's only exposure is to a parallel shift, so their exposure columns
+    are exactly proportional and a strategy holding two of them has a singular design matrix.
+    The split between them is then decided by the ridge rather than by anything financial, which
+    is false precision dressed as optimisation.
+
+    So the strategies hold the swap, whose sensitivity is the annuity of its own fixed leg read
+    off the curve rather than a duration assumption, and the other two stay in the library for
+    the derivative-book reproduction in V1, where matching Jackson's disclosed categories by
+    notional is the point. Telling the three apart as risks would need a second curve factor in
+    the proxy's state, and the proxy does not carry one; that is a stated limitation rather than
+    something the hedge quietly papers over.
     """
-    return (inst.RateFuture(), inst.BondForward())
+    return (inst.InterestRateSwap(tenor=10.0, receive_fixed=True),)
 
 
 def put_leg() -> tuple:
@@ -139,7 +155,7 @@ def matrix() -> dict:
         ),
         "S4": Strategy(
             name="S4", description="S3 rebalanced on a hedge-error band rather than a calendar",
-            instruments=with_puts, rebalance="band", band=0.0025,
+            instruments=with_puts, rebalance="band", band=BAND_SHARE,
         ),
         "S5": Strategy(
             name="S5", description="S3 at a 90% hedge ratio",

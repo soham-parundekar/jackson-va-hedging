@@ -165,7 +165,7 @@ def roll_contract(policy_book, path, survival, deaths, equity_weight: float = 1.
     }
 
 
-def daily_state(path, rolled: dict, opening_account: float, opening_base: float):
+def daily_state(path, rolled: dict, book, opening_account: float, opening_base: float):
     """Contract value and benefit base on every date, and the cash flows by date.
 
     Within a policy year the contract value is the previous anniversary's value grown by the
@@ -178,6 +178,11 @@ def daily_state(path, rolled: dict, opening_account: float, opening_base: float)
     account = np.empty(path.dates.size)
     base = np.empty(path.dates.size)
     cash_flow = np.zeros(path.dates.size)
+    # The state an instant before each anniversary's events, which is where the day's market
+    # move ends and the contract's own events begin. Equal to the smooth state everywhere else.
+    pre_account = np.empty(path.dates.size)
+    pre_base = np.empty(path.dates.size)
+    is_anniversary = np.zeros(path.dates.size, dtype=bool)
 
     account[:anniversaries[0] + 1] = opening_account
     base[:anniversaries[0] + 1] = opening_base
@@ -187,17 +192,56 @@ def daily_state(path, rolled: dict, opening_account: float, opening_base: float)
         span = slice(begin + 1, end)
         account[span] = anchor_account * path.fund[span] / path.fund[begin]
         base[span] = anchor_base
+        # One more day of growth takes the contract to the state it reaches just before the
+        # anniversary's charges, withdrawal and step-up.
+        pre_account[end] = anchor_account * path.fund[end] / path.fund[begin]
+        pre_base[end] = anchor_base
+        is_anniversary[end] = True
         anchor_account = rolled["account_value"][position]
         anchor_base = rolled["benefit_base"][position]
         account[end] = anchor_account
         base[end] = anchor_base
-        cash_flow[end] = rolled["fee"][position] - rolled["claim"][position]
+        # The cash lands on the anniversary, which is where the recursion charges it, and that
+        # is deliberate even though the fee is earned across the year. The liability already
+        # accrues it: within a policy year the value interpolates towards the pre-event fit,
+        # which is higher than the post-event one by that year's net cash flow, so the insurer's
+        # net worth rises smoothly by the fee as time passes with no cash moving. Spreading the
+        # cash as well - which this did first - counts the same fee twice inside the year and
+        # then has the anniversary take back only one of them, which put a three per cent spike
+        # on a single day and dominated the daily standard deviation of every strategy.
+        cash_flow[end] += rolled["fee"][position] - rolled["claim"][position]
 
     tail = anniversaries[-1] + 1
     if tail < path.dates.size:
         account[tail:] = anchor_account * path.fund[tail:] / path.fund[anniversaries[-1]]
         base[tail:] = anchor_base
-    return account, base, cash_flow
+        # No cash for the part year at the end of the path: its anniversary never arrives, so
+        # the fee has been earned and not yet charged. The liability carries it through the
+        # interpolation towards the pre-event fit, which is the accrual, and a window shorter
+        # than a policy year - which is most of the crisis replays - is all accrual and no cash.
+    not_anniversary = ~is_anniversary
+    pre_account[not_anniversary] = account[not_anniversary]
+    pre_base[not_anniversary] = base[not_anniversary]
+    return {
+        "account_value": account, "benefit_base": base, "cash_flow": cash_flow,
+        "pre_account_value": pre_account, "pre_benefit_base": pre_base,
+        "is_anniversary": is_anniversary,
+    }
+
+
+def fee_rate(benefit_base, account_value, book) -> np.ndarray:
+    """Annual fee the insurer collects, at a point in time, per the contract's own rates.
+
+    Two bases with opposite equity sensitivity, which is the thing about this product that
+    catches people out: the rider charge is a percentage of the benefit base and does not fall
+    when markets do, while the contract charge is a percentage of the account value and does.
+    """
+    rider = float(book.rider_charge_pct[0]) * np.asarray(benefit_base, dtype=float)
+    insurer_share = float(book.insurer_drag_share[0])
+    collected = 1.0 - np.exp(-float(book.account_drag[0]))
+    contract = insurer_share * collected * np.asarray(account_value, dtype=float)
+    death = float(book.db_charge_pct[0]) * np.asarray(benefit_base, dtype=float)
+    return rider + contract + death
 
 
 def run(
@@ -224,9 +268,13 @@ def run(
     model's sensitivities.
     """
     rolled = roll_contract(policy_book, path, survival, deaths, equity_weight)
-    account, base, cash_flow = daily_state(
-        path, rolled, float(policy_book.account_value[0]), float(policy_book.benefit_base[0])
+    daily = daily_state(
+        path, rolled, policy_book,
+        float(policy_book.account_value[0]), float(policy_book.benefit_base[0]),
     )
+    account = daily["account_value"]
+    base = daily["benefit_base"]
+    cash_flow = daily["cash_flow"]
     policy_year = path.year_fraction + years_at_start
     calendar = rebalance_dates(path.dates, strategy.rebalance)
     on_band = strategy.rebalance == "band"
@@ -249,12 +297,24 @@ def run(
             zero_10y=float(path.zero_10y[day]), attribution=1.0,
         )
         liability = float(np.ravel(greeks["value"])[0])
-        exposure = sizing.Exposures(
-            delta=-float(np.ravel(greeks["delta"])[0]),
-            gamma=-float(np.ravel(greeks["gamma"])[0]),
-            vega=-float(np.ravel(greeks["vega"])[0]),
-            rho=-float(np.ravel(greeks["rho_per_bp"])[0]),
-        )
+        # On an anniversary, the value an instant before the contract's own events, so the
+        # attribution can tell a market move from a charge. Everywhere else the two coincide.
+        if daily["is_anniversary"][day] and int(policy_year[day]) - 1 in proxy.pre_fits:
+            key = int(policy_year[day]) - 1
+            node = (float(daily["pre_account_value"][day]),
+                    float(daily["pre_benefit_base"][day]),
+                    float(path.variance[day]), float(path.zero_10y[day]))
+            liability_pre = float(np.ravel(proxy.greeks(
+                key, *node, attribution=1.0, pre_event=True)["value"])[0])
+
+        else:
+            liability_pre = liability
+        # Through insurer_exposures rather than by hand, because that is where the signs flip
+        # and where the contract-value delta becomes an index delta. Building the vector here
+        # instead - which is what this did first - silently skipped the equity-weight
+        # conversion and oversized every hedge by one over the weight.
+        exposure = sizing.insurer_exposures(greeks, equity_weight=equity_weight,
+                                            vega=strategy.vega)
 
         step = 0.0 if day == 0 else years[day] - years[day - 1]
         interest = cash * (np.exp(float(path.cash_rate[day]) * step) - 1.0)
@@ -284,6 +344,7 @@ def run(
             })
 
         hedge_mark = float(sum(line.mark(market) for line in book))
+        hedge = _book_exposure(book, market)
         cash += cash_flow[day] + interest - trade_cost - carry
         rows.append({
             "date": path.dates[day],
@@ -292,6 +353,9 @@ def run(
             "fund": path.fund[day],
             "account_value": account[day],
             "benefit_base": base[day],
+            "pre_account_value": daily["pre_account_value"][day],
+            "liability_pre": liability_pre,
+            "is_anniversary": bool(daily["is_anniversary"][day]),
             "implied_vol": path.implied_vol[day],
             "variance": path.variance[day],
             "zero_10y": path.zero_10y[day],
@@ -300,7 +364,11 @@ def run(
             "gamma": float(np.ravel(greeks["gamma"])[0]),
             "vega": float(np.ravel(greeks["vega"])[0]),
             "rho_per_bp": float(np.ravel(greeks["rho_per_bp"])[0]),
-            "hedge_delta": _book_exposure(book, market).delta,
+            "theta": float(np.ravel(greeks.get("theta", 0.0))[0]),
+            "hedge_delta": hedge.delta,
+            "hedge_gamma": hedge.gamma,
+            "hedge_vega": hedge.vega,
+            "hedge_rho_per_bp": hedge.rho,
             "hedge_mark": hedge_mark,
             "cash": cash,
             "cash_flow": cash_flow[day],
@@ -319,7 +387,7 @@ def run(
         ledger=ledger,
         positions=(pd.DataFrame(position_rows).set_index("date")
                    if position_rows else pd.DataFrame()),
-        summary=summarise(ledger, float(policy_book.account_value[0])),
+        summary=summarise(ledger, float(policy_book.account_value[0]), equity_weight),
     )
 
 
@@ -494,7 +562,8 @@ def _names(instruments) -> list:
     return out
 
 
-def summarise(ledger: pd.DataFrame, account_value: float) -> dict:
+def summarise(ledger: pd.DataFrame, account_value: float,
+              equity_weight: float = 1.0) -> dict:
     """The numbers a strategy is judged on, as a share of the contract value at the start.
 
     Scale-free because that is the only form in which a hundred-thousand-dollar policy and a
@@ -518,9 +587,13 @@ def summarise(ledger: pd.DataFrame, account_value: float) -> dict:
         ),
         "liability_start_pct": float(ledger["liability"].iloc[0] / account_value),
         "liability_end_pct": float(ledger["liability"].iloc[-1] / account_value),
-        # The insurer carries the negative of the liability's delta, so what is left open is
-        # the hedge book's delta less the liability's.
+        # What is left open, in index terms: the hedge book's delta plus the insurer's, where
+        # the insurer's is the liability's negated and converted by the equity weight. Comparing
+        # the hedge's index delta against the liability's contract delta unconverted - which
+        # this did first - understates the gap by the weight and reported a hedge as nine times
+        # tighter than it was.
         "mean_abs_delta_left_pct": float(
-            (ledger["hedge_delta"] - ledger["delta"]).abs().mean() / account_value
+            (ledger["hedge_delta"] - equity_weight * ledger["delta"]).abs().mean()
+            / account_value
         ),
     }
