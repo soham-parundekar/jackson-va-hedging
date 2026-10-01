@@ -1,34 +1,36 @@
-.PHONY: all data calibrate proxy hedge valuation greeks validate backtest accounting test clean help
+.PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory \
+        backtest accounting test clean help
 
 PY ?= python3
 
 help:
-	@echo "data        validate inputs and bootstrap the curve history (run this first)"
+	@echo "Order matters in two places and nowhere else. calibrate writes the market state"
+	@echo "every other step reads, and convexity writes the curvature surface the hedging"
+	@echo "experiments size their option leg from. Both outputs are gitignored, so a fresh"
+	@echo "clone has to build them before anything downstream will run."
+	@echo ""
+	@echo "data        validate the committed inputs and bootstrap the curve history"
 	@echo "calibrate   fit the market state: curve, Heston surface, short rate, correlations"
-	@echo "proxy       regression proxy against nested simulation (slow, around 6 minutes)"
-	@echo "hedge       crisis replays, the cost frontier and model risk (slow, around 15 minutes)"
 	@echo "valuation   at-issue valuation, cash flows, robustness, convergence"
-	@echo "greeks      Greeks and the moneyness profile"
+	@echo "greeks      Greeks on paired paths, and the moneyness profile"
 	@echo "validate    disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep"
-	@echo "backtest    weekly hedging backtest over ten years (slow, around 10 minutes)"
+	@echo "proxy       the regression proxy against nested simulation (~6 min)"
+	@echo "convexity   the nested curvature surface the option leg is sized from (~8 min)"
+	@echo "hedge       crisis replays, the cost frontier, the put sweep, model risk (~15 min)"
+	@echo "statutory   real-world requirement at CTE(70) and CTE(90), and the surrender floor"
+	@echo "backtest    the earlier single-policy weekly backtest (~10 min)"
 	@echo "accounting  economic against reported earnings (needs backtest first)"
-	@echo "test        run the test suite"
-	@echo "all         everything, in order"
-	@echo "clean       remove generated outputs, leaving raw data alone"
+	@echo "test        the test suite"
+	@echo "all         everything, in dependency order"
+	@echo "clean       remove generated outputs, leaving data/raw alone"
 
-all: data valuation greeks validate backtest accounting test
+all: data calibrate valuation greeks validate proxy convexity hedge statutory backtest accounting test
 
 data:
 	$(PY) -m scripts.build_dataset
 
-calibrate:
+calibrate: data
 	$(PY) -m scripts.run_calibration
-
-proxy: calibrate
-	$(PY) -m scripts.run_proxy_validation
-
-hedge: calibrate
-	$(PY) -m scripts.run_hedge_experiments
 
 valuation:
 	$(PY) -m scripts.run_valuation
@@ -41,10 +43,25 @@ validate:
 	$(PY) -m scripts.run_portfolio_validation
 	$(PY) -m scripts.run_behaviour_reconciliation
 
+proxy: calibrate
+	$(PY) -m scripts.run_proxy_validation
+
+# Writes data/processed/gamma_surface.csv, which the hedging experiments read. Gitignored, so
+# this is not optional on a fresh clone - the experiments fall back to the regression's own
+# curvature, which the proxy validation shows is wrong by about its own size.
+convexity: calibrate
+	$(PY) -m scripts.run_convexity_surface
+
+hedge: convexity
+	$(PY) -m scripts.run_hedge_experiments
+
+statutory: calibrate
+	$(PY) -m scripts.run_statutory
+
 backtest:
 	$(PY) -m scripts.run_hedge_backtest
 
-accounting:
+accounting: backtest
 	$(PY) -m scripts.run_gaap_comparison
 
 test:

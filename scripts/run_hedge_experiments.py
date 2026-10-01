@@ -49,6 +49,7 @@ from vahedge.market import scenarios
 from vahedge.market import state as market_state
 from vahedge.market.heston_cos import HestonParameters
 from vahedge.market.simulate import simulate
+from vahedge.capital import statutory
 from vahedge.valuation import lsmc
 from vahedge.valuation.convexity import ConvexitySurface, with_nested_gamma
 from vahedge.valuation.engine import MarketState
@@ -315,6 +316,38 @@ def put_design(setup) -> pd.DataFrame:
     return table
 
 
+def surrender_floor(setup) -> pd.DataFrame:
+    """What the cash surrender value floor costs a working hedge, over the replay window.
+
+    The hedge is sized against the economic liability and the 8-K says what that costs when the
+    statutory reserve cannot follow it: "non-economic hedging costs". The mechanism is a sign
+    change rather than a level. Unfloored, capital is cash plus the hedge mark less the guarantee
+    and a working hedge keeps it flat. Floored, the reserve tracks the surrender value, the
+    guarantee leaves the reserve entirely, and the hedge's loss in a rally has two per cent of the
+    account rise against it instead of the guarantee getting cheaper.
+
+    Run on the whole window rather than on a crisis, because the floor is a rally problem. 2016 to
+    2026 is one long rally with the guarantee a net asset most of the way through, which is the
+    regime that made the floor worth a captive.
+    """
+    matrix = strategies.matrix()
+    rows = []
+    for key in STRATEGY_ORDER:
+        run = _run(setup, setup["history"], matrix[key])
+        marked = statutory.statutory_capital(run.ledger)
+        rows.append({
+            "strategy": key,
+            **statutory.floor_summary(marked, float(setup["policy"].account_value[0])),
+        })
+    table = pd.DataFrame(rows).set_index("strategy")
+    # Against the unhedged book on each basis separately, which is the only comparison that
+    # separates the two. The level gap cannot: the hedge cancels out of it.
+    for basis in ("economic", "statutory"):
+        base = table.loc["S0", f"{basis}_sd_pct"]
+        table[f"{basis}_variance_removed"] = 1.0 - (table[f"{basis}_sd_pct"] / base) ** 2
+    return table.reset_index()
+
+
 def convexity_source(setup) -> pd.DataFrame:
     """What sizing the option leg off nested curvature is worth, against the regression's own.
 
@@ -513,6 +546,21 @@ def main() -> None:
               + ", ".join(f"{r['tenor_years']:.2f}y/{r['strike_over_spot']:.2f}"
                           for _, r in dominated.iterrows()))
 
+    floor = surrender_floor(setup)
+    floor.to_csv(paths.TABLES / "hedge_surrender_floor.csv", index=False)
+    print("\nThe cash surrender value floor against the hedge, over the whole window")
+    print(f"  floor binds on {100*floor['share_of_days_floored'].iloc[0]:.0f}% of days; it costs "
+          f"the block {100*floor['basis_gap_total_pct'].iloc[0]:+.2f}% of account value over ten "
+          f"years ({100*floor['basis_gap_per_year_pct'].iloc[0]:+.2f}%/yr), the same whatever the "
+          f"hedge, because the hedge mark is in both capital series")
+    print("  variance each strategy removes, by basis:")
+    for _, row in floor.iterrows():
+        print(f"  {row['strategy']}  economic total {100*row['economic_total_pct']:+7.2f}%  "
+              f"statutory {100*row['statutory_total_pct']:+7.2f}%   "
+              f"sd {100*row['economic_sd_pct']:5.3f}% -> {100*row['statutory_sd_pct']:5.3f}%   "
+              f"variance removed {100*row['economic_variance_removed']:5.1f}% economic vs "
+              f"{100*row['statutory_variance_removed']:5.1f}% statutory")
+
     sources = convexity_source(setup)
     if not sources.empty:
         sources.to_csv(paths.TABLES / "hedge_convexity_source.csv", index=False)
@@ -537,7 +585,7 @@ def main() -> None:
         index="model", columns="strategy", values="extra_sd_pct"
     )
     print((100 * pivot).round(4).to_string())
-    print(f"\nwrote seven tables under {paths.TABLES}")
+    print(f"\nwrote eight tables under {paths.TABLES}")
 
 
 if __name__ == "__main__":

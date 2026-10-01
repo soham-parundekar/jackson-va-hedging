@@ -173,38 +173,91 @@ def floored_reserve(
     }
 
 
-def non_economic_hedge_cost(
-    account_change,
-    guarantee_change,
-    hedge_pnl,
-    floor_binds,
+def statutory_capital(
+    ledger: pd.DataFrame,
     surrender_share: float = SURRENDER_VALUE_SHARE,
-) -> dict:
-    """How much hedge P&L the floor leaves with nothing on the other side, period by period.
+) -> pd.DataFrame:
+    """Mark a hedge backtest on both bases, so the floor's cost in a rally is a measurement.
 
-    On the economic basis net worth moves by the hedge result less the change in the guarantee
-    liability, and a working hedge makes that roughly nothing. On the statutory basis what moves
-    is the floored total reserve against the separate account assets, and when the floor binds the
-    guarantee's movement is not in the reserve at all. The gap between the two is the hedge P&L
-    with no offset.
+    The balance sheet is short enough to write out, and writing it out is what makes the result
+    arguable rather than asserted. Assets are the separate account, the hedge mark and the cash
+    the programme has accumulated; liabilities are the separate account liability, which equals
+    the account value, plus the additional general-account reserve for the guarantee. So
 
-    All four inputs are period changes on one grid, signed so a positive ``guarantee_change`` is
-    the liability getting more expensive.
+        capital = account + hedge + cash - max(account + guarantee, share * account)
+
+    and the two regimes fall out of the max. Unfloored, the account legs cancel and capital is
+    ``cash + hedge - guarantee``, which is the economic net worth the simulator already tracks and
+    which a working hedge keeps flat. Floored, the guarantee leaves the expression entirely and
+    capital is ``cash + hedge + (1 - share) * account``: the hedge is short equity, so in a rally
+    it loses, and what used to offset that loss - the guarantee getting cheaper - is no longer in
+    the reserve at all. Two per cent of the account rising is all that remains on the other side.
+
+    The gap between the two capital series is reported as ``basis_gap`` and not as a hedging
+    cost, because the hedge mark sits in both expressions and cancels out of the difference. The
+    gap is ``(1 - share) * account + guarantee`` on floored days and zero elsewhere, so it comes
+    out the same for an unhedged book as for a fully hedged one. Calling it the cost of hedging
+    would be a mislabelling, and the first version of the experiment did exactly that: it
+    reported an identical 23.56 per cent of account value for all seven strategies, including S0,
+    which has no hedge to be unoffset.
+
+    The cost the 8-K names shows up instead in how much of each basis the hedge removes. The same
+    position takes 91 to 96 per cent of the variance out of the economic series and 48 to 58 per
+    cent out of the statutory one, so the programme pays its full price and collects under half of
+    the benefit on the basis that drives capital. That asymmetry is the measurement; the level gap
+    is the floor's own cost and belongs to the block rather than to the hedge.
+
+    Returns the ledger's columns plus the two capital series and their difference, indexed the
+    same way, so the daily P&L reconciles against ``ledger["pnl"]`` on the economic side by
+    construction.
     """
-    account_change = np.asarray(account_change, dtype=float)
-    guarantee_change = np.asarray(guarantee_change, dtype=float)
-    hedge_pnl = np.asarray(hedge_pnl, dtype=float)
-    binds = np.asarray(floor_binds, dtype=bool)
+    for column in ("account_value", "liability", "hedge_mark", "cash"):
+        if column not in ledger.columns:
+            raise ValueError(f"ledger has no {column!r}; it is not a hedge run ledger")
 
-    economic = hedge_pnl - guarantee_change
-    reserve_change = np.where(binds, surrender_share * account_change,
-                              account_change + guarantee_change)
-    statutory_basis = hedge_pnl + account_change - reserve_change
+    account = ledger["account_value"].to_numpy(dtype=float)
+    guarantee = ledger["liability"].to_numpy(dtype=float)
+    reserve = floored_reserve(guarantee, account, surrender_share=surrender_share)
+
+    out = pd.DataFrame(index=ledger.index)
+    out["account_value"] = account
+    out["guarantee_reserve"] = guarantee
+    out["floor_binds"] = reserve["floor_binds"]
+    out["total_reserve"] = reserve["reserve"]
+    out["economic_capital"] = ledger["cash"] + ledger["hedge_mark"] - ledger["liability"]
+    out["statutory_capital"] = (
+        account + ledger["hedge_mark"].to_numpy(dtype=float)
+        + ledger["cash"].to_numpy(dtype=float) - reserve["reserve"]
+    )
+    out["economic_pnl"] = out["economic_capital"].diff().fillna(0.0)
+    out["statutory_pnl"] = out["statutory_capital"].diff().fillna(0.0)
+    out["basis_gap_pnl"] = out["statutory_pnl"] - out["economic_pnl"]
+    return out
+
+
+def floor_summary(marked: pd.DataFrame, account_value: float) -> dict:
+    """The headline numbers from a two-basis mark, as shares of the starting account value."""
+    days_per_year = 252.0
+    years = max(marked.shape[0] / days_per_year, 1e-9)
     return {
-        "economic": economic,
-        "statutory": statutory_basis,
-        "unoffset": statutory_basis - economic,
-        "share_of_periods_floored": float(binds.mean()),
+        "days": float(marked.shape[0]),
+        "share_of_days_floored": float(marked["floor_binds"].mean()),
+        "economic_total_pct": float(
+            (marked["economic_capital"].iloc[-1] - marked["economic_capital"].iloc[0])
+            / account_value
+        ),
+        "statutory_total_pct": float(
+            (marked["statutory_capital"].iloc[-1] - marked["statutory_capital"].iloc[0])
+            / account_value
+        ),
+        # The floor's own cost to the block. Identical across strategies by construction, because
+        # the hedge mark is in both capital series and cancels; see statutory_capital.
+        "basis_gap_total_pct": float(marked["basis_gap_pnl"].sum() / account_value),
+        "basis_gap_per_year_pct": float(marked["basis_gap_pnl"].sum() / account_value / years),
+        "economic_sd_pct": float(marked["economic_pnl"].std(ddof=0) / account_value),
+        "statutory_sd_pct": float(marked["statutory_pnl"].std(ddof=0) / account_value),
+        "economic_worst_day_pct": float(marked["economic_pnl"].min() / account_value),
+        "statutory_worst_day_pct": float(marked["statutory_pnl"].min() / account_value),
     }
 
 

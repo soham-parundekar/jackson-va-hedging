@@ -7,8 +7,8 @@ of a simulated distribution and a bug in it produces a plausible number rather t
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
+from tests.checks import approx, raises
 from vahedge.capital import statutory
 
 
@@ -16,13 +16,13 @@ def test_gpvad_takes_the_worst_point_not_the_end():
     """A block that costs money and then earns it back still has to be funded through the middle."""
     # One scenario: out 10, out 5, back 20. Accumulated: 10, 15, -5. Terminal says -5.
     deficiency = np.array([[10.0, 5.0, -20.0]])
-    assert statutory.greatest_pv_deficiency(deficiency)[0] == pytest.approx(15.0)
+    assert statutory.greatest_pv_deficiency(deficiency)[0] == approx(15.0)
 
 
 def test_gpvad_can_be_negative_and_is_not_floored_by_default():
     """Flooring each scenario would hide a hedge that turns losses into profits."""
     deficiency = np.array([[-3.0, -4.0]])
-    assert statutory.greatest_pv_deficiency(deficiency)[0] == pytest.approx(-3.0)
+    assert statutory.greatest_pv_deficiency(deficiency)[0] == approx(-3.0)
     assert statutory.greatest_pv_deficiency(deficiency, floor_at_zero=True)[0] == 0.0
 
 
@@ -35,9 +35,9 @@ def test_cte_averages_the_worst_tail():
     values = np.arange(1.0, 11.0)          # 1 to 10
     measure = statutory.cte(values, level=0.70)
     assert measure.scenarios_in_tail == 3
-    assert measure.value == pytest.approx((8 + 9 + 10) / 3)
+    assert measure.value == approx((8 + 9 + 10) / 3)
     assert measure.worst_scenario == 10.0
-    assert measure.median_scenario == pytest.approx(5.5)
+    assert measure.median_scenario == approx(5.5)
 
 
 def test_cte_tail_size_rounds_up():
@@ -59,7 +59,7 @@ def test_cte_tail_size_survives_binary_rounding():
 
 def test_cte_at_zero_is_the_mean():
     values = np.array([2.0, 4.0, 9.0, 1.0])
-    assert statutory.cte(values, level=0.0).value == pytest.approx(values.mean())
+    assert statutory.cte(values, level=0.0).value == approx(values.mean())
 
 
 def test_cte_always_keeps_at_least_one_scenario():
@@ -74,14 +74,14 @@ def test_cte_is_monotone_in_the_level():
 
 
 def test_cte_rejects_an_impossible_level():
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         statutory.cte(np.arange(10.0), level=1.0)
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         statutory.cte(np.arange(10.0), level=-0.1)
 
 
 def test_cte_rejects_an_empty_sample():
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         statutory.cte(np.array([]))
 
 
@@ -96,7 +96,7 @@ def test_the_floor_does_not_bind_while_the_surrender_value_is_below_the_assets()
     out = statutory.floored_reserve(guarantee_reserve=np.array([2.0]),
                                     account_value=np.array([100.0]))
     assert not out["floor_binds"][0]
-    assert out["reserve"][0] == pytest.approx(102.0)
+    assert out["reserve"][0] == approx(102.0)
 
 
 def test_the_floor_binds_only_when_the_guarantee_is_a_large_enough_asset():
@@ -104,7 +104,7 @@ def test_the_floor_binds_only_when_the_guarantee_is_a_large_enough_asset():
     out = statutory.floored_reserve(guarantee_reserve=np.array([-3.0]),
                                     account_value=np.array([100.0]))
     assert out["floor_binds"][0]
-    assert out["reserve"][0] == pytest.approx(98.0)
+    assert out["reserve"][0] == approx(98.0)
 
 
 def test_the_reserve_delta_loses_the_guarantee_when_the_floor_binds():
@@ -115,34 +115,6 @@ def test_the_reserve_delta_loses_the_guarantee_when_the_floor_binds():
         statutory.SURRENDER_VALUE_SHARE, 1.0
     ]
     assert out["reserve_delta_unfloored"].tolist() == [1.0, 1.0]
-
-
-def test_a_working_hedge_is_flat_economically_and_not_statutorily_when_floored():
-    """A rally: the guarantee gets cheaper, the hedge loses, the floored reserve does not release."""
-    account_change = np.array([10.0])
-    guarantee_change = np.array([-4.0])     # the liability got cheaper by four
-    hedge_pnl = np.array([-4.0])            # the short equity hedge lost exactly that
-    out = statutory.non_economic_hedge_cost(
-        account_change, guarantee_change, hedge_pnl, floor_binds=np.array([True]),
-    )
-    assert out["economic"][0] == pytest.approx(0.0)
-    # Reserve moves by 0.98 of the account rise and the guarantee is not in it, so the hedge loss
-    # sits against a reserve release of 0.98 * 10 against assets up 10.
-    assert out["statutory"][0] == pytest.approx(-4.0 + 10.0 - 0.98 * 10.0)
-    assert out["unoffset"][0] == pytest.approx(out["statutory"][0])
-
-
-def test_the_two_bases_agree_when_the_floor_does_not_bind():
-    rng = np.random.default_rng(21)
-    account_change = rng.normal(scale=5.0, size=200)
-    guarantee_change = rng.normal(scale=2.0, size=200)
-    hedge_pnl = rng.normal(scale=2.0, size=200)
-    out = statutory.non_economic_hedge_cost(
-        account_change, guarantee_change, hedge_pnl, floor_binds=np.zeros(200, dtype=bool),
-    )
-    assert np.allclose(out["economic"], out["statutory"])
-    assert np.allclose(out["unoffset"], 0.0)
-    assert out["share_of_periods_floored"] == 0.0
 
 
 def test_requirement_reports_both_levels_and_the_tail_is_worse_at_ninety():
@@ -161,9 +133,9 @@ def test_the_profile_finds_where_the_tail_peaks():
     ])
     profile = statutory.deficiency_profile(deficiency, level=0.0)
     assert list(profile["policy_year"]) == [1, 2, 3]
-    assert profile["share_of_tail_peaking_here"].sum() == pytest.approx(1.0)
-    assert profile.loc[0, "share_of_tail_peaking_here"] == pytest.approx(0.5)
-    assert profile.loc[2, "share_of_tail_peaking_here"] == pytest.approx(0.5)
+    assert profile["share_of_tail_peaking_here"].sum() == approx(1.0)
+    assert profile.loc[0, "share_of_tail_peaking_here"] == approx(0.5)
+    assert profile.loc[2, "share_of_tail_peaking_here"] == approx(0.5)
 
 
 def test_the_profile_tail_is_at_least_as_bad_as_the_whole_sample():
@@ -175,4 +147,84 @@ def test_the_profile_tail_is_at_least_as_bad_as_the_whole_sample():
 
 def test_the_surrender_share_matches_the_disclosure():
     """231,711 of cash surrender value against 236,406 of separate account at 31 December 2025."""
-    assert statutory.SURRENDER_VALUE_SHARE == pytest.approx(231_711 / 236_406, abs=5e-4)
+    assert statutory.SURRENDER_VALUE_SHARE == approx(231_711 / 236_406, abs=5e-4)
+
+
+def _ledger(account, guarantee, hedge, cash):
+    """A minimal hedge-run ledger with only the columns the two-basis mark reads."""
+    import pandas as pd
+    return pd.DataFrame({
+        "account_value": account, "liability": guarantee,
+        "hedge_mark": hedge, "cash": cash,
+    }, index=pd.RangeIndex(len(account), name="date"))
+
+
+def test_the_two_bases_agree_while_the_floor_is_slack():
+    """Unfloored, the account legs cancel and statutory capital is the economic net worth."""
+    marked = statutory.statutory_capital(_ledger(
+        account=[100.0, 104.0], guarantee=[3.0, 2.0], hedge=[0.0, -1.0], cash=[1.0, 1.0],
+    ))
+    assert not marked["floor_binds"].any()
+    assert np.allclose(marked["economic_capital"], marked["statutory_capital"])
+    assert np.allclose(marked["basis_gap_pnl"], 0.0)
+
+
+def test_a_rally_with_the_floor_binding_leaves_the_hedge_loss_unoffset():
+    """The whole of the captive transaction, in two rows.
+
+    The account rises ten, the guarantee gets four cheaper, the short hedge loses exactly four.
+    Economically that is flat. With the reserve pinned at 98 per cent of the account, the
+    guarantee's gain is not in the reserve and only two per cent of the rise offsets the hedge.
+    """
+    marked = statutory.statutory_capital(_ledger(
+        account=[100.0, 110.0], guarantee=[-5.0, -9.0], hedge=[0.0, -4.0], cash=[0.0, 0.0],
+    ))
+    assert marked["floor_binds"].all()
+    assert marked["economic_pnl"].iloc[1] == approx(0.0)
+    assert marked["statutory_pnl"].iloc[1] == approx(-4.0 + 0.02 * 10.0)
+    assert marked["basis_gap_pnl"].iloc[1] < 0.0
+
+
+def test_the_basis_gap_does_not_depend_on_the_hedge():
+    """Which is why it is not the cost of hedging, and the first version of the experiment was wrong.
+
+    The hedge mark is in both capital series, so it cancels out of the difference and the gap
+    comes out identical for an unhedged book and a hedged one. The experiment reported the same
+    23.56 per cent for all seven strategies before this was noticed.
+    """
+    account, guarantee = [100.0, 110.0], [-5.0, -9.0]
+    unhedged = statutory.statutory_capital(
+        _ledger(account, guarantee, hedge=[0.0, 0.0], cash=[0.0, 0.0]))
+    hedged = statutory.statutory_capital(
+        _ledger(account, guarantee, hedge=[0.0, -4.0], cash=[0.0, 0.0]))
+    assert np.allclose(unhedged["basis_gap_pnl"], hedged["basis_gap_pnl"])
+    assert not np.allclose(unhedged["economic_pnl"], hedged["economic_pnl"])
+
+
+def test_the_floored_reserve_carries_no_guarantee_sensitivity():
+    """Two ledgers differing only in the guarantee give the same statutory capital when floored."""
+    one = statutory.statutory_capital(_ledger([100.0], [-6.0], [0.0], [0.0]))
+    two = statutory.statutory_capital(_ledger([100.0], [-20.0], [0.0], [0.0]))
+    assert one["floor_binds"].all() and two["floor_binds"].all()
+    assert one["statutory_capital"].iloc[0] == approx(two["statutory_capital"].iloc[0])
+    assert one["economic_capital"].iloc[0] != approx(two["economic_capital"].iloc[0])
+
+
+def test_the_mark_refuses_a_ledger_that_is_not_one():
+    import pandas as pd
+    with raises(ValueError, match="hedge_mark"):
+        statutory.statutory_capital(pd.DataFrame({
+            "account_value": [1.0], "liability": [1.0], "cash": [1.0],
+        }))
+
+
+def test_the_summary_scales_by_the_starting_account_value():
+    marked = statutory.statutory_capital(_ledger(
+        account=[100.0, 110.0, 120.0], guarantee=[-5.0, -9.0, -13.0],
+        hedge=[0.0, -4.0, -8.0], cash=[0.0, 0.0, 0.0],
+    ))
+    summary = statutory.floor_summary(marked, account_value=100.0)
+    assert summary["days"] == 3.0
+    assert summary["share_of_days_floored"] == 1.0
+    assert summary["basis_gap_total_pct"] < 0.0
+    assert summary["economic_total_pct"] == approx(0.0)
