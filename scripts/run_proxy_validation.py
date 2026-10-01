@@ -49,6 +49,13 @@ NODES = 50
 # changes with the horizon: early on almost nothing is exhausted and the low-moneyness end has
 # no data; late on almost everything is, and the live end has none.
 TEST_YEARS = (1, 2, 5, 9, 14, 20, 25, 30)
+# The delta check is the second half of the proxy's job and the half a level comparison does
+# not cover: a fit whose value is right and whose slope is wrong hedges badly while valuing
+# correctly. It is run at every tested year because it costs almost nothing - the bumped
+# valuations reuse each node's own draws - but on fewer nodes, since what matters is whether
+# the slope is right across the moneyness range rather than resolving it point by point.
+DELTA_NODES = 20
+EQUITY_BUMP = 0.02
 
 
 def build():
@@ -80,7 +87,7 @@ def main() -> None:
     ).to_csv(paths.TABLES / "proxy_fit_diagnostics.csv", index=False)
 
     inner = Valuer(mortality.load("basic"), n_paths=INNER_PATHS, seed=INNER_SEED, cache_size=1)
-    rows = []
+    rows, delta_rows = [], []
     for year in TEST_YEARS:
         if year not in proxy.fits:
             continue
@@ -92,6 +99,16 @@ def main() -> None:
         summary["mean_nested_value"] = float(truth["nested_value"].mean())
         summary["exhausted_share"] = proxy.fits[year].n_exhausted / FIT_PATHS
         rows.append(summary)
+
+        bumped = nested.compare(proxy, nested.gold_standard(
+            inner, book, state, projection.recorded, year=year,
+            n_nodes=DELTA_NODES, equity_bump=EQUITY_BUMP,
+        ))
+        inside = bumped[~bumped["outside_design_range"]]
+        summary["delta_rmse_pct_of_account_in_range"] = float(
+            np.sqrt((inside["delta_error"] ** 2).mean()) / PREMIUM
+        ) if not inside.empty else np.nan
+        delta_rows.append(bumped.assign(year=year))
         print(
             f"year {year:2d}  all rmse {100*summary['rmse_pct_of_account']:5.2f}% of premium"
             f"  R2 {summary['r_squared']:.4f}"
@@ -99,6 +116,7 @@ def main() -> None:
             f"  rmse {100*summary['rmse_pct_of_account_in_range']:5.2f}%"
             f"  R2 {summary['r_squared_in_range']:.4f}"
             f" | flagged {100*summary['share_outside_design_range']:3.0f}%"
+            f"  delta rmse {100*summary['delta_rmse_pct_of_account_in_range']:5.2f}%"
             f"  inner se {summary['mean_nested_std_error']:.3f}",
             flush=True,
         )
@@ -106,10 +124,16 @@ def main() -> None:
     table = pd.DataFrame(rows)[[
         "year", "nodes", "r_squared", "rmse", "rmse_pct_of_account", "worst_pct_of_account",
         "nodes_in_range", "r_squared_in_range", "rmse_pct_of_account_in_range",
-        "worst_pct_of_account_in_range", "share_outside_design_range",
+        "worst_pct_of_account_in_range", "delta_rmse_pct_of_account_in_range",
+        "share_outside_design_range",
         "mean_nested_std_error", "mean_nested_value", "exhausted_share",
     ]]
     table.to_csv(paths.TABLES / "proxy_accuracy.csv", index=False)
+    pd.concat(delta_rows, ignore_index=True)[[
+        "year", "path", "account_value", "benefit_base", "variance", "zero_10y",
+        "nested_value", "proxy_value", "nested_delta", "proxy_delta", "delta_error",
+        "outside_design_range",
+    ]].to_csv(paths.TABLES / "proxy_delta_nodes.csv", index=False)
 
     usable = table[table["rmse_pct_of_account_in_range"] < 0.03]["year"]
     print(f"\nproxy within 3% of premium inside its design range through year "

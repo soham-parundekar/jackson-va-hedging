@@ -244,6 +244,120 @@ def test_the_proxy_is_short_the_equity_market():
     assert proxy.delta(year, np.array([90.0]), np.array([120.0]), 0.02, 0.045)[0] < 0
 
 
+def test_the_analytic_slope_is_the_derivative_of_the_basis_it_came_from():
+    """A column-order mismatch between the basis and its derivative would leave the values
+    right and the hedge ratios wrong, which is the one failure mode a value comparison cannot
+    see. Checked against a fine central difference on the basis itself rather than on a fit, so
+    it holds for any coefficients."""
+    rng = np.random.default_rng(3)
+    knots = np.array([0.0, 0.05, 0.2, 0.4, 0.6, 0.8, 0.95, 1.1, 1.4])
+    moneyness = rng.uniform(0.0, 2.0, 300)
+    volatility = rng.uniform(0.05, 0.6, 300)
+    rate = rng.uniform(0.01, 0.08, 300)
+    beta = rng.normal(size=lsmc._design(moneyness, volatility, rate, knots).shape[1])
+
+    step = 1e-6
+    analytic = lsmc._design_slope(moneyness, volatility, rate, knots) @ beta
+    numeric = (
+        lsmc._design(moneyness + step, volatility, rate, knots) @ beta
+        - lsmc._design(moneyness - step, volatility, rate, knots) @ beta
+    ) / (2.0 * step)
+    assert approx(numeric, rel=1e-5, abs=1e-6) == analytic
+
+
+def test_every_analytic_greek_is_the_derivative_of_the_fitted_value():
+    """Delta, gamma, vega and rho against fine differences on the proxy's own value function.
+
+    Run on random coefficients rather than on a fit, so it tests the basis arithmetic rather
+    than one particular set of numbers. Gamma is the one that needs to be analytic rather than
+    bumped: a second difference on a spline either straddles a knot or lands inside double
+    precision's floor, and a wrong gamma sizes the convexity leg of the hedge.
+    """
+    rng = np.random.default_rng(11)
+    knots = np.array([0.0, 0.05, 0.2, 0.4, 0.6, 0.8, 0.95, 1.1, 1.4])
+    count = 200
+    moneyness = rng.uniform(0.05, 1.3, count)
+    volatility = rng.uniform(0.05, 0.6, count)
+    rate = rng.uniform(0.01, 0.08, count)
+    width = lsmc._design(moneyness, volatility, rate, knots).shape[1]
+    fit = lsmc._YearFit(
+        claim=rng.normal(size=width), fee=rng.normal(size=width), knots=knots,
+        lower=np.zeros(3), upper=np.full(3, 10.0),
+        support=np.full(80, 10_000), min_support=1.0, n_exhausted=0,
+    )
+    proxy = lsmc.ProxyFit(fits={3: fit}, order=3, n_paths=count, diagnostics=None)
+
+    base = rng.uniform(80.0, 200.0, count)
+    account = moneyness * base
+    attribution = 0.9
+    greeks = proxy.greeks(3, account, base, volatility ** 2, rate, attribution=attribution)
+
+    def value(acc, variance, rate_level):
+        out, _ = proxy.value(3, acc, base, variance, rate_level, attribution=attribution,
+                             flag_extrapolation=False)
+        return out
+
+    step = 1e-4
+    assert approx(
+        (value(account * np.exp(step), volatility ** 2, rate)
+         - value(account * np.exp(-step), volatility ** 2, rate)) / (2.0 * step),
+        rel=2e-4, abs=1e-4,
+    ) == greeks["delta"]
+
+    wide = 1e-3
+    assert approx(
+        (value(account * np.exp(wide), volatility ** 2, rate)
+         - 2.0 * value(account, volatility ** 2, rate)
+         + value(account * np.exp(-wide), volatility ** 2, rate)) / wide ** 2,
+        rel=2e-4, abs=0.1,
+    ) == greeks["gamma"]
+
+    vol_step = 1e-5
+    assert approx(
+        (value(account, (volatility + vol_step) ** 2, rate)
+         - value(account, (volatility - vol_step) ** 2, rate)) / (2.0 * vol_step),
+        rel=2e-4, abs=1e-4,
+    ) == greeks["vega"]
+
+    rate_step = 1e-7
+    assert approx(
+        (value(account, volatility ** 2, rate + rate_step)
+         - value(account, volatility ** 2, rate - rate_step)) / (2.0 * rate_step) * 1e-4,
+        rel=2e-4, abs=1e-8,
+    ) == greeks["rho_per_bp"]
+
+
+def test_the_value_between_anniversaries_moves_smoothly_between_the_two_fits():
+    """A hedge rebalances weekly and the fits are annual. Taking the nearer fit would step the
+    liability at every anniversary and put a jump in the P&L that the contract never made."""
+    proxy = _proxy()
+    state = dict(account_value=90.0, benefit_base=130.0, variance=0.03, zero_10y=0.045)
+    at_eight = proxy.greeks(7, **state)["value"][0]       # the fit keyed 7 applies at year 8
+    at_nine = proxy.greeks(8, **state)["value"][0]
+    midpoint = proxy.greeks_at(8.5, **state)["value"][0]
+    assert approx(0.5 * (at_eight + at_nine), rel=1e-12) == midpoint
+    assert approx(at_eight, rel=1e-12) == proxy.greeks_at(8.0, **state)["value"][0]
+    assert approx(at_nine, rel=1e-12) == proxy.greeks_at(9.0, **state)["value"][0]
+
+
+def test_a_dead_guarantee_has_no_equity_exposure():
+    """Far above the cap the benefit base is irrelevant and the contract is a fund holding.
+    Returning the slope of a clipped state instead would put a hedge on a position that has
+    none."""
+    proxy = _proxy()
+    assert approx(0.0, abs=1e-12) == proxy.delta(8, 1_000.0, 100.0, 0.02, 0.045)[0]
+
+
+def test_the_spline_is_straight_outside_its_outermost_knots():
+    """What makes it a natural spline, and what stops the sparse tails bending the fit. Two
+    equal steps beyond the last knot have to move the basis by equal amounts."""
+    knots = np.array([0.0, 0.3, 0.6, 0.9, 1.2])
+    beyond = np.array([1.5, 1.7, 1.9, 2.1])
+    columns = np.column_stack(lsmc._spline(beyond, knots))
+    second_difference = np.diff(columns, n=2, axis=0)
+    assert approx(np.zeros_like(second_difference), abs=1e-9) == second_difference
+
+
 def test_a_state_the_fit_never_visited_is_flagged():
     proxy, year = _proxy(), 8
     _, outside = proxy.value(year, 3_000.0, 120.0, 0.02, 0.045)

@@ -62,7 +62,7 @@ import pandas as pd
 
 DEFAULT_RIDGE = 1e-8
 MONEYNESS_CAP = 3.0      # contract value over benefit base, above which the guarantee is dead
-N_KNOTS = 8              # interior knots of the moneyness spline
+N_KNOTS = 10             # knots of the moneyness spline, boundaries included
 # The design range is taken at this quantile from each end rather than at the extremes, because
 # a handful of paths at an extreme should not vouch for the whole interval beyond them.
 DESIGN_TAIL = 0.001
@@ -88,43 +88,180 @@ MIN_SUPPORT_ROWS = 25
 EXHAUSTED_EFFECTIVE_ROWS = 2_000
 
 
-def _knots(moneyness: np.ndarray, n_knots: int = N_KNOTS) -> np.ndarray:
-    """Interior knots at quantiles of the design distribution.
+def _knots(moneyness: np.ndarray, live: np.ndarray, n_knots: int = N_KNOTS) -> np.ndarray:
+    """Knots at quantiles of the live contracts, with exhaustion pinned as its own knot.
 
     Quantiles rather than an even grid, because the states the paths actually visit are
     concentrated: early on almost every contract sits near a moneyness of one, and only later
     does the distribution spread toward exhaustion. An even grid would put most of its knots
     where there is no data and none where the curvature is.
+
+    Quantiles of the live contracts specifically, because the exhausted ones are a point mass
+    that by the late years is nine tenths of the sample: quantiles taken over everything would
+    put eight of ten knots at exactly zero and leave the live range with none.
     """
-    quantiles = np.linspace(0.0, 1.0, n_knots + 2)[1:-1]
-    interior = np.quantile(moneyness, quantiles)
-    return np.unique(np.round(interior, 10))
+    live = np.asarray(live, dtype=bool)
+    sample = moneyness[live] if live.sum() > 50 else moneyness
+    quantiles = np.linspace(0.01, 0.99, max(n_knots - 1, 3))
+    knots = np.unique(np.round(np.concatenate([[0.0], np.quantile(sample, quantiles)]), 6))
+    return _separate(knots)
+
+
+def _separate(knots: np.ndarray, min_gap_share: float = 0.02) -> np.ndarray:
+    """Drop knots that sit on top of their neighbour.
+
+    Exhaustion is not the only point mass in the moneyness distribution: the annual step-up
+    puts a ceiling on it, so in the early years a large share of contracts sit at exactly the
+    same ratio and the top few quantiles land within a thousandth of each other. The spline
+    basis divides by the gap between knots, so a pair that close produces coefficients in the
+    thousands and a delta that is nonsense while the value it is the slope of still looks fine.
+    """
+    span = float(knots[-1] - knots[0])
+    if span <= 0:
+        return knots
+    min_gap = min_gap_share * span
+    kept = [float(knots[0])]
+    for knot in knots[1:-1]:
+        if knot - kept[-1] >= min_gap:
+            kept.append(float(knot))
+    if len(kept) > 1 and knots[-1] - kept[-1] < min_gap:
+        kept.pop()
+    kept.append(float(knots[-1]))
+    return np.asarray(kept)
+
+
+def _spline(moneyness: np.ndarray, knots: np.ndarray) -> list:
+    """Natural cubic spline basis in moneyness: smooth inside, straight outside.
+
+    Three things were tried before this. A global polynomial of order three to five oscillated
+    at the ends where a few extreme paths sit and was flat where the value function turns. A
+    linear spline fixed the values - it follows the smoothed-put shape the value per unit of
+    benefit base has, and cannot blow up between knots - but its derivative is a step function,
+    and the proxy's derivative is the hedge ratio. Against nested bump deltas the linear fit
+    came back at minus five hundred where the truth was minus twenty-eight, at states sitting
+    just past the top knot in the sparse upper tail. A fit that values correctly and hedges on
+    a slope like that is worse than useless, because the error only shows up in the hedge.
+
+    The natural cubic spline has a continuous second derivative everywhere and is constrained
+    to be linear beyond the outermost knots, which is exactly where the old basis went wrong:
+    the sparse tails can no longer bend the fit, and delta and gamma both come out smooth.
+    """
+    moneyness = np.asarray(moneyness, dtype=float)
+    last = knots[-1]
+
+    def ramp(knot: float) -> np.ndarray:
+        return (np.maximum(moneyness - knot, 0.0) ** 3
+                - np.maximum(moneyness - last, 0.0) ** 3) / (last - knot)
+
+    tail = ramp(knots[-2])
+    return [np.ones(moneyness.size), moneyness] + [
+        ramp(knot) - tail for knot in knots[:-2]
+    ]
+
+
+def _spline_slope(moneyness: np.ndarray, knots: np.ndarray) -> list:
+    """The same basis differentiated in moneyness, term by term.
+
+    Differentiating the basis rather than bumping the fitted function is not a refinement for
+    its own sake. The spline's pieces meet at the knots, so a central difference taken across
+    one mixes the slopes on either side and, past the outermost knot, mixes an interior slope
+    with the linear extrapolation. In the early years the whole design piles up against the
+    step-up ceiling and the top knot sits right in that pile, which is exactly where a bumped
+    delta goes wrong.
+    """
+    moneyness = np.asarray(moneyness, dtype=float)
+    last = knots[-1]
+
+    def ramp_slope(knot: float) -> np.ndarray:
+        return 3.0 * (np.maximum(moneyness - knot, 0.0) ** 2
+                      - np.maximum(moneyness - last, 0.0) ** 2) / (last - knot)
+
+    tail = ramp_slope(knots[-2])
+    return [np.zeros(moneyness.size), np.ones(moneyness.size)] + [
+        ramp_slope(knot) - tail for knot in knots[:-2]
+    ]
 
 
 def _design(moneyness, variance_vol, rate, knots: np.ndarray) -> np.ndarray:
-    """Linear spline in moneyness, low order in volatility and the rate, plus interactions.
-
-    A high-order polynomial was the first thing tried here and it failed in both directions: it
-    was flat where the value function turns, and it oscillated wildly at the ends where a few
-    extreme paths sit. The value per unit of benefit base is a smooth monotone function of the
-    contract value ratio that bends sharply as the contract approaches exhaustion - the shape of
-    a smoothed put payoff - and a linear spline with knots at the data's own quantiles follows
-    that shape without any ability to blow up between them.
+    """The spline in moneyness, low order in volatility and the rate, plus interactions.
 
     Volatility and the rate get linear and quadratic terms only. Their effect on the value is
     gentle across the whole range, and spending basis functions there instead of on moneyness
     was what produced an R-squared of 0.22 against nested values.
     """
     moneyness = np.asarray(moneyness, dtype=float)
-    columns = [np.ones(moneyness.size), moneyness]
-    for knot in knots:
-        columns.append(np.maximum(moneyness - knot, 0.0))
+    columns = _spline(moneyness, knots)
     for extra in (variance_vol, rate):
         extra = np.asarray(extra, dtype=float)
         columns.append(extra)
         columns.append(extra ** 2)
         columns.append(extra * moneyness)
     columns.append(np.asarray(variance_vol, float) * np.asarray(rate, float))
+    return np.column_stack(columns)
+
+
+def _spline_curvature(moneyness: np.ndarray, knots: np.ndarray) -> list:
+    """The basis differentiated twice. Zero outside the outermost knots, by construction."""
+    moneyness = np.asarray(moneyness, dtype=float)
+    last = knots[-1]
+
+    def ramp_curvature(knot: float) -> np.ndarray:
+        return 6.0 * (np.maximum(moneyness - knot, 0.0)
+                      - np.maximum(moneyness - last, 0.0)) / (last - knot)
+
+    tail = ramp_curvature(knots[-2])
+    zero = np.zeros(moneyness.size)
+    return [zero, zero] + [ramp_curvature(knot) - tail for knot in knots[:-2]]
+
+
+def _design_slope(moneyness, variance_vol, rate, knots: np.ndarray) -> np.ndarray:
+    """``_design`` differentiated in moneyness. The column order has to match it exactly."""
+    moneyness = np.asarray(moneyness, dtype=float)
+    zero = np.zeros(moneyness.size)
+    columns = _spline_slope(moneyness, knots)
+    for extra in (variance_vol, rate):
+        extra = np.asarray(extra, dtype=float)
+        columns.append(zero)          # the level term does not depend on moneyness
+        columns.append(zero)          # nor its square
+        columns.append(extra)         # d(extra * m)/dm
+    columns.append(zero)              # the volatility-rate cross term
+    return np.column_stack(columns)
+
+
+def _design_curvature(moneyness, variance_vol, rate, knots: np.ndarray) -> np.ndarray:
+    """``_design`` differentiated twice in moneyness."""
+    moneyness = np.asarray(moneyness, dtype=float)
+    zero = np.zeros(moneyness.size)
+    columns = _spline_curvature(moneyness, knots)
+    for _ in range(2):
+        columns.extend([zero, zero, zero])   # all the level and interaction terms are linear in m
+    columns.append(zero)
+    return np.column_stack(columns)
+
+
+def _design_in(factor: str, moneyness, variance_vol, rate, knots: np.ndarray) -> np.ndarray:
+    """``_design`` differentiated in the volatility or the rate.
+
+    Both enter the basis the same way - a level, a square, a product with moneyness, and one
+    cross term between them - so one function covers both and the column order cannot drift
+    apart from ``_design``.
+    """
+    moneyness = np.asarray(moneyness, dtype=float)
+    volatility = np.asarray(variance_vol, dtype=float)
+    rate = np.asarray(rate, dtype=float)
+    zero = np.zeros(moneyness.size)
+    one = np.ones(moneyness.size)
+    columns = [zero] * len(_spline(moneyness, knots))   # the spline block is flat in both
+    if factor == "volatility":
+        columns += [one, 2.0 * volatility, moneyness]      # d/dvol of vol, vol^2, vol*m
+        columns += [zero, zero, zero]                      # the rate block does not move
+        columns.append(rate)                               # d(vol * r)/dvol
+    elif factor == "rate":
+        columns += [zero, zero, zero]
+        columns += [one, 2.0 * rate, moneyness]
+        columns.append(volatility)
+    else:
+        raise ValueError(f"factor must be volatility or rate; got {factor!r}")
     return np.column_stack(columns)
 
 
@@ -222,21 +359,115 @@ class ProxyFit:
 
     def delta(
         self, year: int, account_value, benefit_base, variance, zero_10y,
-        attribution: float = 1.0, bump: float = 0.01,
+        attribution: float = 1.0,
     ):
-        """Equity exposure by bumping the proxy's own state rather than re-simulating.
+        """Equity exposure, from the derivative of the fitted basis.
 
-        A move in the index moves the contract value and leaves the benefit base alone, which is
-        the whole point of the guarantee, so a proportional bump to the contract value is
-        exactly the right perturbation. The proxy is smooth, so a small central difference on it
-        is stable in a way a bumped simulation is not.
+        A move in the funds moves the contract value and leaves the benefit base alone, which is
+        the whole point of the guarantee, so the derivative that matters is the one in the
+        contract value. The value per unit of benefit base is f(m) with m the contract value
+        over that base, so dV/dAV is f'(m) and the exposure to a proportional move is AV f'(m).
+
+        Reported per unit log move in the contract value, not in the index. The step between the
+        two is the equity weight of the fund mix and the basis between the funds and the index,
+        and both belong in the hedge sizing where they are visible rather than folded into a
+        Greek. Above the moneyness cap the guarantee is dead and the derivative is zero, which
+        is the right answer rather than an artefact of the clip.
         """
-        account = np.asarray(account_value, dtype=float)
-        up, _ = self.value(year, account * (1.0 + bump), benefit_base, variance, zero_10y,
-                           attribution, flag_extrapolation=False)
-        down, _ = self.value(year, account * (1.0 - bump), benefit_base, variance, zero_10y,
-                             attribution, flag_extrapolation=False)
-        return (up - down) / np.log((1.0 + bump) / (1.0 - bump))
+        if year not in self.fits:
+            raise KeyError(f"no fit for year {year}; fitted years are {self.years}")
+        fit_year = self.fits[year]
+
+        account = np.atleast_1d(np.asarray(account_value, dtype=float))
+        base = np.atleast_1d(np.asarray(benefit_base, dtype=float))
+        variance = np.broadcast_to(np.atleast_1d(np.asarray(variance, float)), account.shape)
+        rate = np.broadcast_to(np.atleast_1d(np.asarray(zero_10y, float)), account.shape)
+
+        moneyness, volatility, rate_level, _ = _state_parts(account, base, variance, rate)
+        slope = _design_slope(moneyness, volatility, rate_level, fit_year.knots)
+        per_unit = slope @ fit_year.claim - attribution * (slope @ fit_year.fee)
+        return account * np.where(moneyness < MONEYNESS_CAP, per_unit, 0.0)
+
+    def greeks(
+        self, year: int, account_value, benefit_base, variance, zero_10y,
+        attribution: float = 1.0,
+    ) -> dict:
+        """Value, delta, gamma, vega and rho at a state, all from the fitted basis.
+
+        The four derivatives in one call because a hedge needs them together and they share
+        every intermediate. All of them are analytic, which matters more here than it does for
+        the value: a bumped second derivative on a spline either straddles a knot or sits inside
+        double precision's floor, and a bumped vega has to re-clip the state.
+
+        Units match the Greeks module, so a hedge can be sized off either without conversion.
+        Delta and gamma are per unit log move in the contract value, vega is per volatility
+        point, and rho is per basis point of the ten-year zero rate with the curve's shape held.
+        That last one is a one-factor rate exposure and is all a one-factor rate state can
+        support; a curve-shape hedge would need a slope state in the basis and does not get one.
+        """
+        if year not in self.fits:
+            raise KeyError(f"no fit for year {year}; fitted years are {self.years}")
+        fit_year = self.fits[year]
+
+        account = np.atleast_1d(np.asarray(account_value, dtype=float))
+        base = np.atleast_1d(np.asarray(benefit_base, dtype=float))
+        variance = np.broadcast_to(np.atleast_1d(np.asarray(variance, float)), account.shape)
+        rate = np.broadcast_to(np.atleast_1d(np.asarray(zero_10y, float)), account.shape)
+        moneyness, volatility, rate_level, unit = _state_parts(account, base, variance, rate)
+        alive = moneyness < MONEYNESS_CAP
+
+        def combine(design: np.ndarray) -> np.ndarray:
+            return design @ fit_year.claim - attribution * (design @ fit_year.fee)
+
+        per_unit = combine(_design(moneyness, volatility, rate_level, fit_year.knots))
+        slope = np.where(alive, combine(
+            _design_slope(moneyness, volatility, rate_level, fit_year.knots)), 0.0)
+        curvature = np.where(alive, combine(
+            _design_curvature(moneyness, volatility, rate_level, fit_year.knots)), 0.0)
+        in_vol = combine(_design_in("volatility", moneyness, volatility, rate_level,
+                                    fit_year.knots))
+        in_rate = combine(_design_in("rate", moneyness, volatility, rate_level, fit_year.knots))
+
+        delta = account * slope
+        return {
+            "value": per_unit * unit,
+            "delta": delta,
+            # d2V/d(ln AV)2 = AV f'(m) + AV m f''(m), the second term being the curvature of
+            # the value per unit of benefit base.
+            "gamma": delta + account * moneyness * curvature,
+            "vega": unit * in_vol,
+            "rho_per_bp": unit * in_rate * 1e-4,
+        }
+
+    def greeks_at(
+        self, years_since_issue: float, account_value, benefit_base, variance, zero_10y,
+        attribution: float = 1.0,
+    ) -> dict:
+        """The same, between anniversaries, by interpolating the two fits that bracket the date.
+
+        Each annual fit is the value at the end of its own policy year, so the fit keyed ``k``
+        applies at ``k + 1`` years since issue. A weekly hedge sits between two of them, and
+        taking the nearer one would step the liability's value at every anniversary and put a
+        jump into the P&L that is an artefact of the fitting grid rather than anything the
+        contract does. Interpolating linearly in time removes the jump and makes the slope
+        between anniversaries the liability's time decay, which is what the attribution's theta
+        term needs.
+        """
+        keys = self.years
+        lower_key = int(np.floor(years_since_issue)) - 1
+        lower_key = min(max(lower_key, keys[0]), keys[-1])
+        upper_key = min(lower_key + 1, keys[-1])
+        if upper_key not in self.fits:
+            upper_key = lower_key
+        weight = float(np.clip(years_since_issue - (lower_key + 1), 0.0, 1.0))
+
+        first = self.greeks(lower_key, account_value, benefit_base, variance, zero_10y,
+                            attribution)
+        if upper_key == lower_key or weight == 0.0:
+            return first
+        second = self.greeks(upper_key, account_value, benefit_base, variance, zero_10y,
+                             attribution)
+        return {name: (1.0 - weight) * first[name] + weight * second[name] for name in first}
 
 
 def _replicate_weights(account_value: np.ndarray) -> np.ndarray:
@@ -333,7 +564,7 @@ def fit(
         if fit_rows.sum() < min_paths:
             continue
 
-        knots = _knots(moneyness[fit_rows])
+        knots = _knots(moneyness[fit_rows], account[fit_rows] > 1e-8)
         design = _design(moneyness, volatility, rate_level, knots)
         # Square roots, because the solve multiplies design and target by these and the
         # objective is the square of what it sees.

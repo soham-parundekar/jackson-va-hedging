@@ -80,6 +80,16 @@ def _advance(book, recorded: dict, path: int, year: int):
     return cohorts_module.CohortBook(**fields)
 
 
+def _bumped(book, factor: float):
+    """The same contract with its value scaled, which is what a move in the funds does to it.
+
+    The benefit base does not move, and that is the whole point of the guarantee.
+    """
+    fields = dict(book.__dict__)
+    fields["account_value"] = book.account_value * factor
+    return cohorts_module.CohortBook(**fields)
+
+
 def gold_standard(
     valuer,
     book,
@@ -89,12 +99,24 @@ def gold_standard(
     n_nodes: int = 200,
     attribution: float = 1.0,
     seed: int = 21,
+    equity_bump: float = 0.0,
 ) -> pd.DataFrame:
     """Value the contract exactly at nodes taken off the simulated paths.
 
     Nodes are chosen by stratifying on moneyness rather than at random, because the states that
     matter are the ones where the guarantee is near the boundary of biting, and a random sample
     of a lognormal puts almost nothing there.
+
+    A non-zero ``equity_bump`` also returns the equity exposure at each node, from a central
+    bump of the contract value. It is nearly free: the path cache is keyed on the market state
+    and the bump moves only the contract, so all three valuations share one simulation. Having
+    it is what lets the proxy's delta be checked rather than assumed, and a proxy whose level
+    is right and whose slope is wrong would hedge badly while valuing correctly.
+
+    The derivative is with respect to the log contract value, not the log index, which is the
+    same convention the proxy's own delta uses. The step from one to the other is the equity
+    weight of the sub-account mix and the basis between the funds and the index, and that
+    belongs in the hedge sizing where both are visible rather than buried in a Greek.
     """
     account = recorded["account_value"][:, year]
     benefit = recorded["benefit_base"][:, year]
@@ -124,9 +146,9 @@ def gold_standard(
             valuation_year=state.valuation_year + year + 1,
         )
         node_book = _advance(book, recorded, int(path), year)
-        valuation = valuer.value(node_book, node_state,
-                                 attribution=np.array([attribution]))
-        rows.append({
+        attributed = np.array([attribution])
+        valuation = valuer.value(node_book, node_state, attribution=attributed)
+        row = {
             "path": int(path),
             "year": year,
             "account_value": float(account[path]),
@@ -137,7 +159,17 @@ def gold_standard(
             "short_rate": float(short_rate[path]),
             "nested_value": valuation.market_risk_benefit,
             "nested_std_error": valuation.std_error,
-        })
+        }
+        if equity_bump:
+            up = valuer.value(_bumped(node_book, 1.0 + equity_bump), node_state,
+                              attribution=attributed)
+            down = valuer.value(_bumped(node_book, 1.0 - equity_bump), node_state,
+                                attribution=attributed)
+            row["nested_delta"] = (
+                (up.market_risk_benefit - down.market_risk_benefit)
+                / np.log((1.0 + equity_bump) / (1.0 - equity_bump))
+            )
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -156,6 +188,16 @@ def compare(proxy, truth: pd.DataFrame, attribution: float = 1.0) -> pd.DataFram
     out["proxy_value"] = values
     out["error"] = out["proxy_value"] - out["nested_value"]
     out["outside_design_range"] = outside
+    if "nested_delta" in truth.columns:
+        out["proxy_delta"] = proxy.delta(
+            year,
+            truth["account_value"].to_numpy(),
+            truth["benefit_base"].to_numpy(),
+            truth["variance"].to_numpy(),
+            truth["zero_10y"].to_numpy(),
+            attribution=attribution,
+        )
+        out["delta_error"] = out["proxy_delta"] - out["nested_delta"]
     return out
 
 
