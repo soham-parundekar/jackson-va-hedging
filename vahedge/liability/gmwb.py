@@ -73,6 +73,11 @@ class GmwbProjection:
     claim_paths: np.ndarray        # (n_cohorts, n_paths) PV per path, for standard errors
     fee_paths: np.ndarray          # (n_cohorts, n_paths) PV per path
     recorded: dict | None = None   # per-path state by year, only when record=True
+    # (n_paths, n_years), summed over cohorts, only when record_deficiency=True. The first is
+    # the time-zero present value of net outgo in each year; the second the in-force account
+    # value at each year end, for the surrender value floor.
+    deficiency_pv: np.ndarray | None = None
+    in_force_account: np.ndarray | None = None
 
     @property
     def pv_attributable_fees(self) -> np.ndarray:
@@ -92,6 +97,7 @@ def project(
     equity_shock: float = 0.0,
     equity_weight: float = 1.0,
     record: bool = False,
+    record_deficiency: bool = False,
 ) -> GmwbProjection:
     """Project every cohort in the book across every path.
 
@@ -213,6 +219,13 @@ def project(
     else:
         recorded = None
 
+    if record_deficiency:
+        deficiency_pv = np.zeros((n_paths, n_years))
+        in_force_account = np.zeros((n_paths, n_years))
+    else:
+        deficiency_pv = None
+        in_force_account = None
+
     claims_by_year = np.zeros((n_cohorts, n_years))
     fees_by_year = np.zeros((n_cohorts, n_years))
     exhaustion = np.zeros((n_cohorts, n_years))
@@ -328,6 +341,22 @@ def project(
             death_claims_by_year[:, year] = (death_weight * death_cost).mean(axis=1)
             mean_death_benefit[:, year] = death_base.mean(axis=1)
 
+        if deficiency_pv is not None:
+            # Benefits out less fees in, on the sign convention a reserve uses: positive is a
+            # year the block costs the insurer money. Already discounted and already carrying
+            # the probability the contract is there to pay, because both are in the weights the
+            # present values use, so the accumulated deficiency is a cumulative sum over years
+            # with nothing further to apply.
+            outgo = weight * claim - weight * (rider_charge + base_charge)
+            if has_death:
+                outgo = outgo + death_weight * death_cost - weight * death_charge
+            deficiency_pv[:, year] = outgo.sum(axis=0)
+            # Undiscounted and in force, because the surrender value floor is a floor on the
+            # reserve at the balance date rather than a cash flow.
+            in_force_account[:, year] = (
+                survival[:, year][:, None] * in_force * alive * np.maximum(account, 0.0)
+            ).sum(axis=0)
+
         if recorded is not None:
             # State the proxy regresses on, and the two cash-flow legs it combines. Both legs
             # are discounted to time zero and carry the probability the contract is still there
@@ -404,4 +433,6 @@ def project(
         claim_paths=claim_pv + death_claim_pv,
         fee_paths=fee_pv + death_fee_pv,
         recorded=recorded,
+        deficiency_pv=deficiency_pv,
+        in_force_account=in_force_account,
     )

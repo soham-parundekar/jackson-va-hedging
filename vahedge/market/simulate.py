@@ -192,8 +192,9 @@ def simulate(
     steps_per_year: int = 24,
     antithetic: bool = True,
     chunk_paths: int = 20000,
+    equity_risk_premium: float = 0.0,
 ) -> MarketPaths:
-    """Simulate under the risk-neutral measure and return annual factors.
+    """Simulate and return annual factors. Risk-neutral unless a risk premium is passed.
 
     There is deliberately no equity shock argument. Under Heston the return distribution does
     not depend on the index level, so an instantaneous shock changes nothing about the paths;
@@ -204,6 +205,24 @@ def simulate(
     ``antithetic`` mirrors every normal in the second half of the paths, and mirrors the
     variance scheme's uniforms as 1-U so the pairing still means something in the exponential
     branch.
+
+    ``equity_risk_premium`` moves the measure, and it moves it in one place only: the equity
+    sleeve's drift. Statutory capital is a real-world question - the reserve is a percentile of
+    an accumulated deficiency, not a price - so the paths it runs on cannot be the ones a
+    valuation uses. Adding the premium to the index log step after the martingale correction
+    makes the expected one-year excess return on the equity sleeve exactly ``exp(premium) - 1``,
+    which is the arithmetic premium and the convention the number is usually quoted in.
+
+    What this does NOT do is change the measure anywhere else. The variance process keeps its
+    risk-neutral drift, so there is no variance risk premium and the model's long-run volatility
+    stays at the level the option surface implies rather than at the level history realised - a
+    gap of about five volatility points on this calibration, and a reason the tail of a
+    real-world run here is wider than a purely historical one. The short rate keeps its
+    risk-neutral drift too, so there is no term premium and the discount factors are the same
+    objects a valuation would use. Both omissions are deliberate: neither can be identified from
+    free data, and inventing them would put two unmeasurable parameters inside a capital number.
+    With the default of zero the arithmetic is a multiply by one and the paths are bit-identical
+    to the risk-neutral ones.
     """
     if n_paths <= 0 or n_years <= 0:
         raise ValueError("n_paths and n_years must be positive")
@@ -224,6 +243,7 @@ def simulate(
         piece = _simulate_chunk(
             heston, hull_white, correlations, mix,
             n_years, stop - start, seed + start, steps_per_year, antithetic,
+            equity_risk_premium,
         )
         for name in names:
             out[name][start:stop] = piece[name]
@@ -232,10 +252,14 @@ def simulate(
 
 
 def _simulate_chunk(
-    heston, hull_white, correlations, mix, n_years, n_paths, seed, steps_per_year, antithetic
+    heston, hull_white, correlations, mix, n_years, n_paths, seed, steps_per_year, antithetic,
+    equity_risk_premium=0.0,
 ):
     dt = 1.0 / steps_per_year
     n_steps = n_years * steps_per_year
+    # Added to the log step after the martingale correction, so the expected excess return over
+    # the step is exp(premium * dt) - 1 rather than the premium itself being a log quantity.
+    premium_per_step = equity_risk_premium * dt
     rng = np.random.default_rng(seed)
     half = n_paths // 2 if antithetic else n_paths
 
@@ -354,7 +378,7 @@ def _simulate_chunk(
         diffusion = np.sqrt(np.maximum(k3 * variance + k4 * next_variance, 0.0))
         index_log_step = (
             rate_integral + k0_star + k1 * variance + k2 * next_variance
-            + diffusion * z_perp[:, step]
+            + diffusion * z_perp[:, step] + premium_per_step
         )
         log_index = log_index + index_log_step
 
