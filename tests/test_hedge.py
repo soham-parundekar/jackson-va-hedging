@@ -559,3 +559,32 @@ def test_a_hedge_removes_more_of_the_daily_variation_than_it_leaves():
     assert hedged.summary["mean_abs_delta_left_pct"] < 0.1 * (
         unhedged.summary["mean_abs_delta_left_pct"]
     )
+
+
+def test_a_solved_put_rolls_when_its_strike_drifts_but_an_overlay_does_not():
+    """The difference between a hedge and a floor, and a defect the macro frontier found.
+
+    A put the solve uses wants to stay near its target moneyness. A macro spread bought at 80% of
+    spot is meant to pay when the index falls 20%, and at that moment its held strike is at the
+    money - a drift of 0.20 against a band of 0.05. Rolling there closes the position at the first
+    sign of the event it was bought for and re-strikes 20% below the new spot.
+    """
+    market = _market()
+    put = inst.IndexPut(maturity=2.0, strike_over_spot=0.80).struck(market)
+    crashed = replace(market, index=market.index * 0.75)
+    solved = simulator._Position(instrument=put, units=1.0, reference=None,
+                                 opened_at=0.0, role="solved")
+    overlay = simulator._Position(instrument=put, units=1.0, reference=None,
+                                  opened_at=0.0, role="overlay")
+    assert simulator._needs_roll(solved, crashed, 0.1)
+    assert not simulator._needs_roll(overlay, crashed, 0.1)
+
+
+def test_an_overlay_still_rolls_on_time():
+    """Held through the event, not held past expiry."""
+    market = _market()
+    put = inst.IndexPut(maturity=2.0, strike_over_spot=0.80).struck(market)
+    overlay = simulator._Position(instrument=put, units=1.0, reference=None,
+                                  opened_at=0.0, role="overlay")
+    assert not simulator._needs_roll(overlay, market, 1.0)
+    assert simulator._needs_roll(overlay, market, 1.6)

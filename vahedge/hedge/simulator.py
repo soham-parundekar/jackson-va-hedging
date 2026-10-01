@@ -499,12 +499,29 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
 
 
 def _needs_roll(line: _Position, market, policy_time: float) -> bool:
-    """Whether a held put has drifted too far from its target strike, or run too close to expiry."""
+    """Whether a held put has run too close to expiry, or drifted too far from its target strike.
+
+    The strike-drift test applies to the solved legs only, and the exception for the overlay is
+    the whole difference between a hedge and a floor. A put the solve is using wants to sit near
+    its target moneyness, because that is where its Greeks are what the solve assumed; letting it
+    drift turns the position into something the matrix no longer describes.
+
+    A macro spread is the opposite. It is bought at eighty per cent of today's index so that it
+    pays if the index falls twenty, and the moment the index does fall twenty the held strike is
+    at the money - a drift of 0.20 against a band of 0.05. Applying the drift test there closes
+    the position at the first sign of the event it was bought for and re-strikes twenty per cent
+    below the new spot, so the hedge chases the market down and is permanently out of the money.
+    Through covid that cost the 80/60 spread most of its payoff and three extra round trips, and
+    it showed up as a tail hedge that made the capital drawdown worse at every size in the grid -
+    which is not a finding about tail hedges.
+    """
     instrument = line.instrument
     elapsed = policy_time - line.opened_at
     life_left = instrument.maturity - elapsed
     if life_left <= ROLL_WHEN_LIFE_LEFT * instrument.maturity:
         return True
+    if line.role == "overlay":
+        return False
     moneyness = instrument.strike / market.index
     return abs(moneyness - instrument.strike_over_spot) > STRIKE_DRIFT_BAND
 

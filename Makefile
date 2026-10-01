@@ -1,4 +1,4 @@
-.PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory \
+.PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory macro \
         backtest accounting test clean help
 
 PY ?= python3
@@ -18,13 +18,15 @@ help:
 	@echo "convexity   the nested curvature surface the option leg is sized from (~8 min)"
 	@echo "hedge       crisis replays, the cost frontier, the put sweep, model risk (~15 min)"
 	@echo "statutory   real-world requirement at CTE(70) and CTE(90), and the surrender floor"
+	@echo "macro       what the tail put spread buys, swept over size and strikes (~10 min)"
 	@echo "backtest    the earlier single-policy weekly backtest (~10 min)"
 	@echo "accounting  economic against reported earnings (needs backtest first)"
 	@echo "test        the test suite"
 	@echo "all         everything, in dependency order"
 	@echo "clean       remove generated outputs, leaving data/raw alone"
 
-all: data calibrate valuation greeks validate proxy convexity hedge statutory backtest accounting test
+all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
+     backtest accounting test
 
 data:
 	$(PY) -m scripts.build_dataset
@@ -57,6 +59,11 @@ hedge: convexity
 
 statutory: calibrate
 	$(PY) -m scripts.run_statutory
+
+# Reads the same curvature surface the experiments do, and reuses their setup, so it carries the
+# same prerequisite rather than a looser one.
+macro: convexity
+	$(PY) -m scripts.run_macro_frontier
 
 backtest:
 	$(PY) -m scripts.run_hedge_backtest

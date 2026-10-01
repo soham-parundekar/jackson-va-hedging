@@ -134,7 +134,9 @@ def put_leg(tenor: float = PUT_TENOR_YEARS, strike: float = PUT_STRIKE) -> tuple
     return (inst.IndexPut(maturity=tenor, strike_over_spot=strike),)
 
 
-def macro_leg(notional_share: float = MACRO_NOTIONAL_SHARE) -> tuple:
+def macro_leg(notional_share: float = MACRO_NOTIONAL_SHARE,
+              strikes: tuple = MACRO_STRIKES,
+              tenor: float = MACRO_TENOR_YEARS) -> tuple:
     """Long the far put, short the further one: a spread, bought for the capital floor.
 
     Returned as (instrument, units as a share of account value) pairs, because this leg is held
@@ -142,10 +144,8 @@ def macro_leg(notional_share: float = MACRO_NOTIONAL_SHARE) -> tuple:
     size, which is what makes it a spread and caps both the payout and the premium.
     """
     return (
-        (inst.IndexPut(maturity=MACRO_TENOR_YEARS, strike_over_spot=MACRO_STRIKES[0]),
-         notional_share),
-        (inst.IndexPut(maturity=MACRO_TENOR_YEARS, strike_over_spot=MACRO_STRIKES[1]),
-         -notional_share),
+        (inst.IndexPut(maturity=tenor, strike_over_spot=strikes[0]), notional_share),
+        (inst.IndexPut(maturity=tenor, strike_over_spot=strikes[1]), -notional_share),
     )
 
 
