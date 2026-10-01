@@ -120,7 +120,15 @@ def _knots(moneyness: np.ndarray, live: np.ndarray, n_knots: int = N_KNOTS) -> n
     # tried, to stop the curvature collapsing where the contract lives - leaves a cubic segment
     # with nothing in it, and the fit used it to send the value back up and the delta positive.
     knots = np.unique(np.round(np.concatenate([[0.0], np.quantile(sample, quantiles)]), 6))
-    return _separate(knots)
+    knots = _separate(knots)
+    if knots.size < 3:
+        # Every surviving contract sits at the same moneyness, which happens in the last years
+        # when almost all of them are spent. There is no shape left to fit, and the value there
+        # is a life annuity that depends on the curve and the owner's age rather than on the
+        # contract value - so the spline is given a well-formed grid it can collapse to a
+        # constant on, instead of a knot vector the basis cannot be built from at all.
+        knots = np.linspace(0.0, max(float(np.max(sample)), 0.5), 4)
+    return knots
 
 
 def _separate(knots: np.ndarray, min_gap_share: float = 0.02) -> np.ndarray:
@@ -474,6 +482,9 @@ class ProxyFit:
 
         delta = account * slope
         value = per_unit * unit
+        observed = np.column_stack([moneyness, volatility, rate_level])
+        outside = np.any((observed < fit_year.lower) | (observed > fit_year.upper), axis=1)
+        outside |= fit_year.thin(moneyness)
         if gamma_step > 0.0:
             up = self.value(year, account * np.exp(gamma_step), base, variance, rate,
                             attribution, flag_extrapolation=False, pre_event=pre_event)[0]
@@ -490,6 +501,13 @@ class ProxyFit:
             "gamma": gamma,
             "vega": unit * in_vol,
             "rho_per_bp": unit * in_rate * 1e-4,
+            # Carried alongside rather than raised, because a backtest that stops on its worst
+            # day answers nothing. What matters is how often it happened, which every caller
+            # can then report. It interpolates in time with everything else, which makes the
+            # figure a weighted share rather than a flag: half means half the value came from a
+            # fit evaluated outside its own design, which is the honest reading of a date
+            # bracketed between one end that covers its state and one that does not.
+            "outside_design": outside.astype(float),
         }
 
     def greeks_at(

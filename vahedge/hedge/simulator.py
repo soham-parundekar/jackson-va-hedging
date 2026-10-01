@@ -365,6 +365,7 @@ def run(
             "vega": float(np.ravel(greeks["vega"])[0]),
             "rho_per_bp": float(np.ravel(greeks["rho_per_bp"])[0]),
             "theta": float(np.ravel(greeks.get("theta", 0.0))[0]),
+            "outside_design": float(np.ravel(greeks.get("outside_design", 0.0))[0]),
             "hedge_delta": hedge.delta,
             "hedge_gamma": hedge.gamma,
             "hedge_vega": hedge.vega,
@@ -587,6 +588,10 @@ def summarise(ledger: pd.DataFrame, account_value: float,
         ),
         "liability_start_pct": float(ledger["liability"].iloc[0] / account_value),
         "liability_end_pct": float(ledger["liability"].iloc[-1] / account_value),
+        # A hedging result built on decisions taken from an extrapolated Greek is not a result,
+        # so the share is reported with every run rather than checked once.
+        "outside_design_share": float(ledger["outside_design"].mean())
+        if "outside_design" in ledger else np.nan,
         # What is left open, in index terms: the hedge book's delta plus the insurer's, where
         # the insurer's is the liability's negated and converted by the equity weight. Comparing
         # the hedge's index delta against the liability's contract delta unconverted - which

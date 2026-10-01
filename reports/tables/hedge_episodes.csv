@@ -1,0 +1,8 @@
+episode,start,end,why,covered,dates_available,dates_needed
+volmageddon,2018-01-26,2018-02-09,a volatility shock with little index damage,True,,
+fourth quarter 2018,2018-09-20,2018-12-24,a grinding fall into year end,True,,
+covid,2020-02-19,2020-03-23,"the fastest fall in the sample, rates to zero",True,,
+2022 double,2022-01-03,2022-10-14,"equity and rates fall together, the hard one",True,,
+dot-com unwind,2000-03-24,2002-10-09,a slow three-year decline rather than a crash,False,0.0,663.0
+global financial crisis,2007-10-09,2009-03-09,equity and rates both collapse,False,0.0,369.0
+august 2011,2011-07-22,2011-10-03,a fast fall with a rates rally into it,False,0.0,51.0
