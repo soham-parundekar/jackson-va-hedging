@@ -1,182 +1,192 @@
 # Hedging the guarantee
 
-Rebuilding a variable-annuity living-benefit valuation and dynamic hedging model from
-public filings and free data, and testing it against the sensitivities Jackson Financial
-discloses.
+Rebuilding a variable-annuity living-benefit valuation and dynamic hedging model from public
+filings and free data, and testing it against the sensitivities Jackson Financial discloses.
 
-Jackson runs the largest standalone variable annuity book in the United States and says a
-lot about how it manages the risk in it. Item 1 of the 10-K describes a core dynamic hedging
-programme that offsets equity and interest rate movements in the *economic* liability
-associated with guaranteed living benefits. Item 7A publishes the fair-value impact of a 10%
-equity move and a parallel rate shift. Note 6 describes the valuation method down to the
-volatility term structure and the treatment of the company's own credit. What it does not
-publish is the model.
+Jackson runs the largest standalone variable annuity book in the United States and says a lot
+about how it manages the risk in it. Item 1 of the 10-K describes a core dynamic hedging
+programme that offsets equity and interest rate movements in the *economic* liability associated
+with guaranteed living benefits. Item 7A publishes the fair-value impact of a 10% equity move and
+a parallel rate shift. Note 6 describes the valuation method down to the volatility term structure
+and the treatment of the company's own credit. What it does not publish is the model.
 
-This builds one, prices a representative GMWB for Life rider under the risk-neutral measure,
-and asks three questions. Do the sensitivities reproduce what Jackson discloses? What does
-weekly delta and rho hedging actually do to the volatility of the position? And why do
-reported earnings keep moving when the economic hedge is working?
+This builds one, prices a representative GMWB for Life rider under the risk-neutral measure, and
+asks four questions. Do the sensitivities reproduce what Jackson discloses? What does a daily
+delta, rho and convexity hedge actually do to the volatility of the position? What does the hedge
+leave behind in statutory capital? And why do reported earnings keep moving when the economic
+hedge is working?
 
 ## Results
 
-**Sign and shape hold. Scale does not, for one identifiable reason.**
+**Sign and shape hold. Scale does not, and the gap has two separate causes rather than one.**
 
 All eighteen disclosed shock sensitivities come out with the right sign, across four
-balance-sheet dates and both directions of both shocks. The convexity in Jackson's table
-comes out close: where the filings disclose both ±50bp and ±100bp, the ratio of the two is
-1.86 up and 2.13 down, against 1.89 and 2.11 from the model. The decline in sensitivity per
-dollar of account value from 2022 to 2025, as the book moved out of the money, comes out at
-0.59 of its starting level against 0.58 disclosed.
+balance-sheet dates and both directions of both shocks. The convexity in Jackson's table comes out
+close: where the filings disclose both ±50bp and ±100bp, the ratio of the two is 1.855 up and
+2.128 down, against 1.882 and 2.128 from the model. The decline in sensitivity per dollar of
+account value from 2022 to 2025, as the book moved out of the money, comes out at 0.579 of its
+starting level against 0.578 disclosed.
 
-The levels sit above the disclosure by a factor of 2.14 to 2.85, median 2.39, and that
-factor is near-constant across six shocks and four dates. A near-constant multiple points at
-one structural assumption rather than a pile of errors. Two things account for it. A quarter
-of Jackson's variable annuity account value carries no withdrawal guarantee at all. And the
-base case assumes the contract holder draws the full guaranteed amount every year and never
-surrenders, which is the benchmark case in Bauer, Kling and Russ (2008) precisely because it
-is the most expensive one. At 90% utilisation and 4% annual lapse, every shock lands within
-33% of the disclosed figure.
+The levels sit about three times the disclosure, which the research design predicted. What it did
+not predict is that behaviour would not close the gap. Lowering utilisation takes duration out of
+the guarantee and collapses the rate sensitivity with it, while the benefit base is still there
+whatever the owner draws, so the equity sensitivity barely moves: across the sweep the rate
+multiple falls 2.09 to 0.47 and the equity multiple only 2.10 to 1.59. The equity half is
+moneyness instead, and the model says so independently - locating the disclosed figure on the
+model's own curve implies a benefit base over account value of 0.94 falling to 0.82 across the
+four years, with the up and down shocks implying the same ratio without being made to.
 
-**A delta and rho hedge removes 64% of the variance. Volatility is what is left.**
+**A delta and rho hedge removes most of the daily variation. Convexity removes most of the rest,
+and costs two hundred times as much.**
 
-One policy, issued September 2016, hedged weekly for 521 weeks on Jackson's disclosed fund
-mix.
+One policy, three years in force, rolled along realised history from September 2016 to September
+2026 and rebalanced daily, on Jackson's disclosed fund mix.
 
-| Hedge | Weekly std | Variance removed | Worst week | Costs over ten years |
-|---|---|---|---|---|
-| Unhedged | 1,705 | | -11,500 | |
-| Delta | 1,253 | 46.0% | -8,438 | 32 |
-| Delta and rho | 1,018 | **64.4%** | -8,258 | 48 |
-| Delta, rho and volatility | 328 | 96.3% | -1,061 | 162 |
+| Hedge | Residual daily sd | Cost over the decade |
+|---|---|---|
+| Unhedged | | |
+| Futures | 0.304% | 0.05% |
+| Plus a receive-fixed swap | 0.188% | 0.08% |
+| Plus listed puts | 0.139% | 21.67% |
 
-All figures in dollars on a $100,000 policy. Transaction costs across ten years of weekly
-rebalancing come to $48, under 0.05% of premium, so the basis-risk against cost trade-off
-that usually sets rebalance frequency barely binds here.
+All figures as a share of account value. The rate leg costs almost nothing and takes out a third
+of what the equity leg left. The option leg takes out another quarter at two hundred times the
+cost, and the put design sweep says most of that cost is in the tenor rather than the protection:
+a quarter-year put at 0.90 of spot costs 7.7% of account value over the decade against 21.2% for
+a one-year put at the same strike, for almost the same residual.
 
-February and March 2020 makes the point better than the summary statistics. The unhedged
-guarantee lost 30.6% of premium in seven weeks. Delta and rho hedging recovered 40% of that
-and left an 18.5% loss standing. Adding a volatility leg cut the residual to 1.5%. For this
-liability that episode was a volatility event more than a level event, and futures and swaps
-were never going to catch it.
+February and March 2020 makes the point better than the summary statistics. The unhedged guarantee
+lost 22.0% of account value in twenty-four trading days. Futures alone recovered two thirds of it,
+futures and swaps left 2.7%, and the option leg turned it into a 2.0% gain. Volmageddon is the
+opposite case: an 8.8% index move with volatility doubling, where futures and swaps remove 74.5%
+of the variance against 94% in covid, because instruments carrying no vega were never going to
+catch a volatility event.
 
-**The annual step-up can make the insurer long equity.**
+**The decade that happened flattered the hedge, and the bootstrap says by how much.**
 
-A test asserting that equity exposure is always short failed on 17 of 522 weeks, and the
-failures were the model being right. The benefit base resets to the contract value on the
-anniversary, so with the contract value above the benefit base the index level on that one
-date fixes the guaranteed income for life. Claims and fees both then respond positively to
-the index and the net exposure is their difference: +25,234 against +23,595 at the state
-where it first appeared, leaving +1,638. The rate environment decides the sign, because at
-low rates the account depletes on every path and the ratchet is certain to bite.
+Resampling the decade's equity days into thirty other orderings puts the realised result at the
+93rd to 100th percentile of the distribution on every strategy. The delta-and-rho hedge removes
+91% of the daily variance on the path that happened and a median of 81% across reorderings of the
+same days. The ranking survives - the richer hedge is tighter on 90 to 100% of reorderings - but
+the put leg's edge over futures-and-swaps is about a third smaller than the single path suggested.
+And on a quarter to a third of reorderings the hedged book's worst single day is *worse* than the
+unhedged book's, which is where variance and tail risk part company.
 
-**Reported earnings are more volatile than economic ones under the same hedge, and the
-reason is an accounting boundary.**
+**The economic hedge is not the capital hedge, and it is not the earnings hedge.**
 
-Sized on the economic basis, the hedge removes 64.4% of the variance of the economic
-liability and 60.7% of the variance that reaches net income. Reported net income is 1.05
-times as volatile as the economic outcome, positive in all eleven calendar years of the
-sample.
+The statutory requirement is a real-world tail measure with a cash surrender value floor under it.
+CTE(70) runs 13.6% of premium at a 2% equity risk premium down to 7.5% at 6%, and the hedge
+removes far less of the statutory variation than of the economic variation, because the floor
+binds in the states a delta hedge is busy in.
 
-The interesting part is that reported *comprehensive* income is less volatile than either.
-Credit spreads widen when equity markets fall, which reduces the own-credit adjusted
-liability at the same moment the market move is increasing it, so the own-credit adjustment
-is a partial natural hedge, averaging -$6,610 and reaching -$20,842. The market risk benefit
-rules report that movement in other comprehensive income. Net income therefore gets the full
-undamped move while comprehensive income gets the damped one. The offset exists and the
-accounting routes it away from the line most people read.
+Reported net income under identical positions is 9 to 15% more variable than the economic outcome,
+and the multiple *rises* as the hedge gets tighter. The own-credit adjustment, which no hedge
+targets, has a daily standard deviation larger than the whole of the best-hedged strategy's net
+income - and under ASU 2018-12 it is reported outside net income. Credit spreads widen when equity
+markets fall, so that piece is a natural offset to the guarantee that the accounting boundary
+turns into a mismatch.
 
-## The thing to distrust
-
-The hedging backtest revalues the liability with the same model that produced the hedge
-ratios. Any factor the model represents and the hedge covers is removed nearly completely,
-limited only by convexity between rebalances, which is why the volatility leg reaches 96%.
-What these numbers measure is the cost of hedging discretely with imperfect instruments:
-gamma between rebalances, one swap tenor against a parallel-shift rho, one index against a
-blended sub-account, and the spread paid to trade. What they cannot measure is model error,
-and on a forty-year guarantee with assumed policyholder behaviour that is the larger risk.
-Read 64.4% as an upper bound on what a real programme achieves.
-
-`docs/limitations.md` is the full list and is worth reading before the results.
+Eighteen quarters of Jackson's own filed XBRL show a correlation of +0.006 between the liability
+movement and the hedging result. At that sample size the smallest correlation detectable at five
+per cent is about 0.47, so the filed series cannot rule much out - which is itself worth knowing
+before reading anyone's offset ratio.
 
 ## Running it
 
-Python 3.10 or later. NumPy, pandas, Matplotlib and PyYAML, nothing else. The test suite
-needs nothing beyond those.
-
 ```
-make data        # validate every input, bootstrap the curve history
+make data        # validate the committed inputs, bootstrap the curve history
+make calibrate   # fit the market state: curve, Heston surface, short rate, correlations
 make valuation   # at-issue valuation, cash flows, robustness, convergence
-make greeks      # Greeks and the moneyness profile
+make greeks      # Greeks on paired paths, and the moneyness profile
 make validate    # disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep
-make backtest    # weekly hedging backtest, ten years        (~10 minutes)
-make accounting  # economic against reported
+make proxy       # the regression proxy against nested simulation          (~6 minutes)
+make convexity   # the nested curvature surface the option leg is sized from (~8 minutes)
+make hedge       # crisis replays, the cost frontier, the put sweep, model risk (~15 minutes)
+make statutory   # the real-world requirement and the surrender value floor
+make reporting   # economic against reported earnings, and the own-credit split (~15 minutes)
+make figures     # redraw every figure from the tables, in seconds
 make test        # the test suite
 make all
 ```
 
-Or directly, for example `python -m scripts.run_valuation`. Everything runs from the
-repository root. Tables land in `reports/tables/` as both CSV and fixed-width text, figures
-in `reports/figures/`.
+Or directly, for example `python -m scripts.run_valuation`. Everything runs from the repository
+root. Tables land in `reports/tables/` and figures in `reports/figures/`.
 
-Run `make data` first. It fails rather than warns on a par curve that will not bootstrap, a
-mortality table with a hole above age 40, a Period table that implies shorter life than the
-Basic table, or a disclosed figure that disagrees between two filings.
+Run `make data` first. It fails rather than warns on a par curve that will not bootstrap, a Period
+mortality table that implies shorter life than the Basic table, or a disclosed figure that two
+filings disagree on.
 
-Every assumption lives in `config/params.yaml`, with the filing or the reasoning behind each
-one written next to it.
+`make calibrate` and `make convexity` write files that are gitignored, so a fresh clone has to
+build them before anything downstream will run.
+
+## Where the assumptions live
+
+Each one is a constant in the module that uses it, with the reasoning next to it, rather than in a
+parameter file that would be a second place to keep true.
+
+| Assumption | Where |
+|---|---|
+| Contract terms, withdrawal bands, charges | `data/raw/jackson_rider_terms.csv`, read by `vahedge/liability/terms.py` |
+| Issue age, deferral, fund expense, premium | `scripts/run_valuation.py` |
+| Market parameters | `data/processed/market_calibration.json`, written by `scripts/run_calibration.py` |
+| Path counts and seeds | `vahedge/valuation/engine.py` |
+| Hedge instruments, costs, roll rules | `vahedge/hedge/strategies.py` and `vahedge/hedge/instruments.py` |
+| Equity risk premium sweep | `scripts/run_statutory.py` |
+| Own-credit spread proxy | `vahedge/capital/reporting.py` |
 
 ## What is in here
 
 ```
-config/params.yaml          every assumption, with its source
-data/raw/                   FRED panel, SOA mortality tables, figures read out of the filings
-data/processed/             built by make data; committed outputs are reproducible from raw
-gmwb/
-  curves.py                 par yields to zero rates, and shocks applied the right way round
-  volatility.py             mean-reverting forward variance fitted to the implied index
-  mortality.py              2012 IAM with Projection Scale G2, generational
-  contract.py               the representative contract, with the prospectus language behind it
-  engine.py                 risk-neutral Monte Carlo and the attributed-fee method
-  sensitivities.py          Greeks by bump and revalue, and disclosed-shock repricing
-  hedging.py                policy roll-forward, hedge sizing, the profit ledger
-  accounting.py             economic against reported, and the OCI split
-  market.py                 one date to model inputs, with the calendar problems handled
-  session.py, figures.py, paths.py, config.py
+data/raw/                   FRED panel, SPX option chain, SOA mortality, figures read out of the filings
+data/processed/             built by make data and make calibrate; gitignored, reproducible from raw
+vahedge/
+  market/                   curve bootstrap and NSS fit, Heston, Hull-White, the option chain,
+                            the simulator, and the realised-history scenarios
+  liability/                the rate sheet, the contract recursion, cohorts, mortality, behaviour
+  valuation/                the engine, Greeks, the regression proxy, nested valuation, break-even
+  hedge/                    instruments, sizing, strategies, the daily simulator, attribution
+  capital/                  the statutory lens and the reporting-basis lens
+  report/                   figures, drawn from the committed tables
 scripts/                    one script per analysis, each runnable on its own
 tests/                      run with make test; no test framework required
 docs/
   research_design.md        question, hypotheses, what would falsify them
   data_sources.md           every series and every gotcha in it
   methodology.md            the equations, and why each choice was made
-  validation.md             all results, including where the model misses
+  validation.md             all results, including the two hypotheses that did not survive
   limitations.md            what this does not do
   literature.md             sources, separated into retrieved and referenced
+references/                 the sources themselves, with a register saying what each one is for
 notebooks/                  the results end to end, in reading order
 ```
 
-## Two things that took a rewrite
+## Three things that took a rewrite
 
-Worth flagging because both were wrong in a way that looked right.
+Worth flagging because all three were wrong in a way that looked right.
 
-**The volatility term structure.** The first version held the 3-month implied level flat to
-five years, which reads as a fair interpretation of Jackson's "implied volatility for
-durations up to 5 years". Under stress it is an arbitrage: in March 2020 the 3-month index
-reached roughly 70 against a long-run level near 19, and a linearly declining spot volatility
-through the grading window put total variance to seven years below total variance to five.
-It also propagated a fifty-point spike in a three-month index undamped across the whole front
-of the surface, which produced a vega about twice what it should be and then dominated the
-hedging residual. The replacement specifies the shape on forward variance with mean
-reversion, which keeps forward variance positive by construction and lets a short-dated move
-decay with maturity.
+**Two models of the same liability.** The valuation, the Greeks and every disclosure validation
+were produced by an earlier single-factor implementation - lognormal equity on a deterministic
+volatility curve, deterministic rates, no death benefit - while the hedging, capital and reporting
+work ran on the Heston and Hull-White cohort model. Thirty of the committed tables came from the
+first and the conclusions came from the second, which made the validation evidence a validation of
+a model the conclusions did not use. The earlier package is gone and everything runs on one model.
 
-**A citation.** A paper carried in memory as Kling, Ruez and Russ (2011) in *ASTIN Bulletin*
-on stochastic volatility and hedge efficiency does not exist under those details. Checking
-the bibliography against Crossref turned up the real article: same authors, 2014, *European
-Actuarial Journal*, and about policyholder behaviour rather than stochastic volatility, which
-makes it more relevant to this project than the version being cited.
+**A denominator that was not there.** A figure labelled "variance remaining, share of unhedged"
+divided by whichever row of the frontier table was largest, because the unhedged run was not in
+that table at all. It was a share of the delta-only hedge. The frontier now runs the unhedged book
+and the figure plots the residual itself with the unhedged bar in the picture. It was caught by
+trying to quote the figure's own numbers in the notebook, which is the argument for building
+figures from the committed tables rather than from live model objects.
+
+**A truncation test comparing different worlds.** The simulator draws its normals in one array
+whose width follows the horizon, so a forty-year run and a fifty-year run at the same seed are
+different simulations rather than a prefix and its extension. The test that was meant to show the
+projection horizon does not matter was reporting ninety dollars of Monte Carlo difference as a
+truncation effect, and passing for the wrong reason. On common draws, cutting at age 115 costs
+less than a dollar and at 105 costs thirty-six.
 
 ## Scope
 
-One stylised contract, stated as such throughout. Not a valuation of Jackson Financial, not
-a valuation of its liabilities, and not investment advice. Where the model and the disclosure
-differ, the presumption is that the model is what is wrong.
+One stylised book, stated as such throughout. Not a valuation of Jackson Financial, not a
+valuation of its liabilities, and not investment advice. Where the model and the disclosure differ,
+the presumption is that the model is what is wrong.

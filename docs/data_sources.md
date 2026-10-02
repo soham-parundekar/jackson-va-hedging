@@ -91,14 +91,23 @@ One daily panel, `data/raw/fred_daily_panel.csv`, 2 January 2015 to 25 September
 | Series | What it is | Used for |
 |---|---|---|
 | SP500 | S&P 500 index | Equity proxy for the sub-account and for the futures hedge |
-| VIXCLS | CBOE Volatility Index, 30 day | Independent check on the fitted volatility curve |
-| VXVCLS | CBOE 3-Month Volatility Index | Fits the front of the volatility term structure |
+| VIXCLS | CBOE Volatility Index, 30 day | Out-of-sample check on the variance mapping |
+| VXVCLS | CBOE 3-Month Volatility Index | Implies the instantaneous variance along the replay |
 | DGS1 … DGS30 | Treasury par yields, 8 tenors | Bootstrapped to the zero curve |
 | DTB3 | 3-month Treasury bill | Financing rate for the futures position |
 | BAA10Y | Moody's Baa corporate spread over the 10-year Treasury | Own non-performance spread proxy |
 | AAA10Y | Moody's Aaa spread over the 10-year Treasury | Cross-check on the spread proxy |
 | DFF | Effective federal funds rate | Context |
 | BAMLC0A4CBBB | ICE BofA BBB corporate option-adjusted spread | Cross-check, but see below |
+
+Three more files sit beside it because the panel's ten-year window cannot carry them:
+
+| File | What it is | Used for |
+|---|---|---|
+| `fred_long_rate_history.csv` | DGS3MO and DGS10, full history | Hull-White mean reversion and volatility, which ten years cannot identify |
+| `fred_financing_rates.csv` | Overnight and bill rates | The financing leg of the futures and total return swap positions |
+| `cboe_spx_option_chain.csv`, `cboe_spx_parity_quotes.csv` | SPX chain and the quotes used for put-call parity | The Heston calibration, and the forward and discount factor per expiry |
+| `cboe_vix6m_skew.csv` | VIX6M and SKEW | Independent check on the calibrated term structure and skew |
 
 ### Gotchas that matter
 
@@ -120,15 +129,26 @@ missing after that fill.
 **Treasury publishes par yields, not zero rates.** A forty-year cash flow discounted
 straight off a thirty-year par yield is wrong by enough to matter. Everything discounts off
 the bootstrapped zero curve, and `build_dataset.py` reprices the par bonds off every one of
-the 2,514 bootstrapped curves as a check; worst round-trip error is 2e-16.
+the 2,495 bootstrapped curves as a check; worst round-trip error is 2e-16. The nineteen
+equity trading days that do not get a curve are days with an incomplete par curve, and they
+are dropped rather than filled: a Treasury holiday is a day on which nothing traded, so
+carrying the previous curve forward would invent a mark the hedge could not have traded on.
 
 **The index is a price index.** Sub-account returns are total returns, so a dividend yield
 enters explicitly at 1.5%, stated as an assumption and tested. It appears twice: in the
 realised sub-account return and in the excess return on the futures position.
 
-**No implied volatility beyond three months is available free.** This is the most binding
-data limitation in the project and it shapes the volatility model; `docs/methodology.md`
-explains what was done about it and what it costs.
+**The option chain stops at 3.23 years and the liability runs 45.** Cboe's delayed-quote
+endpoint publishes the live SPX chain, which is what the Heston surface is calibrated to, and
+its longest standard expiry on the retrieval date was 3.23 years out. Nothing free reaches
+further. The parameter that matters most on a forty-five-year guarantee is therefore the one
+the data has least to say about, and `docs/limitations.md` gives the measured size of the
+problem rather than leaving it as a worry.
+
+**The chain is a single snapshot, not a history.** It was retrieved once, on 28 September
+2026, so the surface is calibrated at one date and held at that shape along the whole replay.
+What moves with the date along the replay is the curve and the observable instantaneous
+variance implied from the three-month index.
 
 ## Mortality, SOA
 

@@ -69,7 +69,7 @@ withdrawal benefits. *Insurance: Mathematics and Economics* 38(1), 21-38.
 
 > The early valuation treatment of the GMWB specifically, and the source of the result that
 > guarantee fees charged in the market have often sat below the risk-neutral cost of the
-> guarantee. The at-issue result here, where attributable fees cover projected claims 1.15
+> guarantee. The at-issue result here, where attributable fees cover projected claims 1.27
 > times over only once the base contract charge is included alongside the explicit rider
 > charge, is a version of the same arithmetic.
 
@@ -94,11 +94,13 @@ hedging, and hedge efficiency of withdrawal benefit guarantees in variable annui
 *European Actuarial Journal* 4(2), 281-314.
 [10.1007/s13385-014-0093-0](https://doi.org/10.1007/s13385-014-0093-0)
 
-> The closest paper to this project's central finding. Policyholder behaviour affects not
-> only the level of the guarantee but the efficiency of hedging it, which is what the
-> utilisation and lapse sweep here runs into: a near-constant factor of 2.4 between the
-> model's sensitivities and Jackson's disclosed ones that closes on behaviour assumptions
-> inside ordinary ranges.
+> The closest paper to this project's central finding, and the one that frames it correctly.
+> Policyholder behaviour affects not only the level of a guarantee but the efficiency of
+> hedging it. The sweep here runs into a sharper version: the near-constant factor of about
+> three between the model's sensitivities and Jackson's disclosed ones does *not* close on
+> behaviour inside ordinary ranges, because utilisation moves the rate sensitivity and the
+> equity sensitivity by different factors. Drawing less takes duration out of the guarantee;
+> the benefit base is still there whatever the owner draws.
 
 Moenig, T., and Bauer, D. (2016). Revisiting the risk-neutral approach to optimal
 policyholder behavior: a study of withdrawal guarantees in variable annuities. *Review of
@@ -108,6 +110,74 @@ Finance* 20(2), 759-794. [10.1093/rof/rfv018](https://doi.org/10.1093/rof/rfv018
 > On why observed behaviour departs from the risk-neutral optimum, including tax effects,
 > which is relevant to why a static assumption overstates the guarantee in practice rather
 > than merely in theory.
+
+### The model's own machinery
+
+These are the sources behind the pieces of the model rather than behind the product. Each is in
+`references/source_register.csv` with the component that depends on it.
+
+Heston, S. L. (1993). A closed-form solution for options with stochastic volatility with
+applications to bond and currency options. *Review of Financial Studies* 6(2), 327-343.
+[10.1093/rfs/6.2.327](https://doi.org/10.1093/rfs/6.2.327)
+
+> The variance process and the characteristic function the calibration is built on.
+
+Albrecher, H., Mayer, P., Schoutens, W., and Tistaert, J. (2007). The little Heston trap.
+*Wilmott*, issue 1, 83-92.
+
+> Which branch of the complex logarithm to take in the characteristic function. The other
+> branch is numerically unstable at long maturities, which on a forty-five-year liability is
+> not an academic point.
+
+Fang, F., and Oosterlee, C. W. (2008). A novel pricing method for European options based on
+Fourier-cosine series expansions. *SIAM Journal on Scientific Computing* 31(2), 826-848.
+[10.1137/080718061](https://doi.org/10.1137/080718061)
+
+> The pricer the calibration objective is evaluated with, and the benchmark the simulator's
+> step size was chosen against.
+
+Andersen, L. B. G. (2008). Simple and efficient simulation of the Heston stochastic volatility
+model. *Journal of Computational Finance* 11(3), 1-42.
+[10.21314/JCF.2008.189](https://doi.org/10.21314/JCF.2008.189)
+
+> The quadratic-exponential scheme and the martingale correction. Not optional here: the
+> calibrated parameters violate the Feller condition by a wide margin, so a scheme that can
+> take the variance negative would have to truncate it, and truncation biases the discounted
+> index away from being a martingale.
+
+Hull, J., and White, A. (1990). Pricing interest-rate-derivative securities. *Review of
+Financial Studies* 3(4), 573-592. [10.1093/rfs/3.4.573](https://doi.org/10.1093/rfs/3.4.573)
+
+> The one-factor short-rate model and its closed-form bond price, which is what lets a node
+> deep in a nested simulation rebuild the whole curve from its short rate.
+
+Nelson, C. R., and Siegel, A. F. (1987). Parsimonious modeling of yield curves. *Journal of
+Business* 60(4), 473-489. [10.1086/296409](https://doi.org/10.1086/296409)
+
+Svensson, L. E. O. (1994). *Estimating and interpreting forward interest rates: Sweden
+1992-1994*. NBER Working Paper 4871. [10.3386/w4871](https://doi.org/10.3386/w4871)
+
+> The three-factor form and the second hump term the curve fit uses. Svensson's extra term is
+> what makes the long end fittable and also what makes an unconstrained fit extrapolate to
+> nonsense, which is why the two decay parameters are searched on separate ranges.
+
+Longstaff, F. A., and Schwartz, E. S. (2001). Valuing American options by simulation: a simple
+least-squares approach. *Review of Financial Studies* 14(1), 113-147.
+[10.1093/rfs/14.1.113](https://doi.org/10.1093/rfs/14.1.113)
+
+> The regression proxy for the continuation value. Used here for a hedging proxy rather than
+> for an exercise decision, which is a weaker requirement on the fit in one way and a stronger
+> one in another: the level matters less and the derivative matters more.
+
+Politis, D. N., and Romano, J. P. (1994). The stationary bootstrap. *Journal of the American
+Statistical Association* 89(428), 1303-1313.
+[10.1080/01621459.1994.10476870](https://doi.org/10.1080/01621459.1994.10476870)
+
+> The geometric-block resampling of realised history. The one parameter is the mean block
+> length, and choosing it by eye is where a bootstrap scenario set stops being evidence, so it
+> is set from the integrated autocorrelation of squared returns.
+
+### Texts
 
 Hardy, M. R. (2003). *Investment Guarantees: Modeling and Risk Management for Equity-Linked
 Life Insurance*. Wiley. ISBN 0-471-39290-1.

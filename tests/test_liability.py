@@ -406,3 +406,35 @@ def test_the_behaviour_grid_is_admissible():
         BehaviourAssumptions(base_lapse=0.02, lapse_floor=0.05)
     with raises(ValueError, match="lapse_beta"):
         BehaviourAssumptions(lapse_beta=-1.0)
+
+
+def test_the_insurer_s_share_of_a_continuous_drag_is_collected_exactly():
+    """The closed form against brute-force sub-stepping.
+
+    Attributing fees means knowing how much of a continuous proportional drag was the
+    insurer's revenue rather than the funds'. For a charge c out of a total drag m over an
+    interval of length one, the end-of-interval value of what was collected is exactly
+    (c/m) * AV * (1 - exp(-m)), and the implementation uses that rather than sub-stepping.
+    An error here would move the attribution percentage and with it every market risk benefit
+    figure in the project, and it would not show up anywhere else: the account value would
+    still be right, because the drag comes out of it either way.
+    """
+    base, fund = 0.0131, 0.0095
+    drag = base + fund
+    book = _contract(base_contract_charge=base, fund_expense=fund)
+    projection = gmwb.project(book, _flat_market(), _survival(), record=True)
+
+    # Year one, before any withdrawal: the account has only decayed by the drag.
+    collected = float(projection.recorded["pv_fee"][0, 0])
+    rider = float(book.rider_charge_pct[0]) * 100.0
+    closed_form = (base / drag) * 100.0 * (1.0 - np.exp(-drag))
+    assert collected - rider == approx(closed_form, rel=1e-12)
+
+    # And the closed form is the integral, which is what the sub-stepping converges to.
+    steps = 20_000
+    delta = 1.0 / steps
+    account, brute = 100.0, 0.0
+    for _ in range(steps):
+        brute += base * account * delta
+        account *= np.exp(-drag * delta)
+    assert brute == approx(closed_form, rel=1e-4)

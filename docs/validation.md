@@ -1,363 +1,404 @@
 # Validation
 
-Results below come from a full run of the scripts in `scripts/` at 200,000 paths for the
-valuation and Greeks and 40,000 for the backtest. Every table is written to
-`reports/tables/` and every figure to `reports/figures/`.
+Every number here is in `reports/tables/`, and every claim is the table read back rather than a
+summary of it. Where the model misses, the miss is the finding.
+
+The hypotheses this is testing are in `docs/research_design.md` and were written before the
+results. Two of them did not survive in the form they were stated, which is reported here rather
+than edited there.
 
 ## Numerical checks
 
-These test the machinery rather than the economics. If any of them fails nothing downstream
-is worth reading.
+These establish that the arithmetic closes before anything is asked of the economics.
 
-| Check | Result |
-|---|---|
-| Par bonds reprice to par off the bootstrapped zeros, all 2,514 curves in the sample | worst error 2e-16 |
-| Discounted expected contract value with no charges or withdrawals returns the premium | within 0.3% at horizons 1, 5, 10, 20 and 39 years |
-| Closed-form collection of continuous charges against 20,000-step brute force, 200 random paths | agrees to 2e-4 relative |
-| Total variance monotone across implied levels 5% to 100% and long-run levels 5% to 45% | no violations on a 0.02-year grid to 60 years |
-| Closed-form total variance against numerical quadrature | agrees to 1e-8 relative |
-| Volatility curve reproduces its fitting point, 503 dates | exact |
-| Period mortality table implies longer life than Basic at every duration | holds |
-| Sex blend is exactly the average of the two survival curves | holds; the rate-blended alternative differs |
-| Disclosed figures appearing in two consecutive filings | 6 of 6 agree |
-| Hedge profit rebuilt from the position recorded on the previous date | matches to 1e-12 |
+| Check | Result | Where |
+|---|---|---|
+| Par bootstrap reprices its own quotes | worst round trip 2e-16 over 2,495 dates | `build_dataset.py`, `tests/test_market_models.py` |
+| Hull-White reproduces the initial curve | exact | `tests/test_market_models.py` |
+| COS pricer against Black-Scholes at zero volatility of variance | matches | `tests/test_market_models.py` |
+| Simulator against the COS pricer with rates switched off | matches | `tests/test_market_models.py` |
+| Discounted index and sub-account are martingales | within Monte Carlo error | `tests/test_market_models.py` |
+| Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
+| Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
+| Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
+| Overlapping filings agree | 6 figures in two filings each, all agree | `build_dataset.py` |
+| Profit attribution and residual add to the total | exact by construction | `tests/test_hedge.py` |
+| The ledger uses nothing from after the rebalance date | rebuilt from the prior position | `tests/test_hedge.py` |
 
-The martingale check is the one that matters most. With charges and withdrawals switched
-off, the contract value is a traded asset, so its discounted expectation has to come back to
-where it started. That is what pins the risk-neutral drift and the centring of the lognormal
-step, and it cannot pass by accident.
+237 tests, no framework required.
 
 ### Monte Carlo error and truncation
 
-| Paths | Market risk benefit | Standard error |
-|---|---|---|
-| 5,000 | 138.92 | 105.57 |
-| 20,000 | 53.84 | 54.18 |
-| 50,000 | -26.72 | 33.97 |
-| 100,000 | -28.62 | 23.93 |
-| 200,000 | 0.00 | 16.90 |
+At twenty thousand paths the standard error on the market risk benefit is $136 on a $100,000
+policy, and it halves as paths quadruple. Greeks are taken on common random numbers and each
+carries the standard error of its own paired difference: the equity exposure's is 164 on 14,501,
+rho's is 19 on 5,887 per 100bp, vega's is 40 on 893. A Greek whose error is a third of its value
+is not a risk number, and printing the error is the only way to know.
 
-The error halves as paths quadruple, as it should. Truncating the projection at attained age
-110 instead of 115 moves the market risk benefit by $1.62 and extending it to 120 moves it by
-$0.53, both an order of magnitude inside the $16.90 standard error.
+Truncation is measured on common draws, which is the only way the comparison means anything: the
+simulator draws its normals in one array whose width follows the horizon, so a forty-year run and
+a fifty-year run at the same seed are different worlds rather than a prefix and its extension.
+Measured properly, cutting the projection at age 115 costs less than a dollar and at 105 costs
+$36, against a standard error of $136.
 
 ## The at-issue result, which is itself a check
 
-At 31 December 2025, on a $100,000 single premium at issue age 70:
+With the attribution percentage calibrated the way Note 6 describes, the market risk benefit at
+inception is zero. That is not a free parameter being fitted; it is the definition closing.
 
-| | |
+| Quantity | Value |
 |---|---|
-| Present value of guarantee payments | 19,303 |
-| Present value of the explicit GMWB charge | 13,277 |
-| Present value of the base contract charge | 8,912 |
-| Total attributable fees | 22,189 |
-| Attribution percentage | 0.8699 |
-| **Market risk benefit at issue** | **0.00** |
-| Monte Carlo standard error | 16.90 |
-| Probability the contract value is exhausted by year 20 | 86.1% |
-| Expected future lifetime | 19.6 years |
+| PV of living-benefit payments | 20,977 |
+| PV of death benefit above the account | 1,207 |
+| PV of total attributable fees | 28,233 |
+| Attribution percentage | 0.7857 |
+| Market risk benefit at issue | 0 |
+| Gross guarantee, % of premium | 22.18 |
+| Probability of exhaustion by year 20 | 0.777 |
+| Expected future lifetime at 70 | 19.64 years |
 
-Note 6 says that where projected attributed fees are sufficient to offset projected
-guaranteed benefits at issue, the market risk benefit has an initial fair value of zero.
-The model produces that, and it is not a free result: it requires the claims leg to come out
-below the total fee leg but not far below. Attributable fees cover claims 1.15 times over,
-so the attribution calibrates to 87% and the benefit starts at zero. Had the model
-overstated claims by 20% the attribution would have capped at 100% and the benefit would have
-opened as a liability.
-
-Claims at 19.3% of premium on a risk-neutral basis look large until you see the cash-flow
-profile. With a 5.75% lifetime draw against a risk-neutral drift of roughly 3.7% less 2.26%
-of charges, the account is being drawn down faster than it grows on nearly every path.
-First claims appear around year five, and by year twenty the account is gone on 86% of paths.
-The guarantee is not a tail event in this contract; it is the expected outcome, and what the
-valuation is pricing is when it happens rather than whether.
+The gross guarantee reaches a fifth of premium because the contract defers five years, accruing
+the Core option's 6% bonus on the benefit base, and then draws 5.95% a year against a
+risk-neutral drift near 4.2% less 2.26% of charges. First claims arrive in policy year 6, the flow
+peaks at year 17, and the account is gone on 78% of paths by year 20. The guarantee is the
+expected outcome for this contract rather than a tail event.
 
 ## Sign
 
-Eighteen comparisons: four balance-sheet dates, equity up and down, rates up and down, at
-whichever shock sizes each filing disclosed.
-
-**All eighteen signs agree**, both for a single policy rolled from a 2016 inception and for
-the vintage portfolio. Equity falls, the guarantee becomes more expensive. Rates rise, the
-liability shrinks. Neither was put in by hand; both come out of the cash-flow logic.
+**Hypothesis 1 holds: 18 of 18.** Every disclosed shock, across four balance-sheet dates, both
+directions of both shocks, equity and rates. No sign was put in; the model is a risk-neutral
+projection and the signs fall out of it.
 
 ## Shape
 
-Two features of the disclosed table are testable without matching any level.
+**Hypothesis 2 holds, and closely.** Where a filing discloses both 50bp and 100bp, the ratio of
+the two is a convexity test the model was never fitted to.
 
-**Convexity in the rate shock.** The FY2024 and FY2025 filings between them disclose both
-±50bp and ±100bp at 31 December 2024, which gives a ratio the model can be held to.
-
-| | Disclosed | Model, benefit base over account value 0.8 / 1.0 / 1.2 |
+| | up 100/50 | down 100/50 |
 |---|---|---|
-| 100bp up over 50bp up | 1.855 | 1.894 / 1.895 / 1.902 |
-| 100bp down over 50bp down | 2.128 | 2.112 / 2.111 / 2.105 |
+| Disclosed, FY2024 | 1.8553 | 2.1279 |
+| Model, GWB/AV 0.8 | 1.8841 | 2.1277 |
+| Model, GWB/AV 1.0 | 1.8822 | 2.1275 |
+| Model, GWB/AV 1.2 | 1.8840 | 2.1210 |
 
-Within 2% on both, at every moneyness tested, on a quantity the model was never fitted to.
-The asymmetry is the signature of a convex liability: doubling the shock more than doubles
-the downside impact and less than doubles the upside one.
+Above two on the downside and below two on the upside, as the hypothesis required, and the
+downside lands within 0.0002 of the filing. The ratio barely moves across moneyness, which matters
+because it means the shape test is not quietly a test of where the book sits.
 
-**The trend across years.** Jackson's book moved out of the money as equity markets rose, and
-the disclosed sensitivity per dollar of account value fell with it.
+**Hypothesis 3 holds.** The year-on-year decline in sensitivity per dollar of account value, as
+the book moved out of the money:
 
-| As of | Disclosed equity -10%, % of account value | Vintage portfolio |
-|---|---|---|
-| 2022-12-31 | 1.466 | 3.847 |
-| 2023-12-31 | 1.179 | 3.360 |
-| 2024-12-31 | 0.956 | 2.461 |
-| 2025-12-31 | 0.849 | 2.280 |
+| | 2022 | 2023 | 2024 | 2025 | 2025 / 2022 |
+|---|---|---|---|---|---|
+| Model, equity down 10% | 4.56 | 3.91 | 3.02 | 2.64 | 0.579 |
+| Disclosed | 1.47 | 1.18 | 0.96 | 0.85 | 0.578 |
 
-Both decline monotonically. Disclosed falls to 0.58 of its 2022 level over the period and the
-model to 0.59.
+The levels differ by about three times and the decline matches to within a tenth of a per cent.
+That is the strongest single piece of evidence in the project that the model has the right shape:
+the thing driving the decline - a book moving out of the money as markets rose - is reproduced
+without being fitted.
 
 ## Scale
 
-Here the model does not match, which hypothesis 4 predicted, and the useful part is the
-structure of the miss.
+**Hypothesis 4 holds in its first clause and fails in its second.** It predicted that the model
+would sit above the disclosure and that the gap would be closable by behaviour assumptions inside
+the ranges the literature supports. The first is right. The second is wrong, and the way it is
+wrong is more informative than the prediction would have been.
 
-A single policy cannot be made to match, and the reason is instructive: matching the book's
-moneyness and matching its weighted-average attained age of 70 pull in opposite directions.
-A contract issued in 2016 has ridden the market up and sits near the money, which is right,
-but it is also nine years older than the book average, which shortens the guarantee and
-understates its duration. At 31 December 2025 that single in-force policy gives -1.49% of
-account value per 100bp against a disclosed -1.26%, which looks like a good match and is
-partly coincidence.
+The vintage portfolio - five issue years valued as one book, each carrying the attribution
+percentage its own issue date calibrates to - reaches a weighted attained age of 70.9 against the
+disclosed 70 and a blended withdrawal rate of 5.73%. Its multiple over the disclosure:
 
-Five vintages fix the age problem. Issue dates from 2016 to 2024 with issue ages chosen so
-attained ages straddle 70, which also gives a blended guaranteed withdrawal rate of 4.89%
-rather than the 5.75% a new 70-year-old gets, because the rate sheet bands the percentage by
-age.
-
-| As of | Weighted attained age | Blended withdrawal rate | Benefit base over account value |
+| Shock | Dates | Model over disclosed, mean | Range |
 |---|---|---|---|
-| 2022-12-30 | 67.4 | 4.71% | 1.171 |
-| 2023-12-29 | 68.4 | 4.71% | 1.054 |
-| 2024-12-31 | 69.9 | 4.90% | 0.974 |
-| 2025-12-31 | 70.9 | 4.89% | 0.948 |
+| equity up 10% | 4 | 2.65 | 2.28 to 3.11 |
+| equity down 10% | 4 | 2.83 | 2.58 to 3.19 |
+| rates up 50bp | 3 | 3.17 | 2.79 to 3.48 |
+| rates down 50bp | 3 | 3.15 | 2.73 to 3.48 |
+| rates up 100bp | 2 | 2.82 | 2.82 to 2.83 |
+| rates down 100bp | 2 | 2.75 | 2.72 to 2.77 |
 
-All eighteen ratios of model to disclosed then fall between **2.14 and 2.85, median 2.39**.
-That near-constant multiple across six different shocks and four dates is the interesting
-result. A pile of unrelated errors would not produce it. One structural assumption would.
+A multiple that near-constant across six shocks and four dates points at one structural assumption
+rather than a pile of errors. Net amount at risk comes out at 1.11% of account value against the
+2.3% disclosed.
 
-### What closes the gap
+Four of the five vintages calibrate to an attribution percentage of exactly 1.00. A guarantee
+written anywhere in the 2016 to 2022 rate environment did not have the fees to cover itself at a
+risk-neutral valuation; only the 2024 vintage, written at a 4.33% ten-year rate, has margin. That
+is the mechanism behind a disclosed liability that is now an asset, and it falls out of the model
+rather than being put in.
 
-Two things scale every sensitivity down without touching the model's shape.
+### What does not close the gap
 
-About a quarter of Jackson's variable annuity account value carries no withdrawal
-guarantee at all. GMWB for Life is 72% of account value and term GMWB another 3%, and Elite
-Access and unrestricted Perspective contracts carry no living benefit. Scaling by 0.75 for
-that alone takes the mean ratio from 2.39 to 1.79.
+The behaviour sweep moves utilisation from 1.0 to 0.6 and the at-the-money lapse rate from zero to
+4%, after scaling for the 75% of account value that carries a withdrawal guarantee. The best
+combination by widest miss is 0.80 utilisation with 4% lapse, every compared shock within 61% of
+the disclosed figure, against 2.00 times the disclosure on the static benchmark.
 
-The rest is policyholder behaviour. The base case draws the full guaranteed amount every
-year and never surrenders, which Bauer, Kling and Russ (2008) use as their benchmark
-precisely because it is the most expensive assumption for the insurer. Jackson's fair value
-is built on assumed "benefit utilization by policyholders, lapse, mortality, and withdrawal
-rates". Sweeping both:
+But the two shock families do not move together, and that is the result:
 
-| Utilisation | Lapse | Mean ratio to disclosed | Worst single shock |
-|---|---|---|---|
-| 1.00 | 0.00 | 1.79 | 2.01 |
-| 1.00 | 0.04 | 1.16 | 1.39 |
-| 0.90 | 0.02 | 1.21 | 1.43 |
-| 0.90 | 0.04 | 0.94 | within 33% |
-| 0.80 | 0.02 | 0.96 | within 26% |
+| | static benchmark | far corner |
+|---|---|---|
+| Equity multiple | 2.10 | 1.59 |
+| Rate multiple | 2.09 | 0.47 |
+| Equity over rate | 0.91 | 3.42 |
 
-At 90% utilisation and a 4% annual surrender rate every one of the four shocks sits within
-33% of the disclosed figure. Variable annuity lapse rates in the low single digits and
-utilisation below 100% are both ordinary. So the gap closes inside the ranges the literature
-and the filings support, which is what hypothesis 4 asked.
+Drawing less takes duration out of the guarantee - fewer paths exhaust, so it is less of a
+long-dated annuity - and the rate sensitivity collapses with it. The benefit base is still there
+whatever the owner draws, so the equity sensitivity barely moves. By the time utilisation is low
+enough to match the rate figure, the model is still 2.03 times the disclosed equity figure.
 
-This is a reconciliation, not a calibration. The base case stays at full utilisation and no
-lapse, because that is the assumption the academic benchmark uses and because fitting
-behaviour parameters to a disclosed number would be reverse-engineering the answer.
+So behaviour explains the rate half of the gap and not the equity half, which is a different
+conclusion from the one the hypothesis predicted and a more useful one, because it says where to
+look next.
 
-Two biases run the other way and are worth holding in mind. A static lapse rate overstates
-surrender in exactly the states where the guarantee is valuable, since real lapse falls when
-a guarantee is deep in the money. And leaving deferral-phase contracts out of the portfolio
-biases it towards more guarantee duration than the book has, because the bonus mechanics
-those contracts carry are not modelled.
+### What does close the equity half
+
+Moneyness, on the evidence of the model's own curve. For each disclosed year, the benefit base
+over account value at which the model would reproduce that year's figure:
+
+| As of | equity down 10% implies | equity up 10% implies |
+|---|---|---|
+| 2022 | 0.940 | 1.009 |
+| 2023 | 0.907 | 0.947 |
+| 2024 | 0.853 | 0.901 |
+| 2025 | 0.822 | 0.855 |
+
+Two independent shocks implying the same ratio, year after year, without being made to. The ratio
+declines across the four years, which is what a decade of rising markets does to a book. The
+vintage portfolio sits at 0.985, which is the size of the remaining gap.
+
+The rate shocks fall **outside** the model's range at every moneyness, which is the same statement
+in reverse: moneyness cannot explain the rate half, and behaviour can.
 
 ### The withdrawal rate is the lever
 
-Independently of the behaviour sweep, varying the guaranteed withdrawal percentage shows the
-same thing:
+The diagnostic that makes the rate half quantitative. Holding everything else, the guaranteed
+withdrawal rate moves both sensitivities towards the disclosure, and not by the same factor:
 
-| Withdrawal rate | Claims, % of account value | Exhausted by year 20 | Rates +100bp, % of account value |
-|---|---|---|---|
-| 3.00% | 4.12 | 45.6% | -1.34 |
-| 4.00% | 8.41 | 64.4% | -2.41 |
-| 5.00% | 14.17 | 78.6% | -3.65 |
-| 5.75% | 19.30 | 86.1% | -4.63 |
-| 6.50% | 25.00 | 91.3% | -5.61 |
+| GAWA | attribution | exhausted by 20y | equity down 10% | rates up 100bp |
+|---|---|---|---|---|
+| 1.00% | 0.154 | 0.133 | 1.14 | -1.52 |
+| 2.00% | 0.151 | 0.258 | 0.99 | -1.35 |
+| 3.00% | 0.218 | 0.399 | 1.09 | -1.86 |
+| 5.75% | 0.731 | 0.756 | 1.92 | -4.95 |
+| 6.50% | 0.949 | 0.824 | 2.18 | -5.97 |
 
-The disclosed -1.26% sits near the 3% row. A contract drawing 5.75% a year exhausts on
-nearly every path, which turns the guarantee into a long-dated life annuity and gives it the
-duration to match. A book where many contracts draw less, or have not started drawing, has
-far less of it.
+Matching the disclosed rate sensitivity takes an effective rate near 1.7%; matching the disclosed
+equity sensitivity takes 2% or below. At a 1.7% draw the rate sensitivity is 0.27 of its
+contractual-rate value and the equity sensitivity 0.52 of its own, which is the same divergence
+the behaviour sweep found, measured on a different lever.
+
+Below about 1.5% the relationship turns: the account stops exhausting at all, the living benefit
+stops being what the sensitivity is made of, and the death benefit and the fee stream take over.
+The implied rate is read off the monotone branch only, because reading it off the turn would be
+reading the turn.
+
+An effective rate of 2% against a contractual 5.95% is not a claim that holders draw a third of
+their entitlement. It is a claim about a book, and a book in which a large share of contracts have
+not started withdrawing draws less than any of its rate sheet bands. The vintage portfolio models
+that share directly - two of its five vintages are still deferring at the last disclosed date -
+which is why it closes part of the gap that the single policy does not.
+
+## The proxy the hedging results rest on
+
+Everything in the next section runs on a regression proxy rather than on full valuations, so the
+proxy's own error is measured first.
+
+| Policy year | R² in range | value RMSE, % of account | delta RMSE | mean abs nested delta | relative |
+|---|---|---|---|---|---|
+| 1 | 0.9952 | 0.0059 | 0.126 | 35.0 | 36% |
+| 2 | 0.9978 | 0.0053 | 0.081 | 38.6 | 21% |
+| 5 | 0.9990 | 0.0068 | 0.044 | 42.7 | 10% |
+| 9 | 0.9997 | 0.0044 | 0.021 | 31.0 | 7% |
+| 14 | 0.9998 | 0.0034 | 0.010 | 21.4 | 5% |
+| 30 | 0.9992 | 0.0020 | 0.006 | 5.7 | 11% |
+
+The value is accurate everywhere. The delta is not usable in the first two policy years, where the
+fitting paths have barely dispersed and the whole design piles into a narrow band; the backtest
+starts at duration 3 and runs ten years, so it lives in the usable part, and the step-up table is
+restricted to policy years 5 and 9 for the same reason.
+
+The second derivative is not usable at all. `convexity_proxy_comparison.csv` puts the proxy's
+gamma against nested valuations at the same nodes and the errors are the size of the quantity, so
+the option leg is sized from a tabulated nested surface instead. Substituting it is not free and
+`hedge_convexity_source.csv` is where it earns its keep or does not.
+
+**Extrapolation is a condition on every hedging result, not a footnote.** The realised path asks
+the proxy for a state outside its design on 36% of rebalance dates. That share is reported with
+every run.
 
 ## Hedging
 
-One policy, issued 26 September 2016 on the disclosed fund mix, hedged weekly for 521 weeks
-to September 2026.
+**Hypothesis 5 holds on variance and is incomplete on the residual.** A delta and rho hedge
+removes a substantial share of the daily variation, and adding convexity removes most of the
+rest - which means the residual is not dominated by implied volatility so much as by the absence
+of an instrument for it.
 
-| Hedge | Weekly std | Variance ratio | Variance removed | Worst week | Costs over 10 years |
-|---|---|---|---|---|---|
-| Unhedged | 1,705 | 1.000 | 0.0% | -11,500 | 0 |
-| Delta | 1,253 | 0.540 | 46.0% | -8,438 | 32 |
-| Delta and rho | 1,018 | 0.356 | **64.4%** | -8,258 | 48 |
-| Delta, rho and volatility | 328 | 0.037 | 96.3% | -1,061 | 162 |
+Residual daily standard deviation over the ten-year replay, as a share of account value, at daily
+rebalancing and base costs:
 
-Annualised, the unhedged guarantee has a profit standard deviation of $12,305 on a $100,000
-policy. Delta and rho hedging takes it to $7,346.
+| Strategy | Residual sd | Cost over the decade |
+|---|---|---|
+| S1, futures | 0.304% | 0.05% |
+| S2, plus a receive-fixed swap | 0.188% | 0.08% |
+| S3, plus listed puts | 0.139% | 21.67% |
 
-Transaction costs are almost an afterthought: $48 across ten years of weekly rebalancing,
-under 0.05% of premium. Index futures and interest rate swaps are cheap, and the hedge
-notional moves slowly enough that little is traded. On this evidence the basis-risk against
-transaction-cost trade-off that sets rebalance frequency is not much of a trade-off at
-weekly frequency for a liability of this duration.
+The rate leg costs almost nothing and takes out a third of what the equity leg left. The option
+leg takes out another quarter and costs two hundred times as much.
 
-### What is left, and where
+### The crisis replays
 
-The residual after delta and rho regresses on the factors the hedge does not cover with an
-R² of 0.85. The two large coefficients are on squared index return, standing in for gamma,
-and on the change in implied volatility. The fund basis term also loads, which is the
-disclosed sub-account mix behaving differently from the index the hedge trades.
+Chosen by what happened rather than by what flatters a hedge, and deliberately different in kind.
 
-Stress windows make the point more plainly than the regression does.
+| Episode | Days | Index | Rates | Peak vol | Unhedged | S1 | S2 | S3 |
+|---|---|---|---|---|---|---|---|---|
+| volmageddon | 11 | -8.8% | +18bp | 26.5% | -1.96% | 59.1% | 74.5% | 97.9% |
+| Q4 2018 | 64 | -19.5% | -32bp | 26.0% | -9.13% | 84.2% | 96.1% | 98.9% |
+| covid | 24 | -33.8% | -79bp | 45.4% | -22.00% | 85.7% | 94.1% | 98.9% |
+| 2022 double | 197 | -24.4% | +228bp | 26.2% | +1.16% | 73.7% | 98.5% | 99.1% |
 
-| Window | Weeks | Index return | Unhedged | Delta and rho | Plus volatility |
-|---|---|---|---|---|---|
-| Feb 2018 volatility spike | 5 | -4.4% | -346 | -1,808 | -846 |
-| Q4 2018 | 14 | -14.7% | -7,807 | -1,530 | +1,434 |
-| Feb-Mar 2020 | 7 | -24.8% | -30,563 | -18,470 | -1,457 |
-| 2022 | 52 | -17.9% | +4,669 | -4,042 | -2,548 |
+Unhedged is the episode's total profit as a share of account value; the strategy columns are
+variance reduction. February and March 2020 is the clearest case: the unhedged guarantee lost 22%
+of account value in twenty-four trading days, futures alone recovered two thirds of it, futures
+and swaps left 2.7%, and the option leg turned it into a 2.0% gain.
 
-In the seven weeks to the end of March 2020 the unhedged guarantee lost 30.6% of premium.
-Delta and rho hedging recovered 40% of that and left an 18.5% loss standing. Adding the
-volatility leg cut the residual to 1.5%. February and March 2020 was a volatility event for
-this liability more than a level event, and a programme built on futures and swaps alone was
-never going to catch it.
+Volmageddon is the opposite case and the one worth dwelling on. An 8.8% index move with volatility
+doubling, and the futures-and-swaps hedge removes only 74.5% of the variance against 94% in covid.
+That episode was a volatility event rather than a level event, and instruments that carry no vega
+were never going to catch it.
 
-In February 2018 the delta and rho hedge *lost more* than doing nothing. The index barely
-moved over those five weeks while implied volatility doubled, so the hedge paid its costs and
-had nothing to offset. A hedge that never underperforms in any window is a hedge that has
-been fitted.
+### What one decade is worth as evidence
 
-### The step-up can make the insurer long equity
+Every hedging number above comes from one path: the 2,493 trading days between September 2016 and
+September 2026, in the order they arrived. That is one observation, and it is a decade in which
+the index compounded at 14.4% a year and the two bad stretches were short.
 
-One result came out of a test that was asserting the wrong thing. The test required equity
-exposure to be negative on every date, on the reasoning that a written guarantee behaves like
-a short put. It failed on 17 of 522 weeks, and the failures were not noise.
+So the days are resampled. A stationary bootstrap with an 11.09-day mean block, set from the
+integrated autocorrelation of squared returns rather than by eye, reorders the equity days while
+keeping each one paired with its own volatility state. The rate path, the curve and the credit
+spread stay on history's own course, because a reordered level is not a rate scenario: at that
+block length a resampled level would jump about 225 times in a ten-year path, by an average of
+139bp in the ten-year zero against a realised daily standard deviation of 5.3bp. Two arms on the
+same draws - the ordering changed with the average left alone, and the same orderings re-centred
+on the window's mean financing rate plus the 4% equity risk premium the statutory work uses.
 
-Under the Core option the benefit base steps up to the contract value on the anniversary. When
-the contract value sits above the benefit base, the index level on that one date fixes the
-guaranteed income for the rest of the contract's life. Approaching it, a higher index means a
-permanently larger guarantee to fund, and the claims leg becomes long equity.
+**The decade that happened sits at the top of the distribution.**
 
-Decomposing at the state where it first showed up, a contract at attained age 74 with an
-account value 23% above its benefit base and the anniversary 2.6 months away:
-
-| | per unit log index return |
-|---|---|
-| Change in PV of claims | +25,234 |
-| Change in PV of fees | +23,595 |
-| Net equity exposure | **+1,638** |
-
-Both legs respond positively. Claims rise because the ratchet is about to lock in a higher
-base; fees rise because the account value and the future benefit base are both larger. The
-net is a small residual of two large numbers, which is why the sign is delicate.
-
-The rate environment decides it. At the July 2021 market, with the ten-year zero at 1.39%, the
-account depletes on nearly every path, so the ratchet is certain to bite and the claims
-derivative reaches +26,663 at an account value 25% above the benefit base. At the December 2025
-market, with the ten-year zero at 4.20%, the higher risk-neutral drift keeps some paths solvent
-and the claims derivative only reaches +12,652, which is not enough to flip the net.
-
-| Market | Ten-year zero | Account over benefit base | Years to anniversary | Claims leg | Fees leg | Net exposure |
+| | | p10 | median | p90 | realised | percentile |
 |---|---|---|---|---|---|---|
-| Jul 2021 | 1.39% | 1.00 | 0.30 | -10,835 | +19,120 | -29,954 |
-| Jul 2021 | 1.39% | 1.25 | 1.00 | +17,201 | +18,869 | -1,669 |
-| Jul 2021 | 1.39% | 1.25 | 0.30 | +26,663 | +18,562 | **+8,101** |
-| Dec 2025 | 4.20% | 1.25 | 0.30 | +12,652 | +18,617 | -5,965 |
+| as drawn | S1 | 61.3% | 70.7% | 75.9% | 77.7% | 93rd |
+| | S2 | 70.4% | 81.3% | 89.0% | 91.2% | 97th |
+| | S3 | 75.3% | 87.2% | 93.1% | 95.6% | 100th |
+| re-centred | S1 | 63.3% | 69.6% | 73.7% | 77.7% | 100th |
+| | S2 | 79.0% | 85.6% | 87.7% | 91.2% | 100th |
+| | S3 | 82.7% | 89.4% | 94.4% | 95.6% | 100th |
 
-Across the backtest ledger the pattern is entirely systematic. Of 522 weeks, 17 carry long
-exposure, every one of them with the contract value above the benefit base and the anniversary
-within 0.25 years. All 232 weeks where the benefit base is at or above the contract value are
-short without exception. Holding the state fixed and varying only the time to the reset,
-exposure rises monotonically as it approaches, and it is uniformly lower at a 6% curve than at
-a 2% one. The tests assert those properties rather than the blanket claim that failed.
+Variance removed against that path's own unhedged run, paired, because the paths differ by a
+factor of five in how much variance there is to remove. The 91% that the delta-and-rho hedge takes
+out of the realised decade is the 97th percentile of what reorderings of the same decade produce,
+and the median is 81%. The realised backtest did not measure the hedge; it measured the hedge on a
+favourable ordering of a favourable decade.
 
-Two practical consequences. A hedge that follows the model turns from short index to long for
-a few weeks before a step-up date, which is real turnover a real desk would face. And because
-a book with anniversaries spread across the calendar averages this away while a single policy
-concentrates it, single-policy hedge statistics overstate the rebalancing a real programme
-does.
+**The ranking survives, and the put leg's edge is a third smaller than it looked.** S2 beats S1 on
+100% of reorderings in both arms. S3 beats S2 on 100% in the as-drawn arm and 90% in the
+re-centred one. But S3's median edge over S2 is 0.041 and 0.033 points of residual standard
+deviation against 0.058 on the realised path, for 12.6 and 9.2 points of extra cost. The
+conclusion that convexity is worth buying holds; the size of what it buys was overstated by the
+one path.
 
-A related property fell out of the same investigation: in states where the ratchet binds on
-every path, equity gamma comes out at exactly zero. That is not a numerical accident. The
-rider value is homogeneous of degree one in the account value and the benefit base together,
-and when a certain reset makes a shock scale both, the value is exactly linear in the shock.
+**A hedge that removes most of the variance does not reliably improve the worst day.** On 63% to
+73% of reorderings the hedged book's single worst day is better than the unhedged book's, which
+means that on a quarter to a third of them it is worse. Variance is a whole-sample measure and a
+guarantee is a tail problem, and this is where the two part company.
 
-### A caution the headline number needs
+**The two arms are not just a drift difference.** The re-centred arm, at about 6.4% a year against
+the window's own 14.4%, produces tighter distributions, lower residuals and - the point that
+matters for reading any of this - far less extrapolation: its median share of rebalances outside
+the proxy's design is 26% against 43% in the as-drawn arm and 36% on the realised path. A bull
+market walks the contract out of the money and out of the region the proxy was fitted in, so the
+arm that is more defensible economically is also the one the model can actually value. Restricting
+both arms to the paths that extrapolate no more than the realised path does not change the
+conclusion: the medians move to 87.0% and 86.1% for S2, still below the realised 91.2%.
 
-The liability is revalued with the same model that produced the hedge ratios. Any risk factor
-the model represents and the hedge covers gets removed nearly completely, limited only by
-convexity between rebalances. That is why the volatility leg reaches 96%: it is hedging a
-model-implied vega against a model-implied revaluation.
+### Model risk, and what a single path cannot measure
 
-So what these figures measure is the cost of hedging discretely with imperfect instruments:
-gamma between weekly rebalances, a single swap tenor against a parallel-shift rho, one index
-against a blended sub-account, and the spread paid to trade. What they do not measure is
-model error, and on a forty-year guarantee with assumed policyholder behaviour that is the
-larger risk. The 64.4% should be read as an upper bound on what a real programme achieves,
-not an estimate of it.
+The world is whatever history did; the hedge is sized from Greeks that are deliberately wrong in a
+named way. The extra residual standard deviation against the calibrated arm, averaged across
+episodes:
+
+| Misspecification | S1 | S2 | S3 |
+|---|---|---|---|
+| flat volatility, no skew | -0.0017 | -0.0024 | -0.0016 |
+| long-run volatility 17% | +0.0004 | +0.0002 | -0.0002 |
+| long-run volatility 26% | -0.0012 | -0.0011 | -0.0003 |
+
+Three of the twelve cells are positive. Sizing from a flat-volatility model, which has no skew and
+so understates how much a guarantee moves in a fall, left a **smaller** residual than sizing from
+the calibrated model on this decade.
+
+That is not evidence that misspecification helps. It is evidence that one realised path cannot
+measure the cost of misspecification: the sign of the effect is set by how the particular decade
+happened to go, and a wrong model that happened to be wrong in the direction the market moved
+looks better than a right one. The honest reading is that this experiment bounds the magnitude -
+the effect is a tenth to a quarter of the residual either way - and says nothing reliable about
+its sign.
 
 ## Economic against reported
 
-Same hedge positions, sized on the economic basis, measured two ways.
+**Hypothesis 6 holds.** Reported net income under identical positions is more variable than the
+economic outcome, on every hedged strategy:
 
-| Measure | Weekly std | Annualised | Variance vs unhedged |
-|---|---|---|---|
-| Unhedged guarantee | 1,706 | 12,305 | 1.000 |
-| Economic, hedged | 1,019 | 7,346 | 0.356 |
-| Reported net income | 1,070 | 7,716 | 0.393 |
-| Reported comprehensive income | 808 | 5,828 | 0.224 |
-| The OCI piece alone | 440 | 3,175 | 0.067 |
+| Strategy | Economic sd | Net income sd | Multiple | OCI sd | Comprehensive sd |
+|---|---|---|---|---|---|
+| S0 unhedged | 0.0066% | 0.0069% | 1.05 | 0.0019% | 0.0051% |
+| S1 | 0.0031% | 0.0034% | 1.09 | 0.0019% | 0.0021% |
+| S2 | 0.0019% | 0.0022% | 1.11 | 0.0019% | 0.0016% |
+| S3 | 0.0014% | 0.0015% | 1.11 | 0.0019% | 0.0017% |
+| S5 | 0.0016% | 0.0018% | 1.15 | 0.0019% | 0.0013% |
 
-The hedge removes 64.4% of the variance of the economic liability and 60.7% of the variance
-that reaches net income. Reported net income is 1.05 times as volatile as the economic
-outcome under identical positions, and the ratio sits between 1.01 and 1.12 in every calendar
-year of the sample. The margin loading in the reporting basis adds $1,614 to the liability on
-average and changes its sensitivities enough that a hedge sized on the economic delta is
-slightly the wrong size.
+The multiple *rises* as the hedge gets tighter, which is the mechanism rather than a paradox: the
+hedge removes economic variation and the reporting basis carries margins that move with the market
+and are not in the hedge's target, so what is removed from the numerator is not removed from the
+gap.
 
-The more interesting number is the third row. Reported comprehensive income is *less*
-volatile than either the economic outcome or net income, and the reason is the own-credit
-adjustment. Credit spreads widen when equity markets fall, which reduces the own-credit
-adjusted liability at the same moment the market move is increasing it. The adjustment is a
-partial natural hedge, averaging -$6,610 and reaching -$20,842 at its widest. But the market
-risk benefit rules report that movement in other comprehensive income, so it never reaches
-net income, and net income gets the full undamped move while comprehensive income gets the
-damped one. An accounting boundary turns a natural offset into a reporting mismatch.
+The own-credit line is the one no hedge targets. Its daily standard deviation is 0.0019% of
+account value, which is larger than the whole of S3's hedged net income, and under ASU 2018-12 its
+movement goes to other comprehensive income rather than through net income. Credit spreads widen
+when equity markets fall, so that piece is a natural offset to the guarantee - and the rule books
+it outside net income, which is what Item 7A means when it says the company does not use hedging
+to offset movements in its US GAAP liabilities and that this has produced net income volatility.
 
-The OCI piece on its own carries an annualised standard deviation of $3,175, a quarter of the
-unhedged volatility, and no hedge in this programme touches it.
+### Against the filed series
 
-A 5% excess in net income volatility is smaller than Jackson's own disclosure would lead you
-to expect, and the honest reading is that the two differences measurable from public data,
-margins and own credit, are not the main drivers of its reported volatility. Assumption
-updates, the attributed-fee percentage frozen at inception across a book of many vintages,
-and the fact that Jackson's hedging also targets statutory capital and distributable
-earnings are all outside what a single-policy model built from filings can reach. What the
-exercise does establish is that the direction is right and the mechanism is real.
+The model's own hedge-against-liability offset is near-tautological and is here as a counterfactual
+rather than as a result.
+
+| Basis | Periods | Correlation | p | Offset ratio |
+|---|---|---|---|---|
+| filed, quarterly | 18 | +0.006 | 0.98 | 1.24 |
+| filed, annual | 4 | -0.821 | 0.25 | 1.12 |
+| model, quarterly | 41 | -0.977 | 0.00 | 1.39 |
+| model, annual | 11 | -0.958 | 0.00 | 1.37 |
+
+Eighteen quarters of filed data show a correlation of +0.006 between the liability movement and
+the hedging result. At that sample size the smallest correlation detectable at five per cent is
+about 0.47, so the filed series cannot rule out a substantial relationship; what it can say is
+that nothing large and negative is visible, which is what the disclosure itself says in words.
 
 ## Falsification tests, restated against results
 
-| Would have falsified | Result |
+| Test stated in the research design | Outcome |
 |---|---|
-| A sign backwards on any disclosed shock | 18 of 18 agree |
-| A convexity ratio on the wrong side of two | 1.89 up, 2.11 down, against 1.86 and 2.13 disclosed |
-| Model sensitivity below the disclosed one | above on all 18, ratio 2.14 to 2.85 |
-| A delta and rho hedge that fails to reduce variance | 64.4% of variance removed over 521 weeks |
-| A residual uncorrelated with implied volatility | volatility is the dominant residual term |
-| Reported net income no more volatile than the economic outcome | 1.05 times, positive in all 11 calendar years |
+| A sign that comes out backwards on any disclosed shock | Not observed; 18 of 18 |
+| A convexity ratio on the wrong side of two | Not observed; 1.88 up and 2.13 down |
+| A model sensitivity *below* the disclosed one | Not observed; the model is above on all 18 |
+| A delta and rho hedge that fails to reduce variance | Not observed; 74% to 99% across the episodes |
+| A residual uncorrelated with implied volatility | **Partly observed.** Adding convexity removes most of the residual that delta and rho leave, so the residual is better described as the absence of a convexity instrument than as a volatility exposure |
+| Reported net income no more volatile than the economic outcome | Not observed; 1.05 to 1.15 |
+| The gap closable by behaviour alone | **Observed.** Behaviour closes the rate half and not the equity half; the equity half is moneyness |
+
+Two of the seven came out against the stated prediction. Both are reported above with the
+measurement behind them, and neither was discovered by looking for it - the behaviour divergence
+came out of a sweep run to confirm the opposite, and the residual finding came out of adding an
+instrument class the original design did not have.

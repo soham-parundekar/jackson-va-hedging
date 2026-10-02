@@ -8,8 +8,8 @@ Accession     0000927730-26-000157
 Document      jnlpiiafter6-24x19rateshee.htm
 URL           https://www.sec.gov/Archives/edgar/data/927730/000092773026000157/jnlpiiafter6-24x19rateshee.htm
 Retrieved     28 September 2026
-Used by       data/raw/jackson_rider_terms.csv, config/params.yaml, and the age-banded
-              withdrawal table in the GMWB engine.
+Used by       data/raw/jackson_rider_terms.csv, and through it the age-banded withdrawal
+              table and rider charges in vahedge/liability/terms.py.
 
 Why the rate sheet and not the prospectus. The Perspective II statutory prospectus
 (Form N-4, 485BPOS filed 21 April 2026, accession 0000927730-26-000195) gives the mechanics

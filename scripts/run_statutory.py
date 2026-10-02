@@ -51,11 +51,13 @@ PREMIUM = 100.0
 
 N_PATHS = 20_000
 SEED = 20260101
-# Arithmetic equity risk premium over the short rate, applied to the equity sleeve only. The
-# sweep is the point: 2% is the low end of the published long-horizon estimates, 4% is near the
-# middle, 6% is the realised US figure over the post-war period and is almost certainly too high
-# to assume forward. Nothing in free data identifies this, so the requirement is reported against
-# all three rather than at one.
+# Arithmetic equity risk premium over the short rate, applied to the equity sleeve only, as a
+# stated sweep rather than an estimate. Nothing available here identifies it: the free equity
+# history reaches back ten years, which is far too short a window to say anything about a
+# long-horizon premium, and no free source gives one for a specific date. So the requirement is
+# reported at three levels spanning the range the argument is usually had over, and the spread
+# between them is part of the result rather than something to average away. Reading the middle
+# figure as an estimate would be reading more into it than the data supports.
 PREMIUM_SWEEP = (0.02, 0.04, 0.06)
 BASE_PREMIUM = 0.04
 LEVELS = (0.70, 0.90)

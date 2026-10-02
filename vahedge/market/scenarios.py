@@ -303,13 +303,17 @@ def block_length(returns: np.ndarray) -> float:
     block has to be to carry any of it.
     """
     squared = np.asarray(returns, dtype=float) ** 2
-    squared = squared - squared.mean()
-    total = float(squared @ squared)
-    if total <= 0:
+    centred = squared - squared.mean()
+    total = float(centred @ centred)
+    # Judged against the level of the squared returns rather than against zero. A series whose
+    # squared returns barely vary carries no clustering to measure, and the autocorrelation of
+    # what is left is rounding noise: on a constant series an exact-zero guard let this through
+    # and returned a block of 114 days, longer than most windows it would be drawn from.
+    if total <= 1e-12 * max(float(squared @ squared), 1e-300):
         return 1.0
     acf = []
     for lag in range(1, 61):
-        value = float(squared[lag:] @ squared[:-lag]) / total
+        value = float(centred[lag:] @ centred[:-lag]) / total
         if value <= 0:
             break
         acf.append(value)
@@ -341,3 +345,97 @@ def stationary_bootstrap(
         position = np.where(restart, rng.integers(0, log_returns.size, size=n_paths),
                             (position + 1) % log_returns.size)
     return drawn
+
+
+def resample(
+    path: DailyPath,
+    drawn: np.ndarray,
+    mix,
+    label: str = "bootstrap",
+    annual_drift: float | None = None,
+) -> DailyPath:
+    """One bootstrap path: the equity days reordered, the rate path left as it happened.
+
+    ``drawn`` is one row of ``stationary_bootstrap``: indices into the array of daily log
+    returns. Index i is the move from day i to day i+1, so the volatility state that belongs
+    with it is day i+1's, and that pairing is kept. A day drawn from March 2020 arrives with its
+    crash return and its spiked variance together, which is the co-movement a bootstrap exists
+    to carry and the one no model here reproduces.
+
+    **What is not resampled, and why.** The zero curve, the overnight rate and the own-credit
+    spread stay on the history's own course. They are persistent levels rather than returns, and
+    neither way of resampling them survives inspection:
+
+    - Drawing the *level* with the day, as the volatility is drawn, puts a jump at every block
+      boundary. At the fitted 11-day mean block that is about 225 boundaries in a ten-year path,
+      and two days drawn at random from this decade sit 139bp apart in the ten-year zero on
+      average against a realised daily standard deviation of 5.3bp. A ten-year yield that moves
+      twenty-six standard deviations two hundred times a decade is not a world, and the rho leg's
+      profit and loss would be nothing but those jumps.
+    - Accumulating the daily *changes* is supported by the data - the variance ratio is close to
+      one at both 11 days (17bp realised against 17.5bp implied by the daily figure) and 252 days
+      (90bp against 84bp), so this decade's ten-year yield is close to a random walk. But a
+      random walk of 5.3bp a day over 2,492 days has a terminal dispersion of 264bp around a
+      starting 1.61 per cent, so a quarter of paths would end at a negative ten-year yield and
+      the liability on them would be valued by extrapolating a regression fitted at positive
+      rates. That measures extrapolation error, not hedge performance.
+
+    Holding the rate path fixed makes this a controlled experiment in the one thing it is about:
+    the order the equity days arrived in. Every path faces the decade of rates that actually
+    happened, so the rate hedge is tested against a real rate path rather than a synthetic one.
+    The cost is explicit and not small - the equity and rate moves of a drawn day are separated,
+    so 2022, the one episode where both fell together, sits at a fixed point in the calendar
+    instead of travelling with the equity path. This experiment therefore says nothing about that
+    joint tail; the crisis replays do, because they keep every day whole.
+
+    The sub-account is rebuilt rather than resampled, by ``sub_account_path`` on the new equity
+    index and the retained curves and rates. So the bond and money-market sleeves earn what they
+    earned on those dates, the equity sleeve earns the drawn return, and the blend is the
+    contract's own allocation at every step with nothing approximated.
+
+    The dates are the calendar's own first n days rather than the drawn ones. They are not a
+    claim about when anything happened; they carry the contract's anniversaries and the spacing
+    between rebalances, and a resampled date index would put two anniversaries in one week.
+
+    ``annual_drift`` re-centres the equity log returns on a stated expected return, and without
+    it the experiment answers a narrower question than it looks like it does. A bootstrap inherits
+    the drift of the window it draws from, and this window is 2016 to 2026: an index that
+    compounded at about fifteen per cent a year. Every path drawn from it is a bull market on
+    average, so a hedging result averaged over them is a hedging result in a bull market, which
+    is the bias the experiment exists to remove rather than to reproduce. Passing a drift keeps
+    the window's volatility clustering and its fat tails while putting the average somewhere
+    defensible. The shift is the sample's own mean less the target, so the ensemble is centred on
+    the target and each path keeps its own sampling variation around it; re-centring each path
+    individually would throw away the dispersion in realised outcomes, which is half of what is
+    being measured.
+    """
+    drawn = np.asarray(drawn, dtype=int)
+    steps = np.diff(np.log(path.index))
+    drawn_steps = steps[drawn]
+    if annual_drift is not None:
+        per_day = annual_drift * max(path.year_fraction[-1], 1e-9) / steps.size
+        drawn_steps = drawn_steps + (per_day - steps.mean())
+    state = drawn + 1
+    n_days = drawn.size + 1
+
+    index = np.concatenate([[1.0], np.exp(np.cumsum(drawn_steps))])
+    curves = path.curves[:n_days]
+    cash_rate = path.cash_rate[:n_days]
+    years = path.year_fraction[:n_days]
+
+    def drawn_with_the_day(values):
+        return None if values is None else np.concatenate([[values[0]], values[state]])
+
+    return DailyPath(
+        dates=path.dates[:n_days],
+        index=index,
+        fund=sub_account_path(index, curves, cash_rate, mix, years),
+        curves=curves,
+        zero_10y=path.zero_10y[:n_days],
+        implied_vol=drawn_with_the_day(path.implied_vol),
+        variance=drawn_with_the_day(path.variance),
+        cash_rate=cash_rate,
+        own_credit_spread=(None if path.own_credit_spread is None
+                           else path.own_credit_spread[:n_days]),
+        label=label,
+    )

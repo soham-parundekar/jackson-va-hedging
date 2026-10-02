@@ -68,13 +68,14 @@ Every choice in that specification comes from a filing rather than from convenie
 |---|---|---|
 | Benefit type | GMWB for Life | 72% of variable annuity account value at 31 Dec 2025 carries GMWB for Life, 3% carries term GMWB (FY2025 10-K, Item 1) |
 | Issue age | 70 | Weighted-average attained age of the book is 70 (Note 12) |
-| Guaranteed withdrawal rate | 5.75% of the benefit base | Flex GMWB Core, ages 70-74 (Rate Sheet Prospectus Supplement, 27 Apr 2026) |
+| Guaranteed withdrawal rate | By age band at the first withdrawal; 5.95% here | Flex GMWB Core rate sheet, read from the committed table rather than fixed (Rate Sheet Prospectus Supplement, 27 Apr 2026) |
+| Deferral before the first withdrawal | 5 years | Not disclosed anywhere; the midpoint of the Core option's ten-year bonus period, priced at both ends in the robustness table |
 | Rider charge | 1.25% of the benefit base | Same rate sheet, Core option elected at issue |
 | Base contract charge | 1.31% of contract value | Perspective II prospectus fee table |
 | Fund expenses | 0.95% | Inside the disclosed 0.52% to 2.38% range; tested at both ends |
 | Step-up | Annual, to contract value | Prospectus, Contract Anniversary Value method |
-| Bonus and GWB adjustment | Not modelled | Both are forfeited once withdrawals begin, and this policy draws from year one |
-| Death benefit | None | The Flex GMWB alone pays nothing on death; Flex DB is a separate election |
+| Bonus and GWB adjustment | Both modelled | 6% simple on the bonus base for up to ten deferred years; the adjustment on the later of the age-70 anniversary and the twelfth, and dead once a withdrawal is taken |
+| Death benefit | Basic, in the same valuation | It sits on the same account as the living benefit and moves against it with longevity, so valuing one without the other reports a hedge target that does not exist |
 | Sub-account mix | 72.4% equity, 8.3% bond, 18.3% balanced, 1.0% money market | FY2025 10-K, Note 11 |
 
 The GMIB is deliberately absent. Jackson stopped offering it in 2009 and reinsures the
@@ -102,27 +103,39 @@ cover projected claims.
 
 ## Method in outline
 
-Account value under the risk-neutral measure, net of fees and withdrawals, with the
-benefit base ratcheting annually. Annual steps with exact lognormal increments, which is
-not an approximation because the contract value is a geometric Brownian motion between
-anniversaries and every path-dependent event lands on one. Discounting off a zero curve
-bootstrapped from Treasury par yields. Volatility on a mean-reverting forward variance
-curve fitted to the 3-month implied index and grading to a long-run realised level, which
-is the shape Note 6 describes. Annuitant mortality on the SOA 2012 IAM Basic tables with
-Projection Scale G2, which is the basis the NAIC adopted for individual annuity valuation.
+Account value under the risk-neutral measure, net of fees and withdrawals, with the benefit
+base ratcheting annually. The contract recursion steps a policy year at a time, because every
+path-dependent event in the contract lands on an anniversary; the market underneath it steps
+twenty-four times a year, because a variance process has to be stepped to be simulated.
 
-Greeks by bump and revalue with common random numbers. Disclosed shocks by full repricing
-rather than by delta approximation, because the shocks are large enough for convexity to
-show.
+Equity volatility is Heston, calibrated to 1,468 quotes off the live SPX chain, simulated on the
+quadratic-exponential scheme with a martingale correction because the calibrated parameters
+violate the Feller condition. Rates are a one-factor Hull-White process built around a
+Nelson-Siegel-Svensson fit to the bootstrapped Treasury curve, with its mean reversion and
+volatility fitted to a long history that the ten-year panel cannot identify. Annuitant mortality
+is the SOA 2012 IAM tables with Projection Scale G2, generational, which is the basis the NAIC
+adopted for individual annuity valuation; the Basic table carries the economic valuation and the
+Period table, which is the Basic table with the Life Actuarial Task Force's margins, carries the
+reporting basis.
 
-The hedge is weekly, sized on the model's own delta and rho, with index futures against the
-equity leg and a receive-fixed ten-year swap against the rate leg. Transaction costs on
-traded notional. A volatility overlay is reported separately, because Jackson holds index
-options but a long volatility position has carry that this backtest does not charge.
+The book is a set of cohorts rather than one policy wherever the comparison is to a book: issue
+age, duration and moneyness on a grid, each cohort carrying the attribution percentage its own
+issue date calibrates to.
 
-Validation runs against four balance-sheet dates, 2022 through 2025, on sign, shape and
-scale separately. `docs/validation.md` has the results and `docs/methodology.md` the
-equations.
+Greeks by bump and revalue on common random numbers, each reported with the standard error of its
+own paired difference. Disclosed shocks by full repricing rather than by delta approximation,
+because the shocks are large enough for convexity to show, and the convexity is what the shape
+test is made of.
+
+The hedge is daily along the realised path, sized by weighted least squares across delta, gamma,
+vega and rho against a real instrument set - equity futures, total return swaps, listed index
+puts, rate futures, bond forwards and interest rate swaps - with costs charged on the change in
+position and swept at half, one and two times their base level. The liability is revalued through
+a regression proxy, because a full valuation at every rebalance date is not affordable, and the
+proxy's own error is measured against nested simulation before any hedging result is read.
+
+Validation runs against four balance-sheet dates, 2022 through 2025, on sign, shape and scale
+separately. `docs/validation.md` has the results and `docs/methodology.md` the equations.
 
 ## Period
 
