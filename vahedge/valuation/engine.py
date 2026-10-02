@@ -192,8 +192,14 @@ class Valuer:
         return self._paths[key]
 
     def mortality_for(self, book, valuation_year: int, n_years: int):
-        """Survival and year-of-death probabilities, cached on the ages that produced them."""
-        key = (tuple(int(a) for a in book.attained_age), valuation_year, n_years)
+        """Survival and year-of-death probabilities, cached on what produced them.
+
+        The sex mix is part of the key even though nothing in the project changes it mid-run.
+        Leaving it out would make a sex-mix sensitivity return the base case's rates and report
+        no difference, which is the kind of silent zero a robustness table cannot survive.
+        """
+        key = (tuple(int(a) for a in book.attained_age), valuation_year, n_years,
+               self.male_weight)
         if key not in self._mortality_cache:
             self._mortality_cache[key] = self.mortality.rates(
                 book.attained_age, valuation_year, n_years, self.male_weight
@@ -207,6 +213,7 @@ class Valuer:
         attribution=None,
         equity_shock: float = 0.0,
         with_death_benefit: bool = True,
+        path_years: int | None = None,
     ) -> BookValuation:
         """Value the book, optionally under an instantaneous equity shock.
 
@@ -214,8 +221,21 @@ class Valuer:
         per cohort, fixed at each cohort's inception. Passing ``None`` calibrates it here, which
         is only right for a book valued at issue; ``calibrate_attribution`` is what the rest of
         the project uses.
+
+        ``path_years`` simulates to a longer horizon than the book needs, so that two books with
+        different horizons can be compared on the same draws. The simulator draws its normals in
+        one array whose width depends on the horizon, so a forty-year run and a fifty-year run at
+        the same seed are different worlds, not a prefix and its extension. Without this the
+        truncation test compares two independent simulations and reports their Monte Carlo
+        difference as a truncation effect: at twenty thousand paths that is around a hundred
+        dollars of noise against a truncation effect of a few dollars, so the test would pass for
+        the wrong reason.
         """
         n_years = int(book.projection_years.max())
+        if path_years is not None:
+            if path_years < n_years:
+                raise ValueError(f"path_years {path_years} is shorter than the book's {n_years}")
+            n_years = int(path_years)
         paths = self.paths_for(state, n_years)
         if state.credit_spread:
             paths = _apply_credit_spread(paths, state.credit_spread)

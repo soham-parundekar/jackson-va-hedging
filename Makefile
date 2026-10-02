@@ -1,5 +1,5 @@
 .PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory macro reporting replica \
-        backtest accounting test clean help
+        real-world backtest accounting test clean help
 
 PY ?= python3
 
@@ -21,6 +21,7 @@ help:
 	@echo "macro       what the tail put spread buys, swept over size and strikes (~10 min)"
 	@echo "reporting   economic against reported earnings, and the own-credit OCI split (~15 min)"
 	@echo "replica     the model's offset against Jackson's filed XBRL series (fast, reads a table)"
+	@echo "real-world  the hedge over bootstrap reorderings of the decade, two drift arms (~1h)"
 	@echo "backtest    the earlier single-policy weekly backtest (~10 min)"
 	@echo "accounting  economic against reported earnings (needs backtest first)"
 	@echo "test        the test suite"
@@ -28,7 +29,7 @@ help:
 	@echo "clean       remove generated outputs, leaving data/raw alone"
 
 all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
-     reporting replica backtest accounting test
+     reporting replica real-world backtest accounting test
 
 data:
 	$(PY) -m scripts.build_dataset
@@ -36,10 +37,12 @@ data:
 calibrate: data
 	$(PY) -m scripts.run_calibration
 
-valuation:
+# Both read the saved market calibration rather than the raw panel, so neither runs on a fresh
+# clone until calibrate has written it.
+valuation: calibrate
 	$(PY) -m scripts.run_valuation
 
-greeks:
+greeks: calibrate
 	$(PY) -m scripts.run_greeks
 
 validate:
@@ -74,6 +77,11 @@ reporting: convexity
 # Reads the daily table the reporting lens writes rather than refitting, so it is seconds.
 replica: reporting
 	$(PY) -m scripts.run_disclosure_replica
+
+# Reuses the hedging experiments' setup and its curvature surface, so it carries the same
+# prerequisite.
+real-world: convexity
+	$(PY) -m scripts.run_real_world
 
 backtest:
 	$(PY) -m scripts.run_hedge_backtest

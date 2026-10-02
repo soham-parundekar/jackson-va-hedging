@@ -1,19 +1,24 @@
-variation,market_risk_benefit,pv_claims,note,mrb_change,mrb_pct_of_premium
-base case,0.00,19302.83,,0.00,0.00
-long-run volatility +2 points,1169.89,20467.75,,1169.89,1.17
-long-run volatility -2 points,-1086.28,18222.89,,-1086.28,-1.09
-short-dated implied volatility +2 points,686.55,19982.83,,686.55,0.69
-short-dated implied volatility -2 points,-643.37,18665.91,,-643.37,-0.64
-par curve +100bp,-4627.09,14660.98,,-4627.09,-4.63
-par curve -100bp,5742.72,25054.95,,5742.72,5.74
-"mortality on the Period table, with margins",1039.12,20544.02,the reporting basis,1039.12,1.04
-"mortality, all male",-950.61,18138.03,,-950.61,-0.95
-"mortality, all female",950.61,20467.62,,950.61,0.95
-"fund expenses at the disclosed minimum, 0.52%",-1235.82,18603.43,,-1235.82,-1.24
-"fund expenses at the disclosed maximum, 2.38%",3817.92,21543.36,,3817.92,3.82
-no annual step-up,-3735.12,15380.35,,-3735.12,-3.74
-"sub-account at the book's equity exposure, 0.83",-2699.00,16625.24,FY2025 fund mix,-2699.00,-2.70
-"issue age 65, GAWA 5.55%",4252.63,24853.10,rate sheet band,4252.63,4.25
-"issue age 75, GAWA 5.95%",-4339.13,13228.48,rate sheet band,-4339.13,-4.34
-projection capped at age 110,-1.62,19301.20,truncation test,-1.62,-0.00
-projection to age 120,0.53,19326.25,truncation test,0.53,0.00
+variation,comparison,market_risk_benefit,mrb_change,mrb_pct_of_premium,implied_attribution,attribution_change,gross_pct_of_premium,pv_claims,std_error,note
+base case,fixed attribution,0.00,0.00,0.00,0.79,0.00,22.18,22184.03,135.79,
+long-run volatility +2 points,fixed attribution,1707.22,1707.22,1.71,0.85,0.06,23.94,23936.79,141.76,theta at 23.68% against the calibrated 21.68%
+current volatility +2 points,fixed attribution,44.23,44.23,0.04,0.79,0.00,22.24,22235.18,136.14,"v0 at 16.10%, which mean reverts out within a year"
+long-run volatility -2 points,fixed attribution,-1826.75,-1826.75,-1.83,0.72,-0.06,20.37,20372.54,128.42,theta at 19.68% against the calibrated 21.68%
+current volatility -2 points,fixed attribution,-33.05,-33.05,-0.03,0.78,-0.00,22.15,22151.36,135.51,"v0 at 12.10%, which mean reverts out within a year"
+long-run volatility at the disclosed 19.12%,fixed attribution,-2327.68,-2327.68,-2.33,0.70,-0.08,19.88,19879.70,125.61,realised ten-year level plus the issuer's one-point margin; the chain rejects it
+zero curve +100bp,fixed attribution,-5217.30,-5217.30,-5.22,0.60,-0.19,16.83,16834.58,124.82,parallel shift of the fitted level
+zero curve -100bp,fixed attribution,6660.57,6660.57,6.66,1.00,0.21,28.98,28978.49,146.52,parallel shift of the fitted level
+"mortality on the Period table, with margins",fixed attribution,1098.61,1098.61,1.10,0.82,0.04,23.55,23547.81,139.43,the reporting basis
+"mortality, all male",fixed attribution,-968.70,-968.70,-0.97,0.75,-0.03,20.93,20934.91,132.18,the disclosure gives no gender split
+"mortality, all female",fixed attribution,968.70,968.70,0.97,0.82,0.03,23.43,23433.15,139.44,the disclosure gives no gender split
+"fund expenses at the disclosed minimum, 0.52%",own attribution,-1507.56,-1507.56,-1.51,0.73,-0.05,21.30,21301.50,139.00,a higher drag starves the account and feeds the guarantee
+"fund expenses at the disclosed maximum, 2.38%",own attribution,4788.13,4788.13,4.79,0.97,0.18,25.14,25139.55,125.27,a higher drag starves the account and feeds the guarantee
+no annual step-up,own attribution,-3564.62,-3564.62,-3.56,0.66,-0.13,18.22,18221.04,134.50,the benefit base never ratchets
+sub-account all equity,own attribution,3463.47,3463.47,3.46,0.91,0.12,25.70,25702.52,154.89,against the FY2025 fund mix's 0.83 equity exposure
+first withdrawal deferred 0 years,own attribution,-267.84,-267.84,-0.27,0.77,-0.01,17.18,17183.54,113.26,"GAWA 5.75% at age 70, bonus 0% on the benefit base"
+first withdrawal deferred 10 years,own attribution,-7006.65,-7006.65,-7.01,0.58,-0.21,19.84,19835.27,136.89,"GAWA 5.95% at age 80, bonus 60% on the benefit base"
+"issue age 65, GAWA 5.75%",own attribution,5230.06,5230.06,5.23,0.96,0.17,28.86,28863.76,154.52,rate sheet band
+"issue age 75, GAWA 5.95%",own attribution,-5502.89,-5502.89,-5.50,0.57,-0.21,14.76,14759.83,109.60,rate sheet band
+projection to age 115,fixed attribution,89.11,89.11,0.09,0.79,0.00,22.31,22307.15,136.97,"truncation reference, common draws"
+projection to age 105,fixed attribution,52.69,52.69,0.05,0.79,0.00,22.27,22270.58,136.97,"truncation test, common draws"
+projection to age 110,fixed attribution,86.98,86.98,0.09,0.79,0.00,22.31,22305.01,136.97,"truncation test, common draws"
+projection to age 120,fixed attribution,89.25,89.25,0.09,0.79,0.00,22.31,22307.28,136.97,"truncation test, common draws"

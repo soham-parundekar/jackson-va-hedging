@@ -1,12 +1,14 @@
 quantity,value
 premium and initial benefit base,100000.0000
-PV of guarantee payments,19302.8250
-PV of the explicit GMWB charge,13276.7363
-PV of the base contract charge,8911.9462
-PV of total attributable fees,22188.6825
-fee attribution percentage,0.8699
+PV of living-benefit payments,20977.4517
+PV of death benefit above the account,1206.5803
+PV of the explicit GMWB charge,16668.4420
+PV of the insurer's share of the account drag,11565.0012
+PV of the explicit death-benefit charge,0.0000
+PV of total attributable fees,28233.4432
+fee attribution percentage,0.7857
 market risk benefit at issue,0.0000
-Monte Carlo standard error,16.9033
-"gross guarantee value, % of premium",19.3028
-probability of exhaustion by year 20,0.8614
+Monte Carlo standard error,135.7908
+"gross guarantee value, % of premium",22.1840
+probability of exhaustion by year 20,0.7768
 "expected future lifetime, years",19.6444
