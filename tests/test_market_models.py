@@ -279,3 +279,30 @@ def test_sub_account_equity_weight_includes_the_balanced_sleeve():
     mix = SubAccountMix(equity=0.7235, bond=0.0834, balanced=0.1832, money_market=0.0099)
     assert mix.equity_weight == approx(0.7235 + 0.6 * 0.1832)
     assert mix.equity_weight + mix.bond_weight + mix.money_market == approx(1.0)
+
+
+def test_every_date_in_the_committed_panel_bootstraps():
+    """A data-level regression, not a property of the algorithm.
+
+    The curve history is built from a committed file, so the thing that can break is the file:
+    a transcribed yield with a digit missing, or a date whose par curve is non-monotone in a
+    way the bootstrap cannot price. Running it over every date once is cheap and it is the only
+    check that would catch a bad input before it reached a valuation.
+    """
+    import pandas as pd
+
+    from vahedge import paths
+    from vahedge.market.curves import bootstrap
+    from vahedge.market.state import PAR_SERIES
+
+    panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
+    tenors = list(PAR_SERIES)
+    quotes = panel.loc[panel["SP500"].notna(), [PAR_SERIES[t] for t in tenors]].dropna()
+    assert len(quotes) > 2_000
+
+    worst = 0.0
+    for _, row in quotes.iterrows():
+        par = row.to_numpy(dtype=float) / 100.0
+        curve = bootstrap(tenors, par)
+        worst = max(worst, max(abs(curve.par_equivalent(t) - p) for t, p in zip(tenors, par)))
+    assert worst < 1e-6

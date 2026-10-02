@@ -1,17 +1,23 @@
-# Five packages, and each one earns its place.
+# Four packages, and each one earns its place.
 #
-# numpy, pandas, matplotlib and PyYAML carry the original project: the curve bootstrap is a
-# forward substitution, the deterministic volatility term structure integrates in closed form,
-# and the regressions go through numpy.linalg.lstsq.
+# numpy and pandas do the work: the curve bootstrap is a forward substitution, the liability
+# recursion steps an array of cohorts by paths a policy year at a time, and the regression proxy
+# goes through numpy.linalg.lstsq.
 #
-# SciPy arrived with the expanded scope and is used in three places that genuinely need it:
-# least_squares for the Heston calibration, brentq for Black implied volatility and for the
-# break-even fee, and the normal distribution in the Black-76 helpers. Writing those by hand
-# would be worse code, not more independent code.
+# SciPy is used in three places that genuinely need it: least_squares for the Heston
+# calibration, brentq for Black implied volatility and for the break-even fee, and the normal
+# distribution in the Black-76 helpers. Writing those by hand would be worse code rather than
+# more independent code.
 #
-# Numba is deliberately absent. The liability recursion steps a policy year at a time over an
-# array of cohorts by paths, so the inner loop runs at most fifty-five times per valuation and
-# the work inside it is already vectorised. A compiled kernel would add a dependency, a
+# matplotlib draws the figures, which are built from the committed tables rather than from live
+# model objects, so nothing else in the project depends on it.
+#
+# PyYAML is gone with the parameter file it was there to read. The modelling assumptions are now
+# constants in the module that uses them, each with the reasoning beside it, because a second
+# file listing the same numbers is a second thing to keep true.
+#
+# Numba is deliberately absent. The inner loop runs at most fifty-five times per valuation and
+# the work inside it is already vectorised, so a compiled kernel would add a dependency, a
 # compilation wait and a second code path to keep correct, and would save seconds.
 #
 # Version floors are the oldest releases this has been run against, not the versions it was
@@ -20,4 +26,3 @@ numpy>=1.24
 pandas>=2.0
 scipy>=1.10
 matplotlib>=3.7
-PyYAML>=6.0

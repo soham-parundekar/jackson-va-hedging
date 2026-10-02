@@ -230,3 +230,77 @@ def test_the_margin_is_the_charged_fee_less_the_fair_one():
     result = breakeven.solve(_valuer(), book, _state())
     assert result.margin == approx(result.charged - result.fair, rel=1e-12)
     assert result.margin_bp == approx(result.margin * 10000.0, rel=1e-12)
+
+
+# ---------------------------------------------------------------- Monte Carlo and truncation
+
+
+def test_the_standard_error_falls_with_the_square_root_of_the_path_count():
+    """Four times the paths, half the error. Not a tight check - the error of an error is
+    itself noisy - but a wide one catches the mistakes that matter: a standard error computed
+    across the wrong axis, or one that forgets the antithetic pairing and so reports a number
+    that does not fall at all.
+    """
+    state, book = _state(), _small_book()
+    errors = []
+    for n_paths in (2_000, 8_000):
+        valuer = Valuer(mortality.load("basic"), n_paths=n_paths, seed=99, cache_size=2)
+        attribution = valuer.calibrate_attribution(book, state)
+        errors.append(valuer.value(book, state, attribution=attribution).std_error)
+    assert 0.35 < errors[1] / errors[0] < 0.75
+
+
+def test_truncating_the_projection_costs_less_than_the_noise_it_is_hidden_in():
+    """The truncation test only means something on common draws.
+
+    The simulator draws its normals in one array whose width follows the horizon, so a
+    forty-year run and a fifty-year run at the same seed are different worlds rather than a
+    prefix and its extension. Asking for a longer path horizon than the book needs is what
+    makes the two comparable, and without it this comparison reports the Monte Carlo difference
+    between two independent simulations as a truncation effect.
+    """
+    state = _state()
+    core = terms_module.load()[("flex_gmwb", "single", "core")]
+    valuer = _valuer()
+
+    def book_to(max_age: int):
+        return cohorts.single_contract(core, issue_age=70, base_contract_charge=0.0131,
+                                       fund_expense=0.0095, premium=100_000.0,
+                                       deferral_years=5, max_age=max_age)
+
+    longest = 120 - 70
+    attribution = valuer.calibrate_attribution(book_to(115), state)
+    priced = {cap: valuer.value(book_to(cap), state, attribution=attribution,
+                                path_years=longest)
+              for cap in (105, 115, 120)}
+    noise = priced[120].std_error
+
+    # Cutting at 115 costs nothing you could measure; cutting at 105 costs something real but
+    # still small, and both are the same draws so the differences are truncation and not luck.
+    assert abs(priced[115].market_risk_benefit - priced[120].market_risk_benefit) < 0.1 * noise
+    assert 0 < (priced[120].market_risk_benefit - priced[105].market_risk_benefit)
+    assert (priced[120].market_risk_benefit - priced[105].market_risk_benefit) < noise
+
+
+def test_a_shorter_path_horizon_than_the_book_needs_is_refused():
+    state, book = _state(), _small_book()
+    valuer = _valuer()
+    with raises(ValueError, match="shorter than"):
+        valuer.value(book, state, attribution=np.ones(book.size), path_years=5)
+
+
+def test_the_guarantee_is_worth_more_the_further_in_the_money_it_starts():
+    """The moneyness profile the disclosed comparison is located on has to be monotone, or an
+    implied moneyness read off it would not be unique."""
+    state = _state()
+    core = terms_module.load()[("flex_gmwb", "single", "core")]
+    valuer = _valuer()
+    values = []
+    for ratio in (0.8, 1.0, 1.4):
+        book = cohorts.single_contract(core, issue_age=70, base_contract_charge=0.0131,
+                                       fund_expense=0.0095, premium=100_000.0,
+                                       account_value=100_000.0, benefit_base=100_000.0 * ratio,
+                                       deferral_years=5, max_age=115)
+        attribution = valuer.calibrate_attribution(book, state)
+        values.append(valuer.value(book, state, attribution=attribution).market_risk_benefit)
+    assert values[0] < values[1] < values[2]

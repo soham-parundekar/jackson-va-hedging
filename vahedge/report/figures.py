@@ -209,21 +209,30 @@ def hedge_frontier(name: str = "hedge_frontier") -> str:
 
 
 def leg_comparison(name: str = "leg_comparison") -> str:
-    """What each instrument class took out of the daily variation, and what it cost."""
+    """What each instrument class took out of the daily variation, and what it cost.
+
+    The left panel is the residual itself rather than a share of the unhedged book, and the
+    unhedged bar is in the picture, so the comparison carries its own denominator. An earlier
+    version divided by whichever row happened to be largest when the unhedged run was missing
+    from the table, which read as "share of unhedged" and was a share of the delta-only hedge.
+    """
     frontier = table("hedge_frequency_frontier")
-    base = frontier[(frontier["cost_multiple"] == 1.0) & (frontier["rebalance"] == "daily")]
-    base = base.sort_values("strategy")
-    unhedged = base[base["strategy"] == "S0"]["pnl_sd_pct"]
-    reference = float(unhedged.iloc[0]) if not unhedged.empty else float(base["pnl_sd_pct"].max())
-    remaining = 100 * (base["pnl_sd_pct"] / reference) ** 2
+    base = frontier[frontier["cost_multiple"] == 1.0]
+    base = base[base["rebalance"].isin(("daily", "none"))].sort_values("strategy")
 
     fig, (left, right) = plt.subplots(1, 2, figsize=(11, 4.5), sharex=True)
-    bars = left.bar(base["strategy"], remaining, color=FILL, edgecolor=LINE)
-    for bar, value in zip(bars, remaining):
-        left.annotate(f"{value:.1f}%", (bar.get_x() + bar.get_width() / 2, value),
+    heights = 100 * base["pnl_sd_pct"]
+    bars = left.bar(base["strategy"], heights, color=FILL, edgecolor=LINE)
+    for bar, value in zip(bars, heights):
+        left.annotate(f"{value:.3f}", (bar.get_x() + bar.get_width() / 2, value),
                       ha="center", va="bottom", fontsize=9)
-    left.set_ylabel("variance remaining, % of unhedged")
-    left.set_title("Delta does most of it and rates the rest")
+    left.set_ylabel("residual daily standard deviation, % of account value")
+    unhedged = base[base["strategy"] == "S0"]["pnl_sd_pct"]
+    removed = ("" if unhedged.empty else
+               f": the fullest hedge removes "
+               f"{100 * (1 - (base['pnl_sd_pct'].min() / float(unhedged.iloc[0])) ** 2):.1f}% "
+               f"of the variance")
+    left.set_title(f"Each instrument class takes out less than the one before{removed}")
 
     right.bar(base["strategy"], 100 * base["total_cost_pct"], color="white", edgecolor=ACCENT,
               hatch="//")

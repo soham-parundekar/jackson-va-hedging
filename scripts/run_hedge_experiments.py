@@ -218,7 +218,19 @@ def frequency_and_cost(setup) -> pd.DataFrame:
     """
     matrix = strategies.matrix()
     window = setup["history"]
-    rows = []
+    # The unhedged book once, at one rule and one cost multiple, because none of the three
+    # change it: it trades nothing. It is here so that anything reading this table has the
+    # denominator for a variance-removed figure instead of quietly using the simplest hedge.
+    unhedged = _run(setup, window, matrix["S0"])
+    rows = [{
+        "strategy": "S0", "rebalance": "none", "cost_multiple": 1.0,
+        "rebalances": unhedged.summary["rebalances"],
+        "pnl_sd_pct": unhedged.summary["pnl_sd_pct"],
+        "total_cost_pct": unhedged.summary["total_cost_pct"],
+        "total_pnl_pct": unhedged.summary["total_pnl_pct"],
+        "delta_left_pct": unhedged.summary["mean_abs_delta_left_pct"],
+        "outside_design_share": unhedged.summary["outside_design_share"],
+    }]
     for key in ("S1", "S2", "S3"):
         for rule in FREQUENCIES:
             for multiple in COST_MULTIPLES:
