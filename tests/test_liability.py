@@ -307,6 +307,65 @@ def test_net_amount_at_risk_counts_only_contracts_in_the_money():
     assert book.net_amount_at_risk < book.total_benefit_base
 
 
+def _vintage(issue_age: int, duration: int, account_value: float, benefit_base: float):
+    return cohorts.single_contract(
+        _core(), issue_age=issue_age, base_contract_charge=0.0131, fund_expense=0.0095,
+        premium=100.0, account_value=account_value, benefit_base=benefit_base,
+        deferral_years=max(5 - duration, 0), years_since_issue=duration, max_age=115,
+    )
+
+
+def test_combining_vintages_keeps_each_one_s_own_terms():
+    """The vintage comparison lives on this: two cohorts whose withdrawal rates and horizons
+    differ have to stay different after they are added into one book."""
+    young = _vintage(60, 9, 130.0, 100.0)
+    old = _vintage(72, 1, 105.0, 100.0)
+    book = cohorts.combine([young, old], weights=[0.7, 0.3])
+    assert book.size == 2
+    assert approx([0.7, 0.3]) == book.weight
+    assert approx([69, 73]) == book.attained_age
+    assert book.gawa_pct[0] != book.gawa_pct[1]
+    assert approx([float(young.projection_years[0]), float(old.projection_years[0])]) == \
+        book.projection_years
+
+
+def test_combining_scales_the_totals_by_the_weights_and_nothing_else():
+    young = _vintage(60, 9, 130.0, 100.0)
+    old = _vintage(72, 1, 105.0, 100.0)
+    book = cohorts.combine([young, old], weights=[0.7, 0.3])
+    assert book.total_account_value == approx(0.7 * 130.0 + 0.3 * 105.0)
+    assert book.total_benefit_base == approx(100.0)
+    # Weighted by account value, which is how a book's average age is quoted.
+    assert book.weighted_attained_age == approx(
+        (0.7 * 130.0 * 69 + 0.3 * 105.0 * 73) / (0.7 * 130.0 + 0.3 * 105.0)
+    )
+
+
+def test_combining_without_weights_leaves_each_book_s_own_weight():
+    book = cohorts.combine([_vintage(60, 9, 130.0, 100.0), _vintage(72, 1, 105.0, 100.0)])
+    assert approx([1.0, 1.0]) == book.weight
+
+
+def test_combining_refuses_a_weight_per_book_mismatch():
+    with raises(ValueError, match="weights"):
+        cohorts.combine([_vintage(60, 9, 130.0, 100.0)], weights=[0.5, 0.5])
+
+
+def test_combining_nothing_is_refused_rather_than_returning_an_empty_book():
+    with raises(ValueError, match="no books"):
+        cohorts.combine([])
+
+
+def test_combining_refuses_books_that_disagree_on_an_optional_field():
+    """A field set on one book and absent on another would give the combined book a short array,
+    which the projection would read as a different book rather than as an error."""
+    from dataclasses import replace
+    plain = _vintage(60, 9, 130.0, 100.0)
+    with_ratchet = replace(plain, death_ratchet_base=np.array([100.0]))
+    with raises(ValueError, match="death_ratchet_base"):
+        cohorts.combine([plain, with_ratchet])
+
+
 # ---------------------------------------------------------------- policyholder behaviour
 
 

@@ -160,7 +160,11 @@ def moneyness_profile(setup) -> pd.DataFrame:
                "attribution": float(np.ravel(attribution)[0]),
                "equity_down_over_up": greeks_module.asymmetry(shocks, "equity", 10),
                "rates_down_over_up": greeks_module.asymmetry(shocks, "rates", 100)}
-        row.update({name: float(value) for name, value in wide.items() if name != "base"})
+        # The _pct_av suffix matches what the validation scripts write for the same quantity.
+        # Two tables of the same number under two column names is how a figure ends up reading
+        # the wrong one.
+        row.update({f"{name}_pct_av": float(value) for name, value in wide.items()
+                    if name != "base"})
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -251,9 +255,9 @@ def main() -> None:
     print("  GWB/AV   value   alpha   eq -10%  eq +10%  down/up   +100bp   -100bp  down/up")
     for _, row in profile.iterrows():
         print(f"  {row['gwb_over_av']:6.2f} {row['value_pct_av']:7.2f} "
-              f"{row['attribution']:7.4f} {row['equity_down_10pct']:9.2f} "
-              f"{row['equity_up_10pct']:8.2f} {row['equity_down_over_up']:8.2f} "
-              f"{row['rates_up_100bp']:8.2f} {row['rates_down_100bp']:8.2f} "
+              f"{row['attribution']:7.4f} {row['equity_down_10pct_pct_av']:9.2f} "
+              f"{row['equity_up_10pct_pct_av']:8.2f} {row['equity_down_over_up']:8.2f} "
+              f"{row['rates_up_100bp_pct_av']:8.2f} {row['rates_down_100bp_pct_av']:8.2f} "
               f"{row['rates_down_over_up']:8.2f}")
 
     proximity = step_up_proximity(setup)

@@ -1,181 +1,179 @@
 """What behaviour assumption would reconcile the model with the disclosed sensitivities.
 
-The vintage portfolio matches the sign of every disclosed shock and tracks the year on
-year decline in sensitivity, but its sensitivities are about 2.4 times the disclosed
-figures, and that factor is close to constant across six shocks and four balance-sheet
-dates. A single near-constant multiple points at one structural assumption rather than a
-pile of small errors.
+The vintage portfolio matches the sign of every disclosed shock and tracks the year-on-year
+decline in sensitivity, but its sensitivities sit well above the disclosed figures by a multiple
+that is close to constant across six shocks and four balance-sheet dates. One near-constant
+multiple points at a single structural assumption rather than a pile of small errors.
 
-The candidate is policyholder behaviour. The base case draws the full guaranteed amount
-every year and never surrenders, which Bauer, Kling and Russ (2008) use as the
-benchmark case precisely because it is the most expensive one for the insurer. Jackson's
-own fair value is built on assumed "benefit utilization by policyholders, lapse,
-mortality, and withdrawal rates", so its liability reflects contract holders who draw
-less than the maximum and some of whom surrender.
+The candidate is policyholder behaviour. The base case draws the full guaranteed amount every
+year and never surrenders, which is the benchmark case in the literature precisely because it is
+the most expensive one for the insurer. Jackson's own fair value is built on assumed benefit
+utilisation, lapse, mortality and withdrawal rates, so its liability reflects contract holders who
+draw less than the maximum and some of whom leave.
 
-This script sweeps utilisation and lapse and reports which combinations bring the
-portfolio's sensitivities into line. The point is not to fit the disclosure - that would
-be reverse engineering a number rather than modelling a liability. The point is to
-establish whether the gap can be closed by behaviour assumptions inside the range the
-literature and the filings support, or whether something else has to be wrong.
+This sweeps utilisation and the base lapse rate and reports which combinations bring the
+portfolio into line. The point is not to fit the disclosure - that would be reverse-engineering a
+number rather than modelling a liability - but to establish whether the gap closes inside the
+range the literature and the filings support, or whether something else has to be wrong.
 
-Two biases run the other way and are worth holding in mind while reading the output. A
-static lapse rate overstates surrender in exactly the states where the guarantee is
-valuable, because real lapse falls when a guarantee is deep in the money. And roughly a
-quarter of Jackson's variable annuity account value carries no living benefit at all,
-which scales the disclosed sensitivity down without any behaviour assumption doing work.
+Two things are handled here that the earlier version of this comparison could only flag:
+
+*Lapse is dynamic.* A static rate surrenders contracts at the same pace whatever the guarantee is
+worth, which is wrong in exactly the states that matter: real lapse collapses when a guarantee is
+deep in the money, and a static assumption therefore flatters the insurer. The damping is on, so
+the rate quoted in the sweep is the rate at the money and the effective rate falls from there.
+
+*The guaranteed share is applied explicitly.* Roughly a quarter of Jackson's variable annuity
+account value carries no living benefit at all, so the disclosed sensitivity is already divided by
+a denominator that includes contracts with nothing to be sensitive about. Scaling the model by
+that share is arithmetic rather than an assumption, and it does part of the work no behaviour
+assumption should be asked to do.
+
+One bias still runs the other way and is left in rather than corrected: the roll that produces
+each vintage's account value today keeps the benchmark behaviour, because what a contract is worth
+now is a fact about the past. A book whose holders had been drawing less would have more account
+value today and less moneyness, so the sweep understates how far behaviour alone could go.
 
 Usage:  python -m scripts.run_behaviour_reconciliation
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import numpy as np
 import pandas as pd
 
-from gmwb import market, mortality, paths, session
-from gmwb.engine import calibrate_attribution, make_normals, projection_years, value_rider
-from gmwb.hedging import SubAccountMix, roll_policy
-from gmwb.sensitivities import disclosed_shock_repricing
+from vahedge import paths
+from vahedge.market import scenarios
 
-from scripts.run_portfolio_validation import VINTAGES, SHOCK_KEYS, aggregate
+from scripts.run_portfolio_validation import (
+    SHOCKS,
+    VINTAGES,
+    portfolio_at,
+    vintage_attributions,
+)
+from scripts.run_shock_validation import DIVIDEND_YIELD, market_at, shock_row
+from scripts.run_valuation import build
 
 TARGET_DATE = "2025-12-31"
-
-# Share of Jackson's variable annuity account value carrying a withdrawal guarantee:
-# GMWB for Life 72% plus GMWB 3% at 31 December 2025 (FY2025 10-K, Item 1).
+# Share of Jackson's variable annuity account value carrying a withdrawal guarantee: GMWB for
+# Life 72% plus GMWB 3% at 31 December 2025, FY2025 10-K Item 1.
 GUARANTEED_SHARE = 0.75
+UTILISATION_GRID = (1.0, 0.9, 0.8, 0.7, 0.6)
+LAPSE_GRID = (0.0, 0.02, 0.04)
+# Dynamic lapse damping, the same parameters the hedging backtest carries. The quoted rate is the
+# rate at the money; above it the rate decays with this exponent and stops at the floor.
+LAPSE_BETA = 1.2
+LAPSE_FLOOR = 0.01
+COMPARED = ("equity_down_10pct", "equity_up_10pct", "rates_up_100bp", "rates_down_100bp")
 
 
-def portfolio_at(s: session.Session, normals: np.ndarray, mix: SubAccountMix,
-                 target: pd.Timestamp, utilisation: float, lapse: float) -> dict[str, float]:
-    """Aggregate the vintages under one behaviour assumption.
+def disclosed_at(date: str) -> pd.Series:
+    frame = pd.read_csv(paths.DATA_PROCESSED / "disclosed_scaled.csv")
+    rows = frame.query("line_item == 'market_risk_benefits' and as_of == @date")
+    if rows.empty:
+        raise ValueError(f"no disclosed market risk benefit sensitivities at {date}")
+    return rows.drop_duplicates(subset=["shock"]).set_index("shock")["impact_pct_of_av"] * 100
 
-    The attribution percentage is recalibrated at each vintage's own inception under the
-    same behaviour assumption, because that is when the accounting fixes it and the
-    behaviour assumption was already in the pricing at that point.
-    """
-    cfg = s.cfg
-    max_age = int(cfg["simulation"]["max_age"])
-    male_weight = float(cfg["contract"]["sex_mix"]["male"])
-    rows, weights = [], []
 
-    for issue_date, issue_age, gawa, weight in VINTAGES:
-        if pd.Timestamp(issue_date) >= target:
-            continue
-        contract = replace(
-            s.contract,
-            issue_age=issue_age,
-            gawa_pct=gawa,
-            utilisation=utilisation,
-            lapse_rate=lapse,
-            fund_equity_beta=mix.effective_equity_beta,
-        )
-        inception = market.equity_dates(s.panel, issue_date, None)[0]
-        inception_state = market.state_at(s.panel, inception, cfg, s.long_run_vol)
-        n_years_issue = projection_years(contract, max_age)
-        at_inception = value_rider(
-            contract,
-            inception_state.curve_builder.build(),
-            inception_state.vol,
-            mortality.load(issue_age, inception.year, male_weight),
-            normals[:, :n_years_issue],
-            max_age=max_age,
-        )
-        alpha = calibrate_attribution(at_inception)
-
-        policy, _ = roll_policy(contract, cfg, s.panel, mix, inception, target)
-        state = market.state_at(s.panel, target, cfg, s.long_run_vol)
-        attained = policy.attained_age(contract, target)
-        aged = replace(contract, issue_age=attained)
-        n_years = projection_years(aged, max_age)
-        result = disclosed_shock_repricing(
-            aged, state.curve_builder, state.vol,
-            mortality.load(attained, target.year, male_weight),
-            normals[:, :n_years],
-            {
-                "account_value": policy.account_value,
-                "benefit_base": policy.benefit_base,
-                "fee_attribution": alpha,
-                "max_age": max_age,
-                "first_step_years": policy.years_to_anniversary(target),
-            },
-        )
-        result.update(
-            {
-                "attained_age": attained,
-                "gawa_pct": 100 * gawa,
-                "benefit_base": policy.benefit_base,
-                "attribution": alpha,
-            }
-        )
-        rows.append(result)
-        weights.append(weight)
-
-    return aggregate(rows, weights)
+def sweep(setup, history, panel, disclosed: pd.Series, attributions) -> pd.DataFrame:
+    valuer, calibration = setup["valuer"], setup["calibration"]
+    rows = []
+    for utilisation in UTILISATION_GRID:
+        for lapse in LAPSE_GRID:
+            behaviour = {"utilisation": utilisation, "lapse_rate": lapse,
+                         "lapse_beta": LAPSE_BETA if lapse > 0 else 0.0,
+                         "lapse_floor": LAPSE_FLOOR if lapse > 0 else 0.0}
+            book, attribution, detail = portfolio_at(setup, history, TARGET_DATE, attributions,
+                                                     behaviour=behaviour)
+            state = market_at(panel, history, calibration, detail["as_of"].iloc[0])
+            shocks = shock_row(valuer, book, state, attribution)
+            row = {"utilisation": utilisation, "lapse_rate": lapse,
+                   "value_pct_av": shocks["value_pct_av"] * GUARANTEED_SHARE,
+                   "gwb_over_av": float(book.total_benefit_base / book.total_account_value)}
+            ratios = []
+            for shock in SHOCKS:
+                scaled = shocks[f"{shock}_pct_av"] * GUARANTEED_SHARE
+                row[f"model_{shock}"] = scaled
+                if shock in disclosed.index and shock in COMPARED:
+                    ratio = scaled / disclosed[shock]
+                    row[f"ratio_{shock}"] = ratio
+                    ratios.append(ratio)
+            row["mean_ratio"] = float(np.mean(ratios))
+            # The two shock families separately, because the sweep's main result is that they do
+            # not move together: utilisation takes duration out of the guarantee and so collapses
+            # the rate sensitivity, while the benefit base is still there and the equity
+            # sensitivity barely notices.
+            row["equity_ratio"] = float(np.mean(
+                [row[f"ratio_{s}"] for s in COMPARED if s.startswith("equity")]))
+            row["rate_ratio"] = float(np.mean(
+                [row[f"ratio_{s}"] for s in COMPARED if s.startswith("rates")]))
+            row["equity_over_rate"] = row["equity_ratio"] / row["rate_ratio"]
+            # The widest miss across the four compared shocks, in log space so that two times too
+            # big and two times too small count the same. Ranking on the mean would let a
+            # combination that overshoots one shock and undershoots another look like a fit.
+            row["max_abs_log_ratio"] = float(np.max(np.abs(np.log(np.abs(ratios)))))
+            rows.append(row)
+            print(f"  utilisation {utilisation:.2f}, lapse {lapse:.2f} at the money: "
+                  f"mean ratio {row['mean_ratio']:.2f}, widest miss "
+                  f"{100 * (np.exp(row['max_abs_log_ratio']) - 1):.0f}%", flush=True)
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
-    s = session.start()
-    mix = SubAccountMix.from_config(s.cfg)
-    youngest = min(age for _, age, _, _ in VINTAGES)
-    max_years = projection_years(replace(s.contract, issue_age=youngest),
-                                int(s.cfg["simulation"]["max_age"]))
-    normals = make_normals(s.normals.shape[0], max_years, int(s.cfg["simulation"]["seed"]),
-                           bool(s.cfg["simulation"]["antithetic"]))
-    target = market.equity_dates(s.panel, None, TARGET_DATE)[-1]
+    paths.ensure_output_dirs()
+    setup = build(cache_size=5)
+    panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
+    history = scenarios.load_history(panel, setup["calibration"].heston,
+                                    setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
+    disclosed = disclosed_at(TARGET_DATE)
 
-    disclosed = pd.read_csv(paths.DATA_PROCESSED / "disclosed_scaled.csv")
-    disclosed = disclosed.query(
-        "line_item == 'market_risk_benefits' and as_of == '2025-12-31'"
-    ).drop_duplicates(subset=["shock"]).set_index("shock")["impact_pct_of_av"] * 100
+    print(f"Reconciling against the {TARGET_DATE} disclosure, {setup['valuer'].n_paths:,} paths")
+    print(f"  {len(VINTAGES)} vintages, model scaled by the {GUARANTEED_SHARE:.0%} of account "
+          f"value that carries a withdrawal guarantee")
+    attributions = vintage_attributions(setup["valuer"], panel, history,
+                                        setup["calibration"], setup["terms"])
 
-    print(f"Reconciling against the {TARGET_DATE} disclosure, "
-          f"{s.normals.shape[0]:,} paths per valuation")
-    print(f"Guaranteed share of account value used for scaling: {GUARANTEED_SHARE:.2f}")
+    frame = sweep(setup, history, panel, disclosed, attributions)
+    frame.to_csv(paths.TABLES / "behaviour_reconciliation.csv", index=False, float_format="%.4f")
 
-    grid = []
-    for utilisation in (1.0, 0.9, 0.8, 0.7, 0.6):
-        for lapse in (0.0, 0.02, 0.04):
-            agg = portfolio_at(s, normals, mix, target, utilisation, lapse)
-            row = {
-                "utilisation": utilisation,
-                "lapse_rate": lapse,
-                "value_pct_av": agg["value_pct_av"],
-                "gwb_over_av": agg["gwb_over_av"],
-            }
-            for key in ("equity_down_10pct", "equity_up_10pct",
-                        "rates_up_100bp", "rates_down_100bp"):
-                model = agg[f"model_{key}"] * GUARANTEED_SHARE
-                row[f"model_{key}"] = model
-                row[f"ratio_{key}"] = model / disclosed[key] if key in disclosed else np.nan
-            ratios = [row[f"ratio_{k}"] for k in
-                      ("equity_down_10pct", "equity_up_10pct",
-                       "rates_up_100bp", "rates_down_100bp")]
-            row["mean_ratio"] = float(np.nanmean(ratios))
-            row["max_abs_log_ratio"] = float(np.nanmax(np.abs(np.log(ratios))))
-            grid.append(row)
-            print(f"  utilisation {utilisation:.2f}, lapse {lapse:.2f}: "
-                  f"mean ratio {row['mean_ratio']:.2f}")
+    print("\nModel over disclosed, after scaling for the guaranteed share")
+    print("  util  lapse   value  GWB/AV   eq-10%   eq+10%   +100bp   -100bp    mean")
+    for _, row in frame.iterrows():
+        print(f"  {row['utilisation']:.2f} {row['lapse_rate']:6.2f} "
+              f"{row['value_pct_av']:7.2f} {row['gwb_over_av']:7.3f} "
+              f"{row['ratio_equity_down_10pct']:8.2f} {row['ratio_equity_up_10pct']:8.2f} "
+              f"{row['ratio_rates_up_100bp']:8.2f} {row['ratio_rates_down_100bp']:8.2f} "
+              f"{row['mean_ratio']:7.2f}")
 
-    frame = pd.DataFrame(grid)
-    print("\nFull grid, model over disclosed after scaling for the guaranteed share")
-    display = frame[["utilisation", "lapse_rate", "value_pct_av",
-                     "ratio_equity_down_10pct", "ratio_equity_up_10pct",
-                     "ratio_rates_up_100bp", "ratio_rates_down_100bp", "mean_ratio"]]
-    print(display.to_string(index=False, float_format=lambda v: f"{v:,.3f}"))
-    session.write_table(frame, "behaviour_reconciliation", "%.4f")
+    best = frame.loc[frame["max_abs_log_ratio"].idxmin()]
+    baseline = frame[(frame["utilisation"] == 1.0) & (frame["lapse_rate"] == 0.0)].iloc[0]
+    print(f"\nClosest combination: utilisation {best['utilisation']:.2f} with lapse "
+          f"{best['lapse_rate']:.2f} at the money, every compared shock within "
+          f"{100 * (np.exp(best['max_abs_log_ratio']) - 1):.0f}% of the disclosed figure, "
+          f"against {baseline['mean_ratio']:.2f} times the disclosure on the static benchmark")
 
-    best = frame.iloc[frame["max_abs_log_ratio"].idxmin()]
-    print(
-        f"\nClosest combination: utilisation {best['utilisation']:.2f}, "
-        f"lapse {best['lapse_rate']:.2f}, every shock within "
-        f"{100 * (np.exp(best['max_abs_log_ratio']) - 1):.0f}% of the disclosed figure"
-    )
-    print("Disclosed, % of account value:")
-    print(disclosed.to_string(float_format=lambda v: f"{v:,.4f}"))
+    # The result the sweep exists to produce, and it is not the closest combination.
+    print(f"\n  But the two shock families do not move together. Across the grid the equity "
+          f"multiple runs {frame['equity_ratio'].max():.2f} down to "
+          f"{frame['equity_ratio'].min():.2f} while the rate multiple runs "
+          f"{frame['rate_ratio'].max():.2f} down to {frame['rate_ratio'].min():.2f}, so their "
+          f"ratio goes from {baseline['equity_over_rate']:.2f} on the static benchmark to "
+          f"{frame['equity_over_rate'].max():.2f} at the far corner.")
+    print("  Drawing less takes duration out of the guarantee - fewer paths exhaust, so it is "
+          "less of a long-dated annuity - and the rate sensitivity collapses with it. The "
+          "benefit base is still there whatever the owner draws, so the equity sensitivity "
+          "barely moves. No single behaviour assumption closes both: by the time utilisation "
+          f"is low enough to match the rate figure the model is at "
+          f"{frame.loc[frame['rate_ratio'].sub(1.0).abs().idxmin(), 'equity_ratio']:.2f} times "
+          "the disclosed equity figure.")
+    print("  What is left for the equity gap is moneyness rather than behaviour: the shock "
+          f"locator puts the disclosed book at a benefit base to account ratio near 0.85, and "
+          f"this portfolio sits at {baseline['gwb_over_av']:.3f}.")
+    print("\nDisclosed, % of account value")
+    for shock in COMPARED:
+        if shock in disclosed.index:
+            print(f"  {shock:<18s} {disclosed[shock]:+7.4f}")
+    print(f"\nwrote {paths.TABLES / 'behaviour_reconciliation.csv'}")
 
 
 if __name__ == "__main__":

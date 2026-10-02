@@ -1,5 +1,5 @@
 .PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory macro reporting replica \
-        real-world backtest accounting test clean help
+        real-world figures backtest accounting test clean help
 
 PY ?= python3
 
@@ -22,6 +22,7 @@ help:
 	@echo "reporting   economic against reported earnings, and the own-credit OCI split (~15 min)"
 	@echo "replica     the model's offset against Jackson's filed XBRL series (fast, reads a table)"
 	@echo "real-world  the hedge over bootstrap reorderings of the decade, two drift arms (~1h)"
+	@echo "figures     redraw every figure from the tables, which takes seconds"
 	@echo "backtest    the earlier single-policy weekly backtest (~10 min)"
 	@echo "accounting  economic against reported earnings (needs backtest first)"
 	@echo "test        the test suite"
@@ -29,7 +30,7 @@ help:
 	@echo "clean       remove generated outputs, leaving data/raw alone"
 
 all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
-     reporting replica real-world backtest accounting test
+     reporting replica real-world backtest accounting figures test
 
 data:
 	$(PY) -m scripts.build_dataset
@@ -45,7 +46,7 @@ valuation: calibrate
 greeks: calibrate
 	$(PY) -m scripts.run_greeks
 
-validate:
+validate: calibrate
 	$(PY) -m scripts.run_shock_validation
 	$(PY) -m scripts.run_portfolio_validation
 	$(PY) -m scripts.run_behaviour_reconciliation
@@ -88,6 +89,11 @@ backtest:
 
 accounting: backtest
 	$(PY) -m scripts.run_gaap_comparison
+
+# Figures read the committed tables and nothing else, so this is the one step that is cheap to
+# rerun and the one that has to be rerun whenever a number moves.
+figures:
+	$(PY) -m scripts.run_figures
 
 test:
 	$(PY) -m tests.run_tests

@@ -1,249 +1,294 @@
-"""Aggregate a handful of policy vintages and compare the result with the book.
+"""Five policy vintages added up, against the disclosed book.
 
-One policy cannot match Jackson's disclosed sensitivities on scale, and the reason is
-visible in the single-policy results: matching the book's moneyness and matching its
-weighted-average attained age pull the answer in opposite directions. A contract issued
-in 2016 has ridden the market up and is out of the money, which is right, but it is also
-nine years older than the book's average attained age of 70, which shortens the
-guarantee and understates its duration.
+One policy cannot match Jackson's sensitivities on scale, and the single-policy comparison shows
+why: matching the book's moneyness and matching its weighted-average attained age of 70 pull in
+opposite directions. A contract issued in 2016 has ridden the market up and so sits out of the
+money, which is right, but it is also nine years older than the book's average, which shortens
+the guarantee and takes duration out of it.
 
-Five vintages fix that without turning the project into a seriatim valuation. Issue
-dates run from 2016 to 2024, and each issue age is chosen so the attained ages in 2025
-straddle 70. Because the rate sheet bands the guaranteed withdrawal percentage by age,
-the vintages also carry different withdrawal rates, which is a feature rather than a
-nuisance: a real book draws at a blended rate below the rate a new 70-year-old gets.
+Five vintages fix that without turning this into a seriatim valuation. Issue dates run from 2016
+to 2024 and the issue ages are chosen so the attained ages in 2025 straddle 70. Because the rate
+sheet bands the guaranteed withdrawal percentage by the age at the first withdrawal, the vintages
+carry different withdrawal rates, which is the point rather than a nuisance: a real book draws at
+a blended rate below the rate a new 70-year-old is quoted.
 
-What this still does not represent: contracts that have not started withdrawals. Those
-accrue a bonus to the benefit base that is not modelled here, so they are left out
-rather than modelled wrongly. Their absence biases the portfolio towards more guarantee
-duration than the book has, which is the direction the residual gap runs.
+Two vintages are still in their deferral period at the last disclosed date, and that is
+deliberate. The earlier single-policy comparison left deferral-phase contracts out because the
+bonus accruing on their benefit base was not modelled, and said so; it is modelled here, so they
+are in. Their presence pulls the portfolio's moneyness up and its duration down, both in the
+direction the disclosed book sits.
+
+Everything is valued as one book on one simulation rather than vintage by vintage: the cohorts
+share their paths, each carries the attribution percentage its own issue date calibrates to, and
+the aggregate is what the disclosure reports. Valuing them separately and adding would be the same
+arithmetic with five times the Monte Carlo noise and five times the runtime.
 
 Usage:  python -m scripts.run_portfolio_validation
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import numpy as np
 import pandas as pd
 
-from gmwb import market, mortality, paths, session
-from gmwb.engine import calibrate_attribution, make_normals, projection_years, value_rider
-from gmwb.hedging import SubAccountMix, roll_policy
-from gmwb.sensitivities import disclosed_shock_repricing
+from vahedge import paths
+from vahedge.hedge import simulator
+from vahedge.liability import cohorts, mortality
+from vahedge.market import scenarios
+from vahedge.valuation import greeks as greeks_module
 
-# (issue date, issue age, GAWA% from the rate sheet band for that age, premium weight)
-VINTAGES = [
-    ("2016-09-26", 60, 0.0400, 1.0),
-    ("2018-06-29", 63, 0.0400, 1.0),
-    ("2020-06-30", 66, 0.0555, 1.0),
-    ("2022-06-30", 69, 0.0555, 1.0),
-    ("2024-06-28", 72, 0.0575, 1.0),
-]
+from scripts.run_shock_validation import (
+    DISCLOSED_DATES,
+    DIVIDEND_YIELD,
+    contract_at,
+    load_disclosed,
+    market_at,
+    shock_row,
+)
+from scripts.run_valuation import (
+    BASE_CONTRACT_CHARGE,
+    DEFERRAL_YEARS,
+    FUND_EXPENSE,
+    MAX_AGE,
+    PREMIUM,
+    build,
+)
 
-DISCLOSED_DATES = ["2022-12-30", "2023-12-29", "2024-12-31", "2025-12-31"]
+# Issue date, issue age, and the share of premium written in that vintage. Dates are mid-year or
+# the start of the index history; ages are set so the attained ages in 2025 sit either side of the
+# disclosed weighted average of 70. Equal premium shares, because nothing in the disclosure gives
+# the book's issue-year distribution and inventing one would be the least defensible part of this.
+VINTAGES = (
+    ("2016-09-26", 60, 0.20),
+    ("2018-06-29", 63, 0.20),
+    ("2020-06-30", 66, 0.20),
+    ("2022-06-30", 69, 0.20),
+    ("2024-06-28", 72, 0.20),
+)
+SHOCKS = ("equity_up_10pct", "equity_down_10pct", "rates_up_50bp", "rates_down_50bp",
+          "rates_up_100bp", "rates_down_100bp")
 
-SHOCK_KEYS = [
-    "equity_up_10pct",
-    "equity_down_10pct",
-    "rates_up_50bp",
-    "rates_down_50bp",
-    "rates_up_100bp",
-    "rates_down_100bp",
-]
 
+def vintage_contract(terms, issue_age: int, years_since_issue: int, account_value: float,
+                     benefit_base: float, utilisation: float = 1.0, lapse_rate: float = 0.0,
+                     lapse_beta: float = 0.0, lapse_floor: float = 0.0):
+    """One vintage as a cohort, at a whole number of policy years since its own issue.
 
-def value_vintage(s: session.Session, normals: np.ndarray, mix: SubAccountMix,
-                  issue_date: str, issue_age: int, gawa: float,
-                  target: pd.Timestamp) -> dict[str, float]:
-    """Roll one vintage to the target date and reprice the disclosed shocks there."""
-    cfg = s.cfg
-    max_age = int(cfg["simulation"]["max_age"])
-    male_weight = float(cfg["contract"]["sex_mix"]["male"])
-    contract = replace(s.contract, issue_age=issue_age, gawa_pct=gawa)
-
-    # Attribution percentage, fixed on the market of the issue date.
-    inception = market.equity_dates(s.panel, issue_date, None)[0]
-    inception_state = market.state_at(s.panel, inception, cfg, s.long_run_vol)
-    inception_basis = mortality.load(issue_age, inception.year, male_weight)
-    n_years_issue = projection_years(contract, max_age)
-    at_inception = value_rider(
-        replace(contract, fund_equity_beta=mix.effective_equity_beta),
-        inception_state.curve_builder.build(),
-        inception_state.vol,
-        inception_basis,
-        normals[:, :n_years_issue],
-        max_age=max_age,
+    The behaviour arguments default to the static benchmark - draw the full guaranteed amount
+    every year, never surrender - which is the most expensive case for the insurer and therefore
+    the right base case for a validation that expects to sit above the disclosure. The behaviour
+    reconciliation moves them.
+    """
+    return cohorts.single_contract(
+        terms, issue_age=issue_age, base_contract_charge=BASE_CONTRACT_CHARGE,
+        fund_expense=FUND_EXPENSE, premium=PREMIUM, account_value=account_value,
+        benefit_base=benefit_base,
+        deferral_years=max(DEFERRAL_YEARS - years_since_issue, 0),
+        years_since_issue=years_since_issue, max_age=MAX_AGE,
+        utilisation=utilisation, lapse_rate=lapse_rate, lapse_beta=lapse_beta,
+        lapse_floor=lapse_floor,
     )
-    alpha = calibrate_attribution(at_inception)
 
-    policy, _ = roll_policy(contract, cfg, s.panel, mix, inception, target)
-    state = market.state_at(s.panel, target, cfg, s.long_run_vol)
-    attained = policy.attained_age(contract, target)
-    aged = replace(contract, issue_age=attained, fund_equity_beta=mix.effective_equity_beta)
-    basis = mortality.load(attained, target.year, male_weight)
-    n_years = projection_years(aged, max_age)
 
-    result = disclosed_shock_repricing(
-        aged, state.curve_builder, state.vol, basis, normals[:, :n_years],
-        {
-            "account_value": policy.account_value,
-            "benefit_base": policy.benefit_base,
-            "fee_attribution": alpha,
-            "max_age": max_age,
-            "first_step_years": policy.years_to_anniversary(target),
-        },
+def roll_vintage(history, terms, issue_date: str, issue_age: int, target,
+                 equity_weight: float) -> dict:
+    """The vintage's account value and benefit base on the target date, from its own history."""
+    at_issue = vintage_contract(terms, issue_age, 0, PREMIUM, PREMIUM)
+    window = history.window(issue_date, target, label=f"{issue_date} to {target}")
+    survival, deaths = mortality.load("basic").rates(
+        at_issue.attained_age, pd.Timestamp(issue_date).year,
+        int(at_issue.projection_years.max()), 0.5,
     )
-    result.update(
-        {
-            "issue_date": str(inception.date()),
-            "issue_age": issue_age,
-            "attained_age": attained,
-            "gawa_pct": 100 * gawa,
-            "attribution": alpha,
-            "benefit_base": policy.benefit_base,
-        }
-    )
-    return result
+    rolled = simulator.roll_contract(at_issue, window, survival, deaths,
+                                     equity_weight=equity_weight)
+    daily = simulator.daily_state(window, rolled, at_issue, PREMIUM, PREMIUM)
+    return {"account_value": float(daily["account_value"][-1]),
+            "benefit_base": float(daily["benefit_base"][-1]),
+            "elapsed_years": float(window.year_fraction[-1]),
+            "date": window.dates[-1]}
 
 
-def aggregate(rows: list[dict], weights: list[float]) -> dict[str, float]:
-    """Add the vintages up. Dollar amounts add; the reported figures are then scaled by
-    total account value, which is how the disclosure presents them."""
-    weights = np.asarray(weights, dtype=float)
-    total_av = float(sum(w * r["account_value"] for w, r in zip(weights, rows)))
-    total_bb = float(sum(w * r["benefit_base"] for w, r in zip(weights, rows)))
-    out = {
-        "account_value": total_av,
-        "benefit_base": total_bb,
-        "gwb_over_av": total_bb / total_av,
-        "value_pct_av": 100 * sum(w * r["base_value"] for w, r in zip(weights, rows)) / total_av,
-        "weighted_attained_age": float(
-            sum(w * r["account_value"] * r["attained_age"] for w, r in zip(weights, rows))
-            / total_av
-        ),
-        "weighted_gawa_pct": float(
-            sum(w * r["benefit_base"] * r["gawa_pct"] for w, r in zip(weights, rows)) / total_bb
-        ),
-    }
-    for key in SHOCK_KEYS:
-        out[f"model_{key}"] = 100 * sum(w * r[key] for w, r in zip(weights, rows)) / total_av
+def vintage_attributions(valuer, panel, history, calibration, terms) -> dict:
+    """Each vintage's attribution percentage, calibrated on the market of its own issue date.
+
+    This is the piece that cannot be shortcut. The percentage is fixed when the contract is
+    written, so a 2016 vintage carries the percentage a 1.6% ten-year rate implied and a 2024
+    vintage carries the percentage a 4.3% rate implied. Using one percentage for the whole book
+    would erase the single largest difference between the vintages.
+    """
+    out = {}
+    for issue_date, issue_age, _ in VINTAGES:
+        state = market_at(panel, history, calibration, issue_date)
+        book = vintage_contract(terms, issue_age, 0, PREMIUM, PREMIUM)
+        out[issue_date] = float(np.ravel(valuer.calibrate_attribution(book, state))[0])
     return out
 
 
-def main() -> None:
-    s = session.start()
-    mix = SubAccountMix.from_config(s.cfg)
+def portfolio_at(setup, history, target, attributions, behaviour=None) -> tuple:
+    """The book at one disclosed date, and the per-vintage detail behind it.
 
-    # The youngest vintage is issued well below the base-case issue age, so it needs a
-    # longer projection than the session's normals cover. One wider array is drawn here
-    # and every vintage takes the leading columns it needs, which keeps the draws common
-    # across vintages and across the shocked revaluations.
-    youngest = min(age for _, age, _, _ in VINTAGES)
-    max_years = projection_years(replace(s.contract, issue_age=youngest),
-                                int(s.cfg["simulation"]["max_age"]))
-    normals = make_normals(s.normals.shape[0], max_years, int(s.cfg["simulation"]["seed"]),
-                           bool(s.cfg["simulation"]["antithetic"]))
-    print(f"{s.normals.shape[0]:,} paths, {max_years} projection years for the youngest vintage")
-    disclosed = pd.read_csv(paths.DATA_PROCESSED / "disclosed_scaled.csv")
-    disclosed = disclosed.query("line_item == 'market_risk_benefits'").drop_duplicates(
-        subset=["as_of", "shock"]
-    )
-    wide = 100 * disclosed.pivot_table(index="as_of", columns="shock", values="impact_pct_of_av")
-    levels = disclosed.drop_duplicates(subset=["as_of"]).set_index("as_of")[
-        "fair_value_pct_of_av"
-    ] * 100
+    ``behaviour`` overrides utilisation and lapse on the valued cohorts only. The roll that
+    produces each vintage's account value and benefit base stays on the benchmark assumptions,
+    because the account value a contract actually has today is a fact about the past rather than
+    an assumption about the future, and letting the sweep rewrite history would confound the two.
+    """
+    terms = setup["terms"]
+    behaviour = behaviour or {}
+    equity_weight = float(setup["state"].mix.equity_weight)
+    # Only the vintages that existed by the valuation date. A book grows by new business, so its
+    # composition at the end of 2022 is not its composition at the end of 2025, and rolling a
+    # 2024 vintage back to 2022 would be valuing a contract that had not been sold. Shares are
+    # renormalised over the vintages in force, which keeps equal premium per vintage written.
+    in_force = [(date, age, share) for date, age, share in VINTAGES
+                if pd.Timestamp(date) <= pd.Timestamp(target)]
+    if not in_force:
+        raise ValueError(f"no vintage had been written by {target}")
+    total_share = sum(share for _, _, share in in_force)
+    books, weights, attribution, detail = [], [], [], []
+    for issue_date, issue_age, premium_share in in_force:
+        share = premium_share / total_share
+        rolled = roll_vintage(history, terms, issue_date, issue_age, target,
+                              equity_weight)
+        duration = int(np.floor(rolled["elapsed_years"]))
+        book = vintage_contract(terms, issue_age, duration, rolled["account_value"],
+                                rolled["benefit_base"], **behaviour)
+        books.append(book)
+        weights.append(share)
+        attribution.append(attributions[issue_date])
+        detail.append({
+            "as_of": str(pd.Timestamp(rolled["date"]).date()),
+            "issue_date": issue_date,
+            "issue_age": issue_age,
+            "years_since_issue": duration,
+            "attained_age": int(book.attained_age[0]),
+            "deferring": bool(book.deferral_years[0] > 0),
+            "gawa_pct": 100 * float(book.gawa_pct[0]),
+            "account_value": rolled["account_value"],
+            "benefit_base": rolled["benefit_base"],
+            "gwb_over_av": rolled["benefit_base"] / rolled["account_value"],
+            "attribution": attributions[issue_date],
+            "premium_share": share,
+        })
+    return (cohorts.combine(books, weights), np.asarray(attribution, dtype=float),
+            pd.DataFrame(detail))
 
-    detail_rows = []
-    aggregate_rows = []
-    for target_label in DISCLOSED_DATES:
-        target = market.equity_dates(s.panel, None, target_label)[-1]
-        rows, weights = [], []
-        for issue_date, issue_age, gawa, weight in VINTAGES:
-            if pd.Timestamp(issue_date) >= target:
-                continue
-            result = value_vintage(s, normals, mix, issue_date, issue_age, gawa, target)
-            result["as_of"] = str(target.date())
-            detail_rows.append(result)
-            rows.append(result)
-            weights.append(weight)
-        agg = aggregate(rows, weights)
-        agg["as_of"] = str(target.date())
-        agg["vintages"] = len(rows)
-        aggregate_rows.append(agg)
 
-    detail = pd.DataFrame(detail_rows)
-    detail_view = detail[["as_of", "issue_date", "issue_age", "attained_age", "gawa_pct",
-                          "attribution", "account_value", "benefit_base", "base_value",
-                          "equity_down_10pct", "rates_up_100bp"]]
-    print("Vintage detail")
-    print(detail_view.to_string(index=False, float_format=lambda v: f"{v:,.3f}"))
-    session.write_table(detail_view, "portfolio_vintage_detail", "%.3f")
+def compare(setup, history, panel, disclosed: pd.DataFrame, attributions) -> tuple:
+    valuer, calibration = setup["valuer"], setup["calibration"]
+    rows, details = [], []
+    for target in DISCLOSED_DATES:
+        book, attribution, detail = portfolio_at(setup, history, target, attributions)
+        state = market_at(panel, history, calibration, detail["as_of"].iloc[0])
+        shocks = shock_row(valuer, book, state, attribution)
+        account = float(book.total_account_value)
+        rows.append({
+            "as_of": detail["as_of"].iloc[0],
+            "account_value": account,
+            "benefit_base": float(book.total_benefit_base),
+            "gwb_over_av": float(book.total_benefit_base / account),
+            "weighted_attained_age": float(book.weighted_attained_age),
+            "weighted_gawa_pct": float(100 * np.sum(book.weight * book.benefit_base
+                                                    * book.gawa_pct)
+                                       / np.sum(book.weight * book.benefit_base)),
+            "deferring_share": float(np.sum(book.weight[book.deferral_years > 0])
+                                     / np.sum(book.weight)),
+            "net_amount_at_risk_pct_av": 100 * float(book.net_amount_at_risk) / account,
+            "model_value_pct_av": shocks["value_pct_av"],
+            **{f"model_{name}": shocks[f"{name}_pct_av"] for name in SHOCKS},
+        })
+        details.append(detail)
 
-    frame = pd.DataFrame(aggregate_rows).set_index("as_of")
-    year_key = pd.to_datetime(frame.index).to_period("Y").astype(str)
-    disclosed_key = pd.to_datetime(wide.index).to_period("Y").astype(str)
-    wide = wide.set_index(disclosed_key)
-    levels.index = disclosed_key
-    frame["year"] = year_key
-    for key in SHOCK_KEYS:
-        frame[f"disclosed_{key}"] = frame["year"].map(
-            wide[key] if key in wide.columns else pd.Series(dtype=float)
-        )
-    frame["disclosed_value_pct_av"] = frame["year"].map(levels)
+    model = pd.DataFrame(rows)
+    wide = disclosed.pivot_table(index="as_of", columns="shock", values="impact_pct_of_av")
+    wide = (100 * wide).add_prefix("disclosed_").reset_index()
+    fair = (disclosed.drop_duplicates(subset=["as_of"])[["as_of", "fair_value_pct_of_av"]]
+            .assign(disclosed_value_pct_av=lambda f: 100 * f["fair_value_pct_of_av"])
+            .drop(columns="fair_value_pct_of_av"))
+    for frame in (model, wide, fair):
+        frame["year"] = pd.to_datetime(frame["as_of"]).dt.year
+    merged = model.merge(wide.drop(columns="as_of"), on="year", how="left")
+    merged = merged.merge(fair.drop(columns="as_of"), on="year", how="left").drop(columns="year")
+    return merged, pd.concat(details, ignore_index=True)
 
-    print("\nPortfolio against the disclosure, all figures % of account value")
-    columns = ["vintages", "weighted_attained_age", "weighted_gawa_pct", "gwb_over_av",
-               "value_pct_av", "disclosed_value_pct_av"]
-    print(frame[columns].to_string(float_format=lambda v: f"{v:,.3f}"))
 
-    for label, model_col, disc_col in (
-        ("equity -10%", "model_equity_down_10pct", "disclosed_equity_down_10pct"),
-        ("equity +10%", "model_equity_up_10pct", "disclosed_equity_up_10pct"),
-        ("rates +50bp", "model_rates_up_50bp", "disclosed_rates_up_50bp"),
-        ("rates -50bp", "model_rates_down_50bp", "disclosed_rates_down_50bp"),
-        ("rates +100bp", "model_rates_up_100bp", "disclosed_rates_up_100bp"),
-        ("rates -100bp", "model_rates_down_100bp", "disclosed_rates_down_100bp"),
-    ):
-        both = frame[[model_col, disc_col]].dropna()
+def summarise(comparison: pd.DataFrame) -> pd.DataFrame:
+    """Model over disclosed, shock by shock and date by date.
+
+    A ratio rather than a difference, because the whole expectation is that the level will not
+    match and the question is whether the gap is stable. A gap that holds the same multiple across
+    four years and six shocks has one cause; a gap that wanders has several.
+    """
+    rows = []
+    for shock in SHOCKS:
+        both = comparison[["as_of", f"model_{shock}", f"disclosed_{shock}"]].dropna()
         if both.empty:
             continue
-        ratio = (both[model_col] / both[disc_col]).round(2).to_dict()
-        print(f"\n{label}")
-        print(both.to_string(float_format=lambda v: f"{v:,.3f}"))
-        print(f"  model over disclosed: {ratio}")
+        ratio = both[f"model_{shock}"] / both[f"disclosed_{shock}"]
+        rows.append({"shock": shock, "comparisons": len(both),
+                     "model_over_disclosed_min": float(ratio.min()),
+                     "model_over_disclosed_max": float(ratio.max()),
+                     "model_over_disclosed_mean": float(ratio.mean()),
+                     "signs_agree": int((np.sign(both[f"model_{shock}"])
+                                         == np.sign(both[f"disclosed_{shock}"])).sum())})
+    return pd.DataFrame(rows)
 
-    session.write_table(frame.reset_index(), "portfolio_vs_disclosed", "%.4f")
 
-    ratios = []
-    for model_col, disc_col in (
-        ("model_equity_down_10pct", "disclosed_equity_down_10pct"),
-        ("model_equity_up_10pct", "disclosed_equity_up_10pct"),
-        ("model_rates_up_50bp", "disclosed_rates_up_50bp"),
-        ("model_rates_down_50bp", "disclosed_rates_down_50bp"),
-        ("model_rates_up_100bp", "disclosed_rates_up_100bp"),
-        ("model_rates_down_100bp", "disclosed_rates_down_100bp"),
-    ):
-        both = frame[[model_col, disc_col]].dropna()
-        for as_of, row in both.iterrows():
-            ratios.append(
-                {
-                    "as_of": as_of,
-                    "shock": disc_col.replace("disclosed_", ""),
-                    "model_pct_av": row[model_col],
-                    "disclosed_pct_av": row[disc_col],
-                    "ratio": row[model_col] / row[disc_col],
-                    "sign_agrees": bool(np.sign(row[model_col]) == np.sign(row[disc_col])),
-                }
-            )
-    summary = pd.DataFrame(ratios)
-    print("\nAll comparisons")
-    print(summary.to_string(index=False, float_format=lambda v: f"{v:,.3f}"))
-    print(f"\nsigns agreeing: {int(summary['sign_agrees'].sum())} of {len(summary)}")
-    print(f"median ratio of model to disclosed: {summary['ratio'].median():.2f}")
-    print(f"ratio range: {summary['ratio'].min():.2f} to {summary['ratio'].max():.2f}")
-    session.write_table(summary, "portfolio_comparison_summary", "%.4f")
+def main() -> None:
+    paths.ensure_output_dirs()
+    setup = build(cache_size=5)
+    panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
+    history = scenarios.load_history(panel, setup["calibration"].heston,
+                                    setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
+    disclosed = load_disclosed()
+
+    attributions = vintage_attributions(setup["valuer"], panel, history,
+                                        setup["calibration"], setup["terms"])
+    print("Attribution percentage by vintage, each on the market of its own issue date")
+    for issue_date, issue_age, _ in VINTAGES:
+        state = market_at(panel, history, setup["calibration"], issue_date)
+        print(f"  {issue_date}  issued at {issue_age}  ten-year zero "
+              f"{state.curve.zero(10.0):.2%}  attribution {attributions[issue_date]:.4f}")
+
+    comparison, detail = compare(setup, history, panel, disclosed, attributions)
+    comparison.to_csv(paths.TABLES / "portfolio_vs_disclosed.csv", index=False,
+                      float_format="%.4f")
+    detail.to_csv(paths.TABLES / "portfolio_vintage_detail.csv", index=False,
+                  float_format="%.4f")
+
+    print("\nThe portfolio at each disclosed date")
+    print("  as_of        age  GWB/AV  GAWA  deferring  NAR %AV   value    eq-10%   +100bp")
+    for _, row in comparison.iterrows():
+        print(f"  {row['as_of']}  {row['weighted_attained_age']:4.1f} "
+              f"{row['gwb_over_av']:7.3f} {row['weighted_gawa_pct']:5.2f} "
+              f"{row['deferring_share']:9.0%} {row['net_amount_at_risk_pct_av']:8.2f} "
+              f"{row['model_value_pct_av']:8.2f} {row['model_equity_down_10pct']:8.2f} "
+              f"{row['model_rates_up_100bp']:8.2f}")
+    print("  disclosed, same columns")
+    for _, row in comparison.iterrows():
+        print(f"  {row['as_of']}  {'':4s} {'':7s} {'':5s} {'':9s} {'':8s} "
+              f"{row['disclosed_value_pct_av']:8.2f} "
+              f"{row['disclosed_equity_down_10pct']:8.2f} "
+              f"{row['disclosed_rates_up_100bp']:8.2f}")
+
+    summary = summarise(comparison)
+    summary.to_csv(paths.TABLES / "portfolio_comparison_summary.csv", index=False,
+                   float_format="%.4f")
+    print("\nModel over disclosed, by shock")
+    for _, row in summary.iterrows():
+        print(f"  {row['shock']:<18s} {int(row['comparisons'])} dates, "
+              f"{row['model_over_disclosed_mean']:5.2f}x on average and "
+              f"{row['model_over_disclosed_min']:.2f} to "
+              f"{row['model_over_disclosed_max']:.2f} across them, signs agree "
+              f"{int(row['signs_agree'])} of {int(row['comparisons'])}")
+    equity = summary[summary["shock"].str.startswith("equity")]
+    rates = summary[summary["shock"].str.startswith("rates")]
+    print(f"\n  the equity shocks come out {equity['model_over_disclosed_mean'].mean():.2f} times "
+          f"the disclosed figure and the rate shocks "
+          f"{rates['model_over_disclosed_mean'].mean():.2f} times, against "
+          f"{len(VINTAGES)} vintages at a weighted attained age of "
+          f"{comparison['weighted_attained_age'].iloc[-1]:.1f} and a blended withdrawal rate of "
+          f"{comparison['weighted_gawa_pct'].iloc[-1]:.2f}%")
+    print(f"\nwrote three tables to {paths.TABLES}")
 
 
 if __name__ == "__main__":

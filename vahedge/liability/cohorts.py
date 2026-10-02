@@ -35,7 +35,7 @@ it does not. Nothing here is tuned to make a validation target land.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 
 import numpy as np
 import pandas as pd
@@ -143,6 +143,42 @@ class CohortBook:
             raise ValueError("total account value must be positive")
         factor = total_account_value / self.total_account_value
         return CohortBook(**{**self.__dict__, "weight": self.weight * factor})
+
+
+def combine(books, weights=None) -> CohortBook:
+    """One book out of several, for a portfolio assembled model point by model point.
+
+    The vintage comparison builds each vintage with ``single_contract``, rolls it along its own
+    history and then needs all of them valued together: one simulation, one projection, and one
+    attribution percentage per cohort rather than per run. Concatenating the arrays is all that
+    takes, and it belongs here rather than in the script so that a book which grows a field does
+    not silently lose it in whichever caller did its own concatenation.
+
+    ``weights`` multiplies each book's own weight, so a vintage's share of the portfolio is set
+    here and the per-contract scale stays where ``single_contract`` put it.
+    """
+    books = list(books)
+    if not books:
+        raise ValueError("no books to combine")
+    if weights is not None:
+        weights = np.asarray(weights, dtype=float)
+        if weights.size != len(books):
+            raise ValueError(f"{weights.size} weights for {len(books)} books")
+        books = [replace(book, weight=book.weight * float(weight))
+                 for book, weight in zip(books, weights)]
+    values = {}
+    for field in fields(CohortBook):
+        parts = [getattr(book, field.name) for book in books]
+        present = [part is not None for part in parts]
+        if not any(present):
+            values[field.name] = None
+        elif not all(present):
+            # Silently dropping it would give the combined book a shorter array than its
+            # cohorts, which the projection would read as a different book.
+            raise ValueError(f"{field.name} is set on some of these books and not others")
+        else:
+            values[field.name] = np.concatenate([np.atleast_1d(part) for part in parts])
+    return CohortBook(**values)
 
 
 @dataclass(frozen=True)
