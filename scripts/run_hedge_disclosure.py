@@ -264,9 +264,16 @@ def comparison(disclosed: pd.DataFrame, model: pd.DataFrame) -> pd.DataFrame:
     """
     model_wide = (model.groupby(["as_of", "shock", "strategy"])["offset_of_liability"]
                   .first().unstack("strategy").add_prefix("model_offset_").reset_index())
-    for frame in (disclosed, model_wide):
+    # One row per date, basis and shock. Three dates are disclosed by two filings each and the
+    # overlapping figures agree exactly, so the duplicate adds nothing here - it stays in
+    # disclosed_hedge_offset.csv, where the agreement is the point. What is *not* a duplicate is
+    # 2024-12-31 at 50bp and at 100bp: two shock sizes from two filings, and keeping both is how
+    # the offset ratio's own stability in the shock size becomes visible.
+    once = disclosed.sort_values("source_filing_fy").drop_duplicates(
+        subset=["as_of", "liability_basis", "shock"], keep="first")
+    for frame in (once, model_wide):
         frame["year"] = pd.to_datetime(frame["as_of"]).dt.year
-    merged = disclosed.merge(model_wide.drop(columns="as_of"), on=["year", "shock"], how="inner")
+    merged = once.merge(model_wide.drop(columns="as_of"), on=["year", "shock"], how="inner")
     return (merged.drop(columns="year")
             .sort_values(["risk", "as_of", "shock"]).reset_index(drop=True))
 
@@ -328,9 +335,22 @@ def main() -> None:
                     float_format="%.4f")
     print(f"\nThe two side by side, on the {len(together)} shocks both tables reach")
     for _, row in together.iterrows():
-        print(f"  {row['as_of']} {row['shock']:<17} disclosed "
+        print(f"  {row['as_of']} {row['shock']:<17} {row['liability_basis'][:18]:<18} disclosed "
               f"{row['offset_of_guarantee']:+7.1%}  "
               + "  ".join(f"{key} {row[f'model_offset_{key}']:+7.1%}" for key in COMPARED))
+
+    # 2024-12-31 is disclosed at both shock sizes, which turns the shock size into a control
+    # rather than a caveat: if the disclosed ratio moves far less than the model's full hedge
+    # does, the shortfall is a sizing choice and not convexity.
+    both_sizes = together[together["as_of"].str.startswith("2024-12")
+                          & (together["risk"] == "rates")]
+    if len(both_sizes) == 4:
+        for direction in ("up", "down"):
+            pair = both_sizes[both_sizes["shock"].str.contains(direction)]
+            spread = pair["offset_of_guarantee"].max() - pair["offset_of_guarantee"].min()
+            model_spread = (pair["model_offset_S2"].max() - pair["model_offset_S2"].min())
+            print(f"  rates {direction} at 2024-12-31, 50bp against 100bp: the disclosed ratio "
+                  f"moves {spread:.1%} and a full hedge of the model's liability {model_spread:.1%}")
     # The headline the table exists to produce. A ratio below one is not evidence of a partial
     # hedge on its own, so the gap is quoted against the model's own full hedge rather than
     # against one: S2 kills delta and rho together, which is what the disclosed programme says

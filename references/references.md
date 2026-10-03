@@ -138,19 +138,20 @@ removed on that basis: a nested-simulation paper that supported the design of th
 standard in spirit but that no formula or parameter choice in the repository actually uses, and
 a SOFR series whose role turned out to be covered by a rate already in the panel.
 
-**REF-024, REF-025 are identified but not fully.** The FY2023 and FY2024 10-Ks each supply four
-of the rows the shock validation runs on, so they belong here, and for a long time they were
-missing from the register entirely while their figures were in the data. They are listed now
-with what can be established from a source that is committed: the company, the form, the period
-and the filing date, all four read off the XBRL pull in REF-006, which records the filing date
-of every 10-K Jackson has filed. Their accession numbers are not among those facts and have not
-been retrieved, so the identifier field says that rather than carrying a number written from
-memory, and no extract is stored. Two consequences are worth stating plainly. The FY2024
-filing's embedded-derivative sensitivity at 31 December 2023 is in that filing and not in
-`data/raw/jackson_disclosed_sensitivities.csv`, because transcribing it would mean writing a
-figure into a primary-source file without having read it there - it changes nothing computed,
-since no derivative table is disclosed at that date, and `tests/test_disclosures.py` names the
-gap so it cannot be mistaken for completeness. And the figures those two filings do supply are
-checked against the overlapping filings rather than taken on trust: every date two filings both
-disclose agrees exactly, which is what the duplicate rows in that file exist to let anyone
-confirm.
+**REF-024, REF-025 and a date that was wrong.** The FY2023 and FY2024 10-Ks each supply a
+quarter of the rows the shock validation runs on and were missing from this register entirely
+while their figures sat in the data - a gap the reference audit found by asking §58's question of
+every committed input rather than of the bibliography. Both are now listed with accession numbers
+read off the SEC's own submissions record for CIK 0001822993, with their Item 7A extracts stored
+beside the others, and each transcription was checked by re-extracting from the filing and
+comparing a hash of the normalised text rather than by rereading it.
+
+That same record corrected something already here: REF-002's filing date was 28 February 2023 and
+the FY2022 10-K was filed on 1 March. A day is not a number any result depends on, which is
+exactly why it had survived four months of being cited.
+
+Three balance-sheet dates are now disclosed by two filings each, and every overlapping figure
+agrees - 2022-12-31 across FY2022 and FY2023, 2023-12-31 across FY2023 and FY2024, 2024-12-31
+across FY2024 and FY2025. The duplicate rows are kept for that reason. One date, 2024-12-31,
+is disclosed at both a 50bp and a 100bp shift by two different filings, which turns the shock
+size from a caveat into a control.

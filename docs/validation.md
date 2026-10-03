@@ -21,14 +21,14 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
 | Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
-| Overlapping filings agree | 8 figures in two filings each, all agree | `build_dataset.py` |
+| Overlapping filings agree | 12 liability figures and 3 derivative dates in two filings each, all agree | `build_dataset.py`, `tests/test_disclosures.py` |
 | Profit attribution and residual add to the total | exact by construction | `tests/test_hedge.py` |
 | The ledger uses nothing from after the rebalance date | rebuilt from the prior position | `tests/test_hedge.py` |
 | Risk-neutral skewness off the characteristic function against a simulated sample | agree to 1% at one year | `tests/test_market_models.py` |
-| Disclosed derivative lines sum to their disclosed totals | all 16 blocks, exactly | `tests/test_disclosures.py` |
+| Disclosed derivative lines sum to their disclosed totals | all 32 blocks, exactly | `tests/test_disclosures.py` |
 | Both routes to the hedge's exposure vector land on the same index delta | exact | `tests/test_hedge.py` |
 
-253 tests, no framework required.
+255 tests, no framework required.
 
 ### Monte Carlo error and truncation
 
@@ -331,58 +331,74 @@ a gain. The two therefore cancel in earnings when their *raw* figures carry the 
 makes a complete hedge +1 rather than -1. Writing it the other way round turns every ratio
 negative, which is how the error announces itself.
 
-| Date | Basis | Equity down | Equity up | Rates down | Rates up |
+On the market risk benefit, which is one measurement across all four years:
+
+| Date | Shift | Equity down | Equity up | Rates down | Rates up |
 |---|---|---|---|---|---|
-| 2021-12-31 | pre-LDTI guarantee | 112% | 42% | 24% | 27% |
-| 2022-12-31 | pre-LDTI guarantee | 135% | 102% | 52% | 62% |
-| 2024-12-31 | market risk benefit | 49% | 50% | 80% | 88% |
-| 2025-12-31 | market risk benefit | 9% | -9% | 79% | 86% |
-| 2024-12-31 | both liability lines | 49% | 50% | 76% | 83% |
-| 2025-12-31 | both liability lines | 44% | -53% | 71% | 76% |
+| 2022-12-31 | 50bp | 104% | 77% | 37% | 43% |
+| 2023-12-31 | 50bp | 110% | 82% | 86% | 78% |
+| 2024-12-31 | 50bp | 49% | 50% | 81% | 86% |
+| 2024-12-31 | 100bp | 49% | 50% | 80% | 88% |
+| 2025-12-31 | 100bp | 9% | -9% | 79% | 86% |
 
-The rate shock is 50bp on the first two rows and 100bp on the rest, because the shock size is a
-property of the filing. The two bases are not comparable in level - one is pre-LDTI carrying
-value and the other is the market risk benefit - so each is read within itself.
+The pre-LDTI carrying value gives two more dates, 2021-12-31 at 112%/42% on equity and 24%/27% on
+rates and 2022-12-31 at 135%/102% and 52%/62%. That is a different measurement and is not
+comparable in level with the rows above, so it is kept in the table and read within itself.
 
-**The 2025 equity figure is the RILA book, not a withdrawn hedge.** Taken alone, the equity
-offset of the market risk benefit falls from 49% at the end of 2024 to 9% at the end of 2025 and
-turns negative on the up move, which reads as a hedge being dismantled. It is not. The same
-filing discloses a fixed-index and RILA embedded derivative whose equity sensitivity goes from
-$4m to $1,321m over that year, against a market risk benefit sensitivity of $1,574m - a liability
-that owes more when equity rises is a natural short against a guarantee that gets cheaper, and it
-absorbs 79% of the guarantee's down move and 84% of its up move before any derivative is
-involved. On the combined basis the equity offset is 49% then 44%, and the rate offset 76-83%
-then 71-76%: both close to flat. Reading the market-risk-benefit row on its own would have
-produced a confident wrong conclusion, and the two rows that make the 2024 combined figure
-computable were missing from the committed table until the reference audit went looking for them.
+**The two legs moved in opposite directions, and the dates say when.** The rate share goes
+37-43% at the end of 2022, to 78-86% a year later, and then sits at 79-88% through 2024 and 2025.
+The equity share is at or above a full hedge through 2023 - 104% and 77%, then 110% and 82% - and
+halves to 49% and 50% in 2024, the first full year after Brooke Re was formed in December 2023.
+Every one of those readings is on the same basis and the same shock size except where noted.
 
-The remaining caveat is that the up-move combined ratio divides by what is left after the two
-lines cancel, which at the end of 2025 is a sixth of the guarantee's own move. A ratio built on a
-sixth of a number is arithmetic rather than a measurement, so the denominator is published beside
-it and the -53% is not read as an offset.
+**2024 is disclosed twice, at two shock sizes, and that is the control.** The FY2024 filing shows
+2024-12-31 at 50bp and the FY2025 filing shows the same date at 100bp. The disclosed ratio moves
+1.1 points on the down shift and 2.7 on the up; a full hedge of the model's own liability moves
+3.8 and 4.3 over the same change. So the disclosed book's ratio is *less* sensitive to the size of
+the shift than a complete hedge is, which is the opposite of what a convexity explanation of the
+shortfall would predict.
+
+**The 2025 equity figure is the RILA book, not a withdrawn hedge.** Taken alone, the equity offset
+falls from 49% to 9% and turns negative on the up move, which reads as a programme being
+dismantled. The same filing discloses a fixed-index and RILA embedded derivative whose equity
+sensitivity goes from $4m to $1,321m over that year against a market risk benefit sensitivity of
+$1,574m - a liability that owes more when equity rises is a natural short against a guarantee that
+gets cheaper - and it absorbs 79% of the guarantee's down move and 84% of its up move before any
+derivative is involved. On the combined basis the equity offset is 49% then 44%. The hedge did not
+shrink; the net exposure did.
+
+The caveat on that combined column is that it divides by what is left after the two lines cancel,
+which at the end of 2025 is a fifth of the guarantee's down move and a sixth of its up move. A
+ratio built on a sixth of a number is arithmetic rather than a measurement, so the denominator is
+published beside it and the -53% is not read as an offset.
 
 **What a full hedge would have looked like, for comparison.** An offset below one is not by
 itself evidence of a partial hedge: the liability is convex in rates and a swap is nearly linear,
-so even a book sized to kill rho exactly under-recovers a 100bp shift. The model supplies that
+so even a book sized to kill rho exactly under-recovers a large shift. The model supplies that
 benchmark by sizing its own hedge at each of these dates, off the full Greeks rather than the
 regression proxy, and repricing both sides under the same shocks.
 
 | | Disclosed | S1, futures | S2, plus the swap | S3, plus puts |
 |---|---|---|---|---|
-| Rates | 52% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
+| Rates | 37% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
 | Equity | -9% to 135% | 90% to 113% | 90% to 113% | 101% to 109% |
 
-So convexity over a 50 to 100bp shift accounts for about eight points of scatter either side of
-one, not a twenty to forty point shortfall. Jackson's rate book covers meaningfully less of the
-economic rate sensitivity than a full hedge would, and the share it covers rose from about a
-quarter in 2021 to about five sixths by 2024 while the equity share fell. That is the same
-conclusion the statutory and reporting lenses reach from the inside - the programme is not
-targeting the economic liability alone - arrived at this time from Jackson's own numbers.
+Convexity therefore accounts for about eight points of scatter either side of one, not the twenty
+to sixty point shortfall the disclosure shows outside 2022-2023. That is the same conclusion the
+statutory and reporting lenses reach from the inside - the programme is not targeting the economic
+liability alone - arrived at this time from Jackson's own numbers rather than from the model's.
 
 The futures-only row is a sanity check rather than a result: a hedge of equity delta should barely
 touch a rate shock, and 2 to 3% is the small rho the futures forward carries through its own
 discount factor. A number near one there would have meant the rate shock was leaking into the
 equity leg.
+
+**What makes any of this checkable.** Three balance-sheet dates are disclosed by two filings each
+and every overlapping figure agrees exactly: 2022-12-31 across the FY2022 and FY2023 filings,
+2023-12-31 across FY2023 and FY2024, 2024-12-31 across FY2024 and FY2025. On all thirty-two
+disclosed blocks the instrument lines reproduce the disclosed Total exactly. Both are asserted in
+`tests/test_disclosures.py` rather than checked once by hand, because a hand-transcribed
+sensitivity table is the only unvalidated input this project has.
 
 ### The crisis replays
 

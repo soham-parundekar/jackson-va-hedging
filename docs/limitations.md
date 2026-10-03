@@ -197,13 +197,11 @@ revalued with the model that sized the hedge. It establishes that convexity over
 shift costs about eight points either side of one, which is the only thing it is used for, and it
 is not evidence about what a real programme achieves.
 
-**Four of the eight disclosed dates come from filings whose accession numbers were not
-retrieved.** The FY2023 and FY2024 10-Ks are identified from the committed XBRL pull - company,
-form, period and filing date - and no further. One row they contain, the embedded-derivative
-sensitivity at 31 December 2023, is therefore absent from the committed table rather than
-transcribed from memory; nothing divides by it, since no derivative table is disclosed at that
-date. `references/references.md` states the gap and `tests/test_disclosures.py` names it so it
-cannot pass for completeness.
+**Nothing here reaches before 2021.** Item 7A's derivative tables start with the FY2022 filing,
+so the series runs 2021 to 2025 and the two bases split it: pre-LDTI carrying value at 2021 and
+2022, market risk benefit from 2022 on. The pivot the equity series shows in 2024 sits beside the
+Brooke Re transaction of December 2023, and that is adjacency rather than attribution - five
+year-ends cannot identify a cause.
 
 ## The accounting comparison
 

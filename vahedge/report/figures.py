@@ -322,9 +322,18 @@ def disclosed_offset(name: str = "disclosed_offset") -> str:
     scatter convexity alone produces over a shock this large. A disclosed bar inside the band is
     indistinguishable from a full hedge; one well below it is not.
     """
-    offsets = table("hedge_offset_comparison").sort_values(["risk", "as_of", "shock"])
+    # The market risk benefit alone, which is one measurement across all four years. The 2022
+    # pre-LDTI rows are a different basis and are not comparable in level with these, so they
+    # stay in the table and out of the picture.
+    offsets = table("hedge_offset_comparison")
+    offsets = offsets[offsets["liability_basis"] == "market risk benefit"].copy()
+    # Sorted so a year's pair reads down then up and, where a year is disclosed at two shock
+    # sizes, the smaller one first. Sorting on the shock string alone puts 100bp before 50bp.
+    offsets["_dir"] = offsets["shock"].str.contains("down").map({True: 0, False: 1})
+    offsets["_size"] = offsets["shock"].str.extract(r"(\d+)").astype(int)
+    offsets = offsets.sort_values(["risk", "as_of", "_dir", "_size"])
 
-    fig, panels = plt.subplots(1, 2, figsize=(11.5, 5), sharey=True)
+    fig, panels = plt.subplots(1, 2, figsize=(12.5, 5), sharey=True)
     for ax, (risk, colour) in zip(panels, (("rates", LINE), ("equity", ACCENT))):
         side = offsets[offsets["risk"] == risk]
         model = side["model_offset_S2"]
@@ -340,33 +349,27 @@ def disclosed_offset(name: str = "disclosed_offset") -> str:
                         ha="center", va="bottom" if value >= 0 else "top", fontsize=8)
         ax.axhline(0, color="black", linewidth=0.8, zorder=3)
         ax.set_xticks(position)
-        ax.set_xticklabels([f"{row.as_of[:4]}\n{'down' if 'down' in row.shock else 'up'}"
-                            for row in side.itertuples()], fontsize=9)
-        # The 2022 bars are the pre-LDTI carrying value and the rest are the market risk benefit.
-        # Two measurements, not one series, so the break is drawn rather than left to the reader.
-        pre_ldti = int((side["liability_basis"] == "pre-LDTI guarantee liability").sum())
-        if 0 < pre_ldti < len(side):
-            ax.axvline(pre_ldti - 0.5, color=MUTED, linewidth=0.9, linestyle=":", zorder=4)
-            ax.annotate("pre-LDTI basis", (pre_ldti / 2 - 0.5, 0.97), xycoords=("data", "axes fraction"),
-                        ha="center", va="top", fontsize=8, color=MUTED)
-            ax.annotate("market risk benefit", ((pre_ldti + len(side)) / 2 - 0.5, 0.97),
-                        xycoords=("data", "axes fraction"), ha="center", va="top",
-                        fontsize=8, color=MUTED)
-        ax.set_title(f"{risk}, {'50bp in 2022 and 100bp after' if risk == 'rates' else '10%'}")
+        labels = []
+        for row in side.itertuples():
+            size = row.shock.split("_")[-1]
+            labels.append(f"{row.as_of[:4]}\n{'down' if 'down' in row.shock else 'up'}"
+                          + (f"\n{size}" if risk == "rates" else ""))
+        ax.set_xticklabels(labels, fontsize=8)
+        ax.set_title(f"{risk}, {'a parallel shift' if risk == 'rates' else 'a 10% move'}")
         ax.legend(frameon=False, loc="lower left", fontsize=8)
-    panels[1].annotate("the 2025 pair is the guarantee alone.\nThe RILA book absorbs 79 to 84% of "
-                       "its\nequity move before any derivative does,\nleaving these 44% of what "
-                       "remains",
-                       (0.74, 0.57), xycoords="axes fraction", ha="center", va="center",
-                       fontsize=8, color=MUTED,
-                       bbox=dict(boxstyle="round,pad=0.4", facecolor="white", edgecolor="none"))
+    # 2024 carries both shock sizes, which is the control: if the disclosed ratio barely moves
+    # between them while a full hedge's does, the gap below the band is a sizing choice.
+    panels[0].set_xlabel("the two 2024 readings are the same book at two shock sizes", fontsize=8,
+                         color=MUTED)
+    panels[1].set_xlabel("2025 is the guarantee alone; the RILA book absorbs 79 to 84% of its "
+                         "equity move first", fontsize=8, color=MUTED)
     panels[0].set_ylabel("derivative impact over guarantee impact, %")
     # Headroom for the basis labels along the top, which the 2022 equity bar otherwise runs into.
     heights = 100 * offsets["offset_of_guarantee"]
     panels[0].set_ylim(min(heights.min(), 0.0) - 16.0, heights.max() + 18.0)
-    fig.suptitle("Jackson's derivative book covers four fifths of its guarantees' rate "
-                 "sensitivity and half the equity sensitivity,\nwhere a full hedge of the same "
-                 "exposure would cover all of it")
+    fig.suptitle("Jackson's rate hedge settled at about four fifths of its guarantees' rate "
+                 "sensitivity in 2023 and stayed there,\nwhile the equity hedge went from "
+                 "covering all of it to half in 2024, the first full year after Brooke Re")
     fig.tight_layout()
     return _save(fig, name)
 

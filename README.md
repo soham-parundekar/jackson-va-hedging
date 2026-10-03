@@ -72,23 +72,30 @@ the put leg's edge over futures-and-swaps is about a third smaller than the sing
 And on a quarter to a third of reorderings the hedged book's worst single day is *worse* than the
 unhedged book's, which is where variance and tail risk part company.
 
-**Jackson's own filings say its derivative book covers about four fifths of the rate sensitivity
-and about half the equity sensitivity.**
+**Jackson's own filings say its rate hedge and its equity hedge moved in opposite directions, and
+they date when.**
 
 Item 7A publishes the derivative portfolio's response to the same shocks as the guarantee's, on
-the same dates, so the offset ratio is observable and nothing in the model is fitted to it. On the
-two liability lines together it runs 71 to 83% on rates and 44 to 50% on equity across the last
-two year-ends, against 93 to 109% and 90 to 113% for a full hedge of the model's own liability at
-those dates. Convexity over a 50 to 100bp shift accounts for about eight points either side of
-one, so the shortfall is not a measurement artefact.
+the same dates, so the offset ratio is observable and nothing in the model is fitted to it. Across
+four year-ends on one measurement basis:
 
-The one figure that looks dramatic is not. Taken against the market risk benefit alone the equity
-offset falls from 49% to 9% over 2025 and turns negative, which reads as a programme being
-dismantled; the same filing discloses a RILA book whose equity sensitivity went from $4m to
-$1,321m in that year and which absorbs 79 to 84% of the guarantee's equity move before any
-derivative is involved. The hedge did not shrink, the net exposure did. Reading the first row
-alone would have produced a confident wrong answer, and the two rows that make the comparison
-possible were missing from the transcribed table until the reference audit went looking.
+| | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|
+| rates, down / up | 37% / 43% | 86% / 78% | 81% / 86% | 79% / 86% |
+| equity, down / up | 104% / 77% | 110% / 82% | 49% / 50% | 9% / -9% |
+
+The rate share quadrupled over 2023 and has sat near four fifths since. The equity share was at or
+above a full hedge through 2023 and halved in 2024, the first full year after Brooke Re. A full
+hedge of the model's own liability at those same dates covers 93 to 109% of the rate shock and 90
+to 113% of the equity shock, so convexity buys about eight points either side of one and not the
+shortfall on show.
+
+Two things make that readable rather than suggestive. 2024-12-31 is disclosed at both a 50bp and a
+100bp shift by two different filings, and the disclosed ratio moves 1 to 3 points between them
+where a full hedge moves 4 - so the gap is a sizing choice, not curvature. And the 2025 equity
+figure is not a dismantled programme: the same filing discloses a RILA book whose equity
+sensitivity went from $4m to $1,321m that year and which absorbs 79 to 84% of the guarantee's
+equity move before any derivative is involved. The hedge did not shrink, the net exposure did.
 
 **The economic hedge is not the capital hedge, and it is not the earnings hedge.**
 

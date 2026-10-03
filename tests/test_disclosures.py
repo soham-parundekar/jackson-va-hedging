@@ -31,7 +31,7 @@ def test_the_derivative_instrument_lines_sum_to_every_disclosed_total():
     filing's two tables, two shock directions each, and the instrument rows have to reproduce
     the Total row exactly - the filings round to whole millions, so exactly is the right word."""
     identity = transcription_identity(load_derivatives())
-    assert len(identity) == 16
+    assert len(identity) == 32
     assert float(identity["difference_musd"].abs().max()) == 0.0
     # Two in the 2021 equity block, which held no total return swaps yet, and three everywhere
     # else. A block that lost a line would still sum to something, so the count is asserted too.
@@ -47,11 +47,15 @@ def test_the_calls_and_puts_breakdown_sits_inside_the_options_line():
     derivatives = load_derivatives()
     components = derivatives[derivatives["level"] == "component"]
     assert set(components["instrument"]) == {"calls", "puts"}
-    for (as_of, shock), block in components.groupby(["as_of", "shock"]):
-        options = derivatives[(derivatives["as_of"] == as_of)
+    # Grouped by filing as well as date, because 2022-12-31 is disclosed by two filings and both
+    # carry their own breakdown.
+    for (filing, as_of, shock), block in components.groupby(
+            ["source_filing_fy", "as_of", "shock"]):
+        options = derivatives[(derivatives["source_filing_fy"] == filing)
+                              & (derivatives["as_of"] == as_of)
                               & (derivatives["shock"] == shock)
                               & (derivatives["instrument"] == "options")]
-        assert len(options) == 1
+        assert len(options) == 1, f"FY{filing} {as_of} {shock} has {len(options)} options lines"
         assert approx(float(options["impact_musd"].iloc[0]), abs=0.5) == \
             float(block["impact_musd"].sum())
 
@@ -77,32 +81,44 @@ def test_the_two_filings_agree_on_every_date_they_both_disclose():
     assert int(repeated["nunique"].max()) == 1
 
 
-# The one place the committed table is knowingly short of the filings. The FY2024 10-K shows the
-# embedded-derivative line at both of its dates and only the 2024-12-31 column was transcribed;
-# the 2023-12-31 column has not been retrieved, and inventing it from the FY2023 filing's figure
-# for the same date would be writing a number into a primary-source file that was not read off
-# that source. It costs nothing computed - no derivative table is disclosed at 2023-12-31, so
-# nothing divides by it - and it is listed here rather than left to make this test lie.
-KNOWN_UNRETRIEVED = {(2024, "fia_rila_embedded_derivatives"): {"2023-12-31"}}
-
-
 def test_every_filing_discloses_each_line_at_both_of_its_dates():
     """Item 7A publishes a current-year column and a prior-year column, so a line a filing shows
     at all it shows twice. Asserting that symmetry is what catches a column transcribed one date
-    short: the FY2025 embedded-derivative rows existed at 2024-12-31 in the filing and not in
-    this file, which silently reduced a both-lines offset ratio to the guarantee alone."""
+    short, which had happened twice: the FY2025 embedded-derivative line was missing at
+    2024-12-31 and the FY2024 one at 2023-12-31, each silently reducing a both-lines offset ratio
+    to the guarantee alone."""
     liabilities = load_liabilities()
     for filing, block in liabilities.groupby("source_filing_fy"):
         dates = set(block["as_of"])
         assert len(dates) == 2, f"FY{filing} should disclose two dates, has {sorted(dates)}"
         for line, rows in block.groupby("line_item"):
-            expected = dates - KNOWN_UNRETRIEVED.get((int(filing), line), set())
-            assert set(rows["as_of"]) == expected, (
+            assert set(rows["as_of"]) == dates, (
                 f"FY{filing} shows {line} at {sorted(set(rows['as_of']))} and not at "
-                f"{sorted(expected)}")
-            # And the same four shocks at each of the dates it does carry.
+                f"{sorted(dates)}")
+            # And the same four shocks at each of them.
             per_date = rows.groupby("as_of")["shock"].apply(frozenset)
             assert per_date.nunique() == 1, f"FY{filing} {line} has uneven shocks by date"
+
+
+def test_the_derivative_table_covers_both_dates_of_every_filing_that_has_one():
+    """Same symmetry on the other table, and the same reason. A derivative block present at one
+    of a filing's two dates and not the other would quietly drop an offset ratio."""
+    derivatives = load_derivatives()
+    for filing, block in derivatives.groupby("source_filing_fy"):
+        dates = set(block["as_of"])
+        assert len(dates) == 2, f"FY{filing} derivative table covers {sorted(dates)}"
+        for risk, rows in block.groupby("risk"):
+            assert set(rows["as_of"]) == dates, f"FY{filing} {risk} covers {sorted(set(rows['as_of']))}"
+
+
+def test_the_overlapping_derivative_blocks_agree_across_filings():
+    """Three dates are disclosed by two filings each. The totals have to match, and this is the
+    only check there is on the derivative transcription beyond its own internal sum."""
+    totals = load_derivatives().query("level == 'total'")
+    shared = totals.groupby(["as_of", "shock"])["impact_musd"].agg(["nunique", "size"])
+    repeated = shared[shared["size"] > 1]
+    assert len(repeated) >= 8, f"expected at least 8 repeated derivative figures, got {len(repeated)}"
+    assert int(repeated["nunique"].max()) == 1
 
 
 def test_the_rate_shock_size_belongs_to_the_filing_and_not_the_date():
