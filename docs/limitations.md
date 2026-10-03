@@ -78,16 +78,37 @@ backtest is the curve and the observable instantaneous variance; the skew, the s
 reversion and the long-run level are held. The in-force comparison is therefore run with the
 surface of December 2025 attached to the rate environment of each disclosed year.
 
+**The term structure is too flat, by a measured amount, in the direction the puts need.** Mean
+reversion at 4.80 has a half-life of seven weeks, so the model is almost fully reverted to its
+long-run level by six months, and carrying a one-month quote out to six months lands 1.22
+volatility points low on average against VIX6M - 0.68 low from a three-month quote. The option
+leg's level is extended by the same mapping out to one and two years, where nothing free can
+check it, so its puts are priced too cheaply and the 21.67% ten-year option cost is a lower bound
+rather than an estimate. The effect on the residual is not signed: too low a volatility misstates
+the put's own vega and gamma as well as its price.
+
+**The thirty-day skew is two thirds as deep as the market's.** The calibrated parameters generate
+a SKEW index of 123.1 against 135.0 observed, a risk-neutral skewness of -2.31 against -3.50, and
+they are shallower on 80% of the decade's days. Heston has no jumps and a diffusion reaches that
+far into the left tail only with a correlation near minus one, which the chain does not ask for.
+The direction cuts against this project's own result rather than for it: too little short-horizon
+left tail understates the chance of the sharp declines that put a living benefit in the money, so
+it biases the liability down, and the model is already around three times the disclosure. What
+cannot be measured is the tenor that matters - no free data gives a one-year or ten-year skew, and
+thirty days is the horizon furthest from a forty-five-year guarantee.
+
 ## The regression proxy
 
 The hedge cannot run a full valuation at every rebalance date, so it runs a least-squares proxy,
 and everything in the hedging workstream inherits the proxy's errors.
 
 Its value is accurate - R-squared above 0.995 in range and a root mean square error of a few
-thousandths of a per cent of account value. Its **delta is 36% off in the first policy year**,
-falling to 4% by year 5 and 2% by year 9; the backtest starts at duration 3, so it lives in the
-usable part, but nothing in the project reads a delta off policy year 1. Its **second derivative is
-not usable**, which is why the option leg is sized from a tabulated nested surface instead.
+thousandths of a per cent of account value. Its **delta is 36% off in the first policy year** and
+21% in the second, 10% by year 5 and 5% by year 14, and then deteriorates again to 23% by year 25
+as the delta itself shrinks and the same absolute error becomes a larger share of it. The backtest
+covers policy years 3 to 13, which is the best part of that range, but nothing in the project
+reads a delta off policy year 1. Its **second derivative is not usable**, which is why the option
+leg is sized from a tabulated nested surface instead.
 
 **Extrapolation is the condition on every hedging result.** The realised path asks the proxy for a
 state outside its design on 36% of rebalance dates. That is reported with every run rather than
@@ -148,6 +169,41 @@ date itself. Every date is also valued at the following anniversary and the spre
 moves the equity-down figure by 0.18 to 0.23 points of account value against a disclosed figure of
 about 1.11, so it is a fifth of the quantity being compared and a fifteenth of the gap being
 explained.
+
+## The comparison with the disclosed hedge book
+
+**Item 7A's derivative table is the whole company's, not the variable annuity's.** The same
+swaps, futures, bond forwards and puts hedge the fixed-index and RILA book, the general account's
+own duration and, after December 2023, Brooke Re's statutory position. Attributing all of it to
+the guarantee is wrong, which is why the offset ratio is reported against both the market risk
+benefit alone and the two disclosed liability lines together, and why neither is treated as the
+hedge of the variable annuity by itself.
+
+**One of those two lines moved by more than its balance can explain.** The fixed-index and RILA
+embedded derivative's equity sensitivity goes from $4m at the end of 2024 to $1,321m at the end of
+2025 in the same table of the same filing, on a balance that only doubled. Nothing public explains
+a change that size. It is reported as disclosed and the 2025 equity comparison is run on both
+bases rather than leaning on either, because a conclusion drawn from a figure nobody can account
+for is not a conclusion.
+
+**The combined ratio divides by a remainder.** Once the two liability lines nearly cancel - which
+at the end of 2025 they do, leaving a sixth of the guarantee's own up-move - the combined offset
+ratio is dividing by a small number and its -53% is arithmetic rather than a measurement. The
+denominator is published next to it for that reason.
+
+**The benchmark is the model's hedge of the model's liability.** The 93 to 109% a full hedge
+achieves is an upper bound in the same way the backtest's variance reduction is: the liability is
+revalued with the model that sized the hedge. It establishes that convexity over a 50 to 100bp
+shift costs about eight points either side of one, which is the only thing it is used for, and it
+is not evidence about what a real programme achieves.
+
+**Four of the eight disclosed dates come from filings whose accession numbers were not
+retrieved.** The FY2023 and FY2024 10-Ks are identified from the committed XBRL pull - company,
+form, period and filing date - and no further. One row they contain, the embedded-derivative
+sensitivity at 31 December 2023, is therefore absent from the committed table rather than
+transcribed from memory; nothing divides by it, since no derivative table is disclosed at that
+date. `references/references.md` states the gap and `tests/test_disclosures.py` names it so it
+cannot pass for completeness.
 
 ## The accounting comparison
 

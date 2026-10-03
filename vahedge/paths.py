@@ -23,7 +23,6 @@ TABLES = REPORTS / "tables"
 # the sandbox this was built in cannot reach sec.gov, FRED or Cboe from a script. See
 # docs/data_sources.md and references/README.md.
 FRED_PANEL = DATA_RAW / "fred_daily_panel.csv"
-FRED_FINANCING = DATA_RAW / "fred_financing_rates.csv"
 CBOE_VOL_PANEL = DATA_RAW / "cboe_vix6m_skew.csv"
 OPTION_CHAIN = DATA_RAW / "cboe_spx_option_chain.csv"
 MORTALITY_TABLE = DATA_RAW / "soa_2012_iam_g2.csv"
@@ -34,10 +33,7 @@ RIDER_TERMS = DATA_RAW / "jackson_rider_terms.csv"
 XBRL_QUARTERLY = DATA_RAW / "jackson_xbrl_quarterly.csv"
 
 # Built by `make data`.
-MARKET_PANEL = DATA_PROCESSED / "market_panel.csv"
 ZERO_CURVES = DATA_PROCESSED / "zero_curves.csv"
-NSS_PARAMETERS = DATA_PROCESSED / "nss_parameters.csv"
-CLEAN_CHAIN = DATA_PROCESSED / "option_chain_clean.csv"
 DISCLOSED_SCALED = DATA_PROCESSED / "disclosed_scaled.csv"
 
 # Built by the calibration step and read by everything downstream. One file rather than one

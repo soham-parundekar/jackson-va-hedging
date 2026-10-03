@@ -24,8 +24,8 @@ All eighteen disclosed shock sensitivities come out with the right sign, across 
 balance-sheet dates and both directions of both shocks. The convexity in Jackson's table comes out
 close: where the filings disclose both ±50bp and ±100bp, the ratio of the two is 1.855 up and
 2.128 down, against 1.882 and 2.128 from the model. The decline in sensitivity per dollar of
-account value from 2022 to 2025, as the book moved out of the money, comes out at 0.579 of its
-starting level against 0.578 disclosed.
+account value from 2022 to 2025, as the book moved out of the money, comes out at 0.5795 of its
+starting level against 0.5794 disclosed.
 
 The levels sit about three times the disclosure, which the research design predicted. What it did
 not predict is that behaviour would not close the gap. Lowering utilisation takes duration out of
@@ -44,7 +44,7 @@ One policy, three years in force, rolled along realised history from September 2
 
 | Hedge | Residual daily sd | Cost over the decade |
 |---|---|---|
-| Unhedged | | |
+| Unhedged | 0.656% | - |
 | Futures | 0.304% | 0.05% |
 | Plus a receive-fixed swap | 0.188% | 0.08% |
 | Plus listed puts | 0.139% | 21.67% |
@@ -71,6 +71,24 @@ same days. The ranking survives - the richer hedge is tighter on 90 to 100% of r
 the put leg's edge over futures-and-swaps is about a third smaller than the single path suggested.
 And on a quarter to a third of reorderings the hedged book's worst single day is *worse* than the
 unhedged book's, which is where variance and tail risk part company.
+
+**Jackson's own filings say its derivative book covers about four fifths of the rate sensitivity
+and about half the equity sensitivity.**
+
+Item 7A publishes the derivative portfolio's response to the same shocks as the guarantee's, on
+the same dates, so the offset ratio is observable and nothing in the model is fitted to it. On the
+two liability lines together it runs 71 to 83% on rates and 44 to 50% on equity across the last
+two year-ends, against 93 to 109% and 90 to 113% for a full hedge of the model's own liability at
+those dates. Convexity over a 50 to 100bp shift accounts for about eight points either side of
+one, so the shortfall is not a measurement artefact.
+
+The one figure that looks dramatic is not. Taken against the market risk benefit alone the equity
+offset falls from 49% to 9% over 2025 and turns negative, which reads as a programme being
+dismantled; the same filing discloses a RILA book whose equity sensitivity went from $4m to
+$1,321m in that year and which absorbs 79 to 84% of the guarantee's equity move before any
+derivative is involved. The hedge did not shrink, the net exposure did. Reading the first row
+alone would have produced a confident wrong answer, and the two rows that make the comparison
+possible were missing from the transcribed table until the reference audit went looking.
 
 **The economic hedge is not the capital hedge, and it is not the earnings hedge.**
 
@@ -99,6 +117,7 @@ make calibrate   # fit the market state: curve, Heston surface, short rate, corr
 make valuation   # at-issue valuation, cash flows, robustness, convergence
 make greeks      # Greeks on paired paths, and the moneyness profile
 make validate    # disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep
+make offset      # the hedge book against the disclosed derivative sensitivities
 make proxy       # the regression proxy against nested simulation          (~6 minutes)
 make convexity   # the nested curvature surface the option leg is sized from (~8 minutes)
 make hedge       # crisis replays, the cost frontier, the put sweep, model risk (~15 minutes)

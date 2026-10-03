@@ -1,0 +1,17 @@
+source_filing_fy,as_of,liability_basis,risk,shock,guarantee_impact_musd,rila_impact_musd,both_lines_impact_musd,derivative_impact_musd,offset_of_guarantee,offset_of_both_lines,both_lines_share_of_guarantee,rila_absorbs_of_guarantee
+2022,2021-12-31,pre-LDTI guarantee liability,equity,equity_down_10pct,1526.0000,,1526.0000,1711.0000,1.1212,1.1212,1.0000,
+2022,2021-12-31,pre-LDTI guarantee liability,equity,equity_up_10pct,-663.0000,,-663.0000,-277.0000,0.4178,0.4178,1.0000,
+2022,2021-12-31,pre-LDTI guarantee liability,rates,rates_down_50bp,2997.0000,,2997.0000,727.0000,0.2426,0.2426,1.0000,
+2022,2021-12-31,pre-LDTI guarantee liability,rates,rates_up_50bp,-2646.0000,,-2646.0000,-719.0000,0.2717,0.2717,1.0000,
+2022,2022-12-31,pre-LDTI guarantee liability,equity,equity_down_10pct,2202.0000,,2202.0000,2975.0000,1.3510,1.3510,1.0000,
+2022,2022-12-31,pre-LDTI guarantee liability,equity,equity_up_10pct,-1793.0000,,-1793.0000,-1834.0000,1.0229,1.0229,1.0000,
+2022,2022-12-31,pre-LDTI guarantee liability,rates,rates_down_50bp,1726.0000,,1726.0000,904.0000,0.5238,0.5238,1.0000,
+2022,2022-12-31,pre-LDTI guarantee liability,rates,rates_up_50bp,-1531.0000,,-1531.0000,-952.0000,0.6218,0.6218,1.0000,
+2025,2024-12-31,market risk benefit,equity,equity_down_10pct,2187.0000,-10.0000,2177.0000,1072.0000,0.4902,0.4924,0.9954,0.0046
+2025,2024-12-31,market risk benefit,equity,equity_up_10pct,-1722.0000,4.0000,-1718.0000,-854.0000,0.4959,0.4971,0.9977,0.0023
+2025,2024-12-31,market risk benefit,rates,rates_down_100bp,4258.0000,234.0000,4492.0000,3410.0000,0.8008,0.7591,1.0550,-0.0550
+2025,2024-12-31,market risk benefit,rates,rates_up_100bp,-3206.0000,-221.0000,-3427.0000,-2830.0000,0.8827,0.8258,1.0689,-0.0689
+2025,2025-12-31,market risk benefit,equity,equity_down_10pct,2008.0000,-1594.0000,414.0000,181.0000,0.0901,0.4372,0.2062,0.7938
+2025,2025-12-31,market risk benefit,equity,equity_up_10pct,-1574.0000,1321.0000,-253.0000,134.0000,-0.0851,-0.5296,0.1607,0.8393
+2025,2025-12-31,market risk benefit,rates,rates_down_100bp,3892.0000,407.0000,4299.0000,3071.0000,0.7891,0.7144,1.1046,-0.1046
+2025,2025-12-31,market risk benefit,rates,rates_up_100bp,-2980.0000,-367.0000,-3347.0000,-2556.0000,0.8577,0.7637,1.1232,-0.1232

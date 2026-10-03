@@ -13,6 +13,12 @@
 ###
 ### The rate shock is 50bp in the FY2021 to FY2024 filings and 100bp in FY2025. Where two
 ### filings disclose the same date, both rows are kept so the agreement can be checked.
+###
+### Item 7A always publishes two columns, the current year-end and the prior one, so a filing
+### that shows a line at all shows it at both dates. The FY2025 rows at 2024-12-31 were
+### originally transcribed for the market risk benefit only, which left the embedded-derivative
+### line missing on one of the two dates in its own table and quietly turned a both-lines offset
+### ratio into a market-risk-benefit one. tests/test_disclosures.py now asserts that symmetry.
 source_filing_fy,as_of,line_item,fair_value_musd,shock,impact_musd
 2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,equity_up_10pct,-663
 2022,2021-12-31,fixed_index_and_va_guarantee_liabilities,4031,equity_down_10pct,1526
@@ -54,6 +60,10 @@ source_filing_fy,as_of,line_item,fair_value_musd,shock,impact_musd
 2025,2024-12-31,market_risk_benefits,-4939,equity_down_10pct,2187
 2025,2024-12-31,market_risk_benefits,-4939,rates_up_100bp,-3206
 2025,2024-12-31,market_risk_benefits,-4939,rates_down_100bp,4258
+2025,2024-12-31,fia_rila_embedded_derivatives,3174,equity_up_10pct,4
+2025,2024-12-31,fia_rila_embedded_derivatives,3174,equity_down_10pct,-10
+2025,2024-12-31,fia_rila_embedded_derivatives,3174,rates_up_100bp,-221
+2025,2024-12-31,fia_rila_embedded_derivatives,3174,rates_down_100bp,234
 2025,2025-12-31,market_risk_benefits,-4238,equity_up_10pct,-1574
 2025,2025-12-31,market_risk_benefits,-4238,equity_down_10pct,2008
 2025,2025-12-31,market_risk_benefits,-4238,rates_up_100bp,-2980

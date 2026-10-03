@@ -224,7 +224,10 @@ def frequency_and_cost(setup) -> pd.DataFrame:
     unhedged = _run(setup, window, matrix["S0"])
     rows = [{
         "strategy": "S0", "rebalance": "none", "cost_multiple": 1.0,
-        "rebalances": unhedged.summary["rebalances"],
+        # Not the simulator's count, which is how many dates it visited while holding nothing.
+        # A book with no instruments rebalances zero times, and writing the visit count here put
+        # a weekly schedule's 522 next to a rebalance rule of "none".
+        "rebalances": 0,
         "pnl_sd_pct": unhedged.summary["pnl_sd_pct"],
         "total_cost_pct": unhedged.summary["total_cost_pct"],
         "total_pnl_pct": unhedged.summary["total_pnl_pct"],

@@ -202,7 +202,34 @@ identifies the value", and the robustness table prices the issuer's level at $-2
 Along the replay window the instantaneous variance comes from the three-month implied index
 rather than from the calibration, so the level moves with the date; the skew, the mean reversion
 speed and the long-run level are held at their December 2025 values, because no free historical
-option data exists. The one-month index is then an out-of-sample check on that mapping.
+option data exists.
+
+Reading a quote straight into $v_0$ would be wrong in a direction that matters, because a
+volatility index is a variance rate over its own window rather than an instantaneous level. Over
+a window of length $T$ the model's expected average variance is
+
+$$w(T) = \theta + (v_0 - \theta)\,\frac{1 - e^{-\kappa T}}{\kappa T},$$
+
+which is linear in $v_0$ and inverts in one line; the same expression run forward carries a quote
+at one tenor to another, which is how the puts get a volatility level at one and two years from
+data that stops at six months. Three index histories then test that mapping on a decade the
+calibration never saw: VIX6M in the outward direction, which is the direction the option leg
+actually uses, and VIXCLS inward from VXVCLS.
+
+The shape parameters need a different instrument, because $w(T)$ is invariant to a trade-off
+between $\rho$ and $\xi$ - every variance quote at every tenor is silent on both. Cboe's SKEW
+index is not. It publishes $100 - 10\,\zeta$ where $\zeta$ is the risk-neutral skewness of the
+thirty-day return, and $\zeta$ comes out of the characteristic function directly: with
+$\psi(u) = \log \mathbb{E}[e^{iu X_T}]$,
+
+$$\zeta = \frac{-i\,\psi'''(0)}{\left(-\psi''(0)\right)^{3/2}},$$
+
+taken by central differences rather than from a published cumulant expression, because the second
+cumulant already in the pricer is the truncation approximation the COS literature uses and sits
+1.5% from the true value - harmless for setting an integration range, wrong for a third moment.
+The derivatives are flat to six figures across four decades of step size and the result agrees
+with a simulated sample to about one per cent. `docs/validation.md` reports what both checks find
+and which way each one biases the result.
 
 ## Sub-account
 
@@ -349,6 +376,36 @@ Profit is reconciled rather than asserted. The ledger carries cash, the hedge ma
 liability, and their change adds to the reported period profit by construction, with the
 attribution splitting it into delta, gamma, vega, rho, theta, the anniversary's own cash flows and
 a residual.
+
+### The offset ratio, which is how the hedge is compared with a disclosed one
+
+Item 7A publishes the fair-value impact of each shock on the guarantee liabilities and, in a
+separate table on the same dates, its impact on the derivative book. For a liability impact
+$\Delta L$ and a derivative impact $\Delta D$ the offset ratio is
+
+$$\omega = \frac{\Delta D}{\Delta L},$$
+
+and the sign convention is the part to get right. A liability impact is a change in a carrying
+amount, so its effect on earnings is $-\Delta L$; a derivative impact is a change in an asset's
+mark, so its effect is $+\Delta D$. The total is $\Delta D - \Delta L$, which is zero when the two
+raw figures agree - so a complete hedge is $\omega = 1$, no hedge is zero, and a position that
+amplified the exposure is negative. Defining it with a sign flip, which is the intuitive-looking
+choice, turns every ratio negative at once.
+
+The model produces the same quantity by striking a book against the liability's exposures at a
+past balance-sheet date and marking it under the identical shocks: the equity shock multiplies the
+index, and the rate shock moves the fitted curve's level parameter, which is the same object the
+valuation shifts, so neither side is shocking a different curve from the other. The Greeks for
+that solve come from full repricing rather than from the regression proxy, because four dates and
+one contract is cheap and a sizing comparison that inherited the proxy's delta error would be
+measuring the proxy.
+
+One trap sits in the exposure vector and is worth recording. The proxy differentiates in the
+account value and the full Greeks differentiate in the index, so the equity-weight conversion
+between contract space and index space applies to the first and not the second. Running both
+through it undersizes an equity hedge by a sixth; skipping it on the proxy oversizes one by a
+fifth. The two conventions are now told apart by type and an identity test asserts that both
+routes reach the same index delta for the same liability.
 
 ## Economic against reported
 

@@ -87,18 +87,22 @@ def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current")
     are the market risk benefit's sensitivities, and the insurer is short that, so every sign
     flips here.
 
-    ``equity_weight`` is the conversion the hedge cannot do without. The liability's delta is
-    per unit log move in the *contract value*; the instruments' is per unit log move in the
-    *index*. A contract three-quarters in equity funds does not move one for one with the index,
-    so for a continuously rebalanced sub-account
+    The two accepted inputs differentiate in different variables, which is the trap this
+    function exists to close. The hedge instruments move with the *index*, so that is the
+    variable the exposure vector has to be in. The proxy's delta is per unit log move in the
+    *contract value*, because its state variable is the account value. ``greeks.compute`` bumps
+    the index and divides by the index log span, so its delta is already per unit log move in
+    the index. Only the first needs converting, and for a continuously rebalanced sub-account
 
         d ln(contract) / d ln(index) = equity weight,
 
-    which makes the index delta the contract delta times that weight and the index gamma the
-    contract gamma times its square - the second derivative of the log contract value in the
-    log index being zero for fixed weights. Leaving the conversion out oversizes the hedge by
-    one over the weight, about eighteen per cent on Jackson's disclosed fund split, and the
-    error is a pure short index position that shows up as a loss in every rising market.
+    so the index delta is the contract delta times that weight and the index gamma the contract
+    gamma times its square - the second derivative of the log contract value in the log index
+    being zero for fixed weights. Skipping the conversion on the proxy's delta oversizes the
+    hedge by one over the weight, about twenty per cent on Jackson's disclosed fund split, and
+    the error is a pure short index position that loses in every rising market. Applying it to
+    ``greeks.compute``'s delta is the same mistake pointing the other way and undersizes by the
+    same factor, which is why ``equity_weight`` is ignored on that branch rather than trusted.
 
     What the conversion does not capture is the part of the sub-account no index reaches: the
     funds are managed and their returns are not the index's. That is the sub-account basis, it
@@ -117,6 +121,7 @@ def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current")
         gamma = float(np.ravel(greeks["gamma"])[0])
         rho = float(np.ravel(greeks["rho_per_bp"])[0])
         vega_value = 0.0 if vega == "none" else float(np.ravel(greeks["vega"])[0])
+        to_index = float(equity_weight)
     else:
         delta, gamma, rho = greeks.equity_exposure, greeks.equity_gamma, greeks.rho_per_bp
         vega_value = {
@@ -124,10 +129,11 @@ def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current")
             "long_run": greeks.vega_long_run,
             "none": 0.0,
         }[vega]
+        to_index = 1.0
 
     return Exposures(
-        delta=-delta * equity_weight,
-        gamma=-gamma * equity_weight ** 2,
+        delta=-delta * to_index,
+        gamma=-gamma * to_index ** 2,
         vega=-vega_value,
         rho=-rho,
     )

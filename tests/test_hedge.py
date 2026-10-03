@@ -7,10 +7,12 @@ that removes it. So the conventions are tested as identities: a written guarante
 short the index and long duration, a partial hedge leaves exactly its own share of every
 exposure, and the attribution's pieces add to the total with nothing left over.
 
-Three of these exist because of specific failures. The liability's delta is per move in the
+Four of these exist because of specific failures. The liability's delta is per move in the
 contract value and the instruments' is per move in the index, and the step between them is the
-sub-account's equity weight; leaving it out oversized every hedge by eighteen per cent. The
-sizing ridge has to act on normalised columns or it is scaled by the equity future's hundred
+sub-account's equity weight; leaving it out oversized every hedge by twenty per cent, and the
+second convention arrived later - the full Greeks already differentiate in the index, so putting
+them through the weight as well undersized a hedge by a sixth. The sizing ridge has to act on
+normalised columns or it is scaled by the equity future's hundred
 dollars of delta per unit, which left the rate exposure essentially unhedged while the delta
 looked closed. And the attribution needs a bar for the contract's own anniversary, because a
 Taylor expansion in market variables cannot explain a jump caused by a charge.
@@ -60,6 +62,16 @@ def _guarantee_greeks(**overrides):
     )
     defaults.update(overrides)
     return Greeks(**defaults)
+
+
+def _proxy_greeks(**overrides):
+    """The same guarantee as the regression proxy reports it: a dictionary, and its delta and
+    gamma are per log move in the account value rather than in the index."""
+    defaults = dict(value=4.0, delta=-30.0 / EQUITY_WEIGHT,
+                    gamma=25.0 / EQUITY_WEIGHT ** 2, rho_per_bp=-0.08, vega=0.02,
+                    outside_design=0.0)
+    defaults.update(overrides)
+    return {key: np.array([value]) for key, value in defaults.items()}
 
 
 # ---------------------------------------------------------------- instruments
@@ -171,10 +183,11 @@ def test_the_insurer_is_long_equity_through_the_guarantee():
     assert exposure.rho > 0
 
 
-def test_the_equity_weight_converts_the_contract_delta_into_an_index_delta():
-    """A contract three-quarters in equity funds does not move one for one with the index.
-    Leaving the conversion out oversizes every delta hedge by one over the weight."""
-    greeks = _guarantee_greeks()
+def test_the_equity_weight_converts_the_proxy_contract_delta_into_an_index_delta():
+    """A contract four-fifths in equity funds does not move one for one with the index. The
+    proxy differentiates in the account value, so leaving the conversion out oversizes every
+    delta hedge by one over the weight."""
+    greeks = _proxy_greeks()
     unconverted = sizing.insurer_exposures(greeks, equity_weight=1.0)
     converted = sizing.insurer_exposures(greeks, equity_weight=EQUITY_WEIGHT)
     assert approx(unconverted.delta * EQUITY_WEIGHT, rel=1e-12) == converted.delta
@@ -182,6 +195,32 @@ def test_the_equity_weight_converts_the_contract_delta_into_an_index_delta():
     # Volatility and rates are the same variable on both sides, so neither is rescaled.
     assert approx(unconverted.vega, rel=1e-12) == converted.vega
     assert approx(unconverted.rho, rel=1e-12) == converted.rho
+
+
+def test_the_full_greeks_are_already_in_the_index_and_are_not_converted_again():
+    """greeks.compute bumps the index and divides by the index log span, so its delta is the one
+    the instruments want. Rescaling it by the equity weight as well undersizes the equity hedge
+    by that factor, which is a short position missing a sixth of its size - and it was what this
+    function did until the two conventions were told apart."""
+    greeks = _guarantee_greeks()
+    for weight in (1.0, EQUITY_WEIGHT, 0.5):
+        exposure = sizing.insurer_exposures(greeks, equity_weight=weight)
+        assert approx(-greeks.equity_exposure, rel=1e-12) == exposure.delta
+        assert approx(-greeks.equity_gamma, rel=1e-12) == exposure.gamma
+
+
+def test_both_greek_sources_describe_the_same_index_exposure():
+    """The identity that would have caught the convention clash. One liability, two routes to
+    its exposure vector: the proxy's contract-space derivatives put through the equity weight,
+    and the full Greeks straight. They have to land on the same index delta."""
+    contract_delta, contract_gamma = -36.0, 36.0
+    proxy = _proxy_greeks(delta=contract_delta, gamma=contract_gamma)
+    full = _guarantee_greeks(equity_exposure=contract_delta * EQUITY_WEIGHT,
+                             equity_gamma=contract_gamma * EQUITY_WEIGHT ** 2)
+    from_proxy = sizing.insurer_exposures(proxy, equity_weight=EQUITY_WEIGHT)
+    from_full = sizing.insurer_exposures(full, equity_weight=EQUITY_WEIGHT)
+    assert approx(from_proxy.delta, rel=1e-12) == from_full.delta
+    assert approx(from_proxy.gamma, rel=1e-12) == from_full.gamma
 
 
 def test_the_long_run_vega_is_not_what_a_traded_option_is_sized_against():

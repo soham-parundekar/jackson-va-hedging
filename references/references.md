@@ -49,13 +49,17 @@ hedging results are checked against between annual filings.
 
 ## Market and actuarial data
 
-**REF-007 to REF-009** FRED. The daily panel is the whole market history the project runs on:
+**REF-007, REF-008** FRED. The daily panel is the whole market history the project runs on:
 the index, eight Treasury tenors, two volatility indices, two credit spreads and two short
 rates. Its binding limitation is a licence rather than a gap. The S&P 500 series is a rolling
 ten-year window beginning 26 September 2016, which is what sets the start of the backtest and
 what puts the dot-com unwind, 2008 and August 2011 out of reach. The long rate history is held
 separately for one reason: Hull-White mean reversion cannot be identified from ten years, and
-45 years of the 3-month bill can.
+45 years of the 3-month bill can. A third FRED pull, SOFR and the 3-month bill, was retrieved
+and then dropped: it starts in April 2018 and so cannot cover a replay that starts in 2016, and
+where it does overlap it sits a fifth of a basis point from the fed funds rate already in the
+panel. The measurement behind that decision is in `docs/data_sources.md` rather than left as a
+judgement.
 
 **REF-010, REF-011** Cboe. The SPX chain is a single delayed snapshot, 28 September 2026 at
 14:14 Eastern with the index at 7710.31, and the whole volatility model is calibrated to it.
@@ -129,6 +133,24 @@ checked against the original. Retrieved data sits under `data/raw/` rather than 
 download script, because the environment this was built in cannot reach sec.gov, FRED or Cboe
 from a script; `docs/data_sources.md` says the same thing from the data side.
 
-A source that informed nobody's judgement is not listed. One entry was written and then removed
-on that basis: a nested-simulation paper that supported the design of the nested standard in
-spirit but that no formula or parameter choice in the repository actually uses.
+A source that informed nobody's judgement is not listed. Two entries were written and then
+removed on that basis: a nested-simulation paper that supported the design of the nested
+standard in spirit but that no formula or parameter choice in the repository actually uses, and
+a SOFR series whose role turned out to be covered by a rate already in the panel.
+
+**REF-024, REF-025 are identified but not fully.** The FY2023 and FY2024 10-Ks each supply four
+of the rows the shock validation runs on, so they belong here, and for a long time they were
+missing from the register entirely while their figures were in the data. They are listed now
+with what can be established from a source that is committed: the company, the form, the period
+and the filing date, all four read off the XBRL pull in REF-006, which records the filing date
+of every 10-K Jackson has filed. Their accession numbers are not among those facts and have not
+been retrieved, so the identifier field says that rather than carrying a number written from
+memory, and no extract is stored. Two consequences are worth stating plainly. The FY2024
+filing's embedded-derivative sensitivity at 31 December 2023 is in that filing and not in
+`data/raw/jackson_disclosed_sensitivities.csv`, because transcribing it would mean writing a
+figure into a primary-source file without having read it there - it changes nothing computed,
+since no derivative table is disclosed at that date, and `tests/test_disclosures.py` names the
+gap so it cannot be mistaken for completeness. And the figures those two filings do supply are
+checked against the overlapping filings rather than taken on trust: every date two filings both
+disclose agrees exactly, which is what the duplicate rows in that file exist to let anyone
+confirm.

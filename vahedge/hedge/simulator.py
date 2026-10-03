@@ -392,6 +392,27 @@ def run(
     )
 
 
+def shock_response(strategy: Strategy, market, exposure, account_value: float,
+                   shocked_markets: dict) -> tuple:
+    """Strike a book against ``exposure`` at ``market``, then mark it at each shocked market.
+
+    This is the one-date version of what ``run`` does every day, and it exists because Item 7A
+    is a one-date statement: a hedge book held still while one risk factor moves. Returns the
+    change in the book's mark under each shock, and the solve behind it so the caller can report
+    what the hedge was asked to offset alongside what it produced.
+
+    The base mark is subtracted rather than assumed zero. Futures and swaps are struck at the
+    day's own level and are worth nothing the instant they are opened, but an option is worth its
+    premium, and the disclosed figure is a change in fair value rather than a terminal payoff.
+    """
+    book, _, _, solved = _rebalance([], strategy, market, exposure, account_value,
+                                    policy_time=0.0, cost_multiple=1.0)
+    base = sum(line.mark(market) for line in book)
+    changes = {name: sum(line.mark(shocked) for line in book) - base
+               for name, shocked in shocked_markets.items()}
+    return changes, solved
+
+
 # ---------------------------------------------------------------- the hedge book
 
 

@@ -106,6 +106,34 @@ def characteristic_function(u, params: HestonParameters, maturity: float) -> np.
     return np.exp(term_theta + term_v0)
 
 
+def log_return_skewness(params: HestonParameters, maturity: float, step: float = 1e-3) -> float:
+    """Risk-neutral skewness of log(S_T/S_0), which is the quantity the SKEW index reports.
+
+    Cboe publishes SKEW as 100 - 10 * skewness of the thirty-day return, so this is directly
+    comparable to a quoted index level and is the only free observation that speaks to the
+    correlation and the volatility of variance. The variance term structure the volatility
+    indices pin down is blind to both: rho and xi can move together with no effect on the
+    expected average variance at any tenor.
+
+    Taken off the characteristic function by central differences rather than from a published
+    cumulant expression, because the second cumulant already in this file is the truncation
+    approximation from the COS literature and sits about one and a half per cent away from the
+    true value - harmless for setting an integration range, wrong for a third standardised
+    moment. The default step is flat to six figures across four decades either side of it.
+
+    Drift is excluded from the characteristic function, which costs nothing here: shifting a
+    distribution leaves its skewness alone.
+    """
+    offsets = np.array([-2.0, -1.0, 0.0, 1.0, 2.0]) * step
+    psi = np.log(characteristic_function(offsets, params, maturity))
+    second = (psi[3] - 2.0 * psi[2] + psi[1]) / step**2
+    third = (psi[4] - 2.0 * psi[3] + 2.0 * psi[1] - psi[0]) / (2.0 * step**3)
+    variance = float(np.real(-second))
+    if variance <= 0.0:
+        raise ValueError(f"non-positive variance {variance:.3e} at maturity {maturity}")
+    return float(np.real(1j * third)) / variance**1.5
+
+
 def _cumulants(params: HestonParameters, maturity: float) -> tuple[float, float]:
     """First and second cumulants of log(S_T/S_0), drift excluded.
 

@@ -105,9 +105,19 @@ Three more files sit beside it because the panel's ten-year window cannot carry 
 | File | What it is | Used for |
 |---|---|---|
 | `fred_long_rate_history.csv` | DGS3MO and DGS10, full history | Hull-White mean reversion and volatility, which ten years cannot identify |
-| `fred_financing_rates.csv` | Overnight and bill rates | The financing leg of the futures and total return swap positions |
 | `cboe_spx_option_chain.csv`, `cboe_spx_parity_quotes.csv` | SPX chain and the quotes used for put-call parity | The Heston calibration, and the forward and discount factor per expiry |
-| `cboe_vix6m_skew.csv` | VIX6M and SKEW | Independent check on the calibrated term structure and skew |
+| `cboe_vix6m_skew.csv` | VIX6M and SKEW | The six-month tenor check and the skew check, neither of which the panel can run |
+
+**SOFR was retrieved and then dropped, which is worth recording.** The backtest funds its
+cash balance and its total return swap at `DFF`, and SOFR is the secured rate a dealer would
+actually quote, so a file of SOFR and DGS3MO was pulled to replace it. Two things killed it.
+SOFR begins on 3 April 2018 and the replay starts in September 2016, so it cannot cover the
+sample it would be the financing rate for. And over the 2,118 days where both exist SOFR runs
+0.21bp below DFF on average, which compounds to 1.7bp of a unit cash balance across eight and
+a half years - against a futures leg that costs 5bp of account value over the decade and an
+option leg that costs 2,167. The quarter-end spikes are visible in the 8.2bp daily standard
+deviation of the difference and they wash out. So DFF stands in, measured rather than assumed,
+and the file is not kept.
 
 ### Gotchas that matter
 

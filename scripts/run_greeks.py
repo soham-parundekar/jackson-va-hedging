@@ -66,10 +66,10 @@ TIME_TO_ANNIVERSARY = (0.9, 0.5, 0.1)
 # base once the step-up has run.
 ACCOUNT_OVER_BASE = (0.90, 1.20)
 # Policy years the proxy can be trusted on for a delta. The proxy validation puts its delta error
-# against nested simulation at 36% of the nested delta in policy year 1 and 8% in year 2, because
+# against nested simulation at 36% of the nested delta in policy year 1 and 21% in year 2, because
 # the fitting paths have barely dispersed by then and the whole design piles up in a narrow band;
-# from year 5 it is 4% and by year 9 it is 2%. A step-up effect read off year 1 would be reading
-# the fit's own error.
+# it is 10% by year 5 and 7% by year 9, which is the best the fit gets. A step-up effect read off
+# year 1 would be reading the fit's own error.
 PROXY_RELIABLE_YEARS = (5, 9)
 PROXY_PATHS = 20_000
 PROXY_SEED = 20251231

@@ -21,11 +21,14 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
 | Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
-| Overlapping filings agree | 6 figures in two filings each, all agree | `build_dataset.py` |
+| Overlapping filings agree | 8 figures in two filings each, all agree | `build_dataset.py` |
 | Profit attribution and residual add to the total | exact by construction | `tests/test_hedge.py` |
 | The ledger uses nothing from after the rebalance date | rebuilt from the prior position | `tests/test_hedge.py` |
+| Risk-neutral skewness off the characteristic function against a simulated sample | agree to 1% at one year | `tests/test_market_models.py` |
+| Disclosed derivative lines sum to their disclosed totals | all 16 blocks, exactly | `tests/test_disclosures.py` |
+| Both routes to the hedge's exposure vector land on the same index delta | exact | `tests/test_hedge.py` |
 
-237 tests, no framework required.
+253 tests, no framework required.
 
 ### Monte Carlo error and truncation
 
@@ -40,6 +43,65 @@ simulator draws its normals in one array whose width follows the horizon, so a f
 a fifty-year run at the same seed are different worlds rather than a prefix and its extension.
 Measured properly, cutting the projection at age 115 costs less than a dollar and at 105 costs
 $36, against a standard error of $136.
+
+## The calibrated surface against free data it never saw
+
+The Heston parameters come from one afternoon's SPX chain, 28 September 2026. Two Cboe index
+histories make that one-day fit testable across a decade, and neither enters the calibration.
+
+**The term structure, carried outward.** The chain reaches 3.23 years and the puts in the hedge
+run one and two, so the option leg's volatility level is extended from a quoted tenor by the
+model's own variance curve. Six months is as far as free data goes, so the outward direction is
+only testable there - and it is the direction that matters, because the inward test the project
+ran first says nothing about the extension it actually uses.
+
+| Quoted | Carried to | Direction | Mean error | Within two points |
+|---|---|---|---|---|
+| three-month | one month | inward | +0.98 points | 60% of 2,943 days |
+| one-month | six months | outward | -1.22 points | 55% |
+| three-month | six months | outward | -0.68 points | 70% |
+
+Both outward rows are biased low, and the reason is structural rather than incidental: mean
+reversion at 4.80 has a half-life of 0.14 years, so by six months the model has already reverted
+almost entirely to its long-run 21.68%, giving a term structure slope of about +1.9 points from an
+18.3% one-month quote against the +3.37 points the market actually prices. The market's volatility
+curve between one and six months is steeper than the model's.
+
+Two consequences follow, and they point in opposite directions on the two things the project
+concluded. The option leg's volatility is extended by the same mapping out to one and two years,
+so its puts are priced too cheaply and the 21.67% ten-year option cost is a lower bound. And the
+fitted long-run level of 21.68% comes out looking too *low* rather than too high - which is the
+opposite direction from the issuer's described 19.12% and so independent support, from a source
+the calibration never touched, for the decision to let the chain reject that level.
+
+**The skew, which is the one thing no variance quote can see.** Every volatility index is a
+variance rate, so the whole set of them is silent on the correlation and the volatility of
+variance: those two can trade off against each other without moving the expected average variance
+at any tenor. Cboe's SKEW index is not silent on them. It reports `100 - 10 x` the risk-neutral
+skewness of the thirty-day return, and the calibrated parameters generate that skewness in closed
+form off the characteristic function, with the level supplied by the one-month quote exactly as
+the paths supply it.
+
+| | Model | Observed |
+|---|---|---|
+| Mean SKEW index | 123.1 | 135.0 |
+| Thirty-day risk-neutral skewness | -2.31 | -3.50 |
+| Days the model is shallower | 80% of 2,943 | |
+
+The model's left tail at thirty days is about two thirds as deep as the market's, which is what a
+pure diffusion does: reaching a skewness near -3.5 over a month without jumps needs a correlation
+close to -1, and the chain does not ask for one. The direction is worth stating because it cuts
+against the project's own headline. Too little short-horizon left tail understates the chance of
+the sharp declines that put a living benefit in the money, so it biases the liability *down* - and
+the model already comes out around three times the disclosure, so correcting it would widen the
+gap rather than close it.
+
+What the comparison cannot do is track the index's variation. The model's skewness falls out of
+one state variable, so the model index is a monotone function of the one-month quote and its rank
+correlation with the observed index is forced to be minus the quote's own: +0.128 against -0.128,
+mirror images by construction. That is not weak agreement, it is no information, and whatever
+moves the market's skew day to day is not in this model. Both numbers are published side by side
+so the identity is visible rather than inferred.
 
 ## The at-issue result, which is itself a check
 
@@ -90,10 +152,10 @@ the book moved out of the money:
 
 | | 2022 | 2023 | 2024 | 2025 | 2025 / 2022 |
 |---|---|---|---|---|---|
-| Model, equity down 10% | 4.56 | 3.91 | 3.02 | 2.64 | 0.579 |
-| Disclosed | 1.47 | 1.18 | 0.96 | 0.85 | 0.578 |
+| Model, equity down 10% | 4.56 | 3.91 | 3.02 | 2.64 | 0.5795 |
+| Disclosed | 1.47 | 1.18 | 0.96 | 0.85 | 0.5794 |
 
-The levels differ by about three times and the decline matches to within a tenth of a per cent.
+The levels differ by about three times and the declines agree to one part in ten thousand.
 That is the strongest single piece of evidence in the project that the model has the right shape:
 the thing driving the decline - a book moving out of the money as markets rose - is reproduced
 without being fitted.
@@ -212,12 +274,19 @@ proxy's own error is measured first.
 | 5 | 0.9990 | 0.0068 | 0.044 | 42.7 | 10% |
 | 9 | 0.9997 | 0.0044 | 0.021 | 31.0 | 7% |
 | 14 | 0.9998 | 0.0034 | 0.010 | 21.4 | 5% |
+| 20 | 0.9995 | 0.0038 | 0.021 | 14.9 | 14% |
+| 25 | 0.9985 | 0.0049 | 0.025 | 10.5 | 23% |
 | 30 | 0.9992 | 0.0020 | 0.006 | 5.7 | 11% |
 
+The last column is the delta RMSE over the mean absolute nested delta, which is the quantity that
+decides whether a hedge sized off the proxy is sized off anything.
+
 The value is accurate everywhere. The delta is not usable in the first two policy years, where the
-fitting paths have barely dispersed and the whole design piles into a narrow band; the backtest
-starts at duration 3 and runs ten years, so it lives in the usable part, and the step-up table is
-restricted to policy years 5 and 9 for the same reason.
+fitting paths have barely dispersed and the whole design piles into a narrow band. It is best from
+year 9 to year 14 and then deteriorates again, not because the fit gets worse - the value RMSE
+barely moves - but because the delta itself shrinks as the book runs off, so the same absolute
+error is a larger share of it. The backtest covers policy years 3 to 13, which is the best part of
+that range, and the step-up table is restricted to years 5 and 9 for the same reason.
 
 The second derivative is not usable at all. `convexity_proxy_comparison.csv` puts the proxy's
 gamma against nested valuations at the same nodes and the errors are the size of the quantity, so
@@ -246,6 +315,74 @@ rebalancing and base costs:
 
 The rate leg costs almost nothing and takes out a third of what the equity leg left. The option
 leg takes out another quarter and costs two hundred times as much.
+
+### The hedge against the one external check there is
+
+Everything above is the model marking its own homework: the liability is revalued with the model
+that produced the hedge ratios, so a high variance reduction is close to arithmetic. Item 7A is
+the only outside evidence available, and it is better evidence than it looks. The same tables
+that publish the guarantee's sensitivity to a shock publish the derivative book's sensitivity to
+the same shock on the same date, so the ratio of the two is a *disclosed offset ratio* - how much
+of its own guarantee move Jackson's hedge actually covered. Nothing in the model is fitted to it.
+
+The convention matters and is not the obvious one. A liability impact is a change in a carrying
+amount, so positive is a loss; a derivative impact is a change in an asset's mark, so positive is
+a gain. The two therefore cancel in earnings when their *raw* figures carry the same sign, which
+makes a complete hedge +1 rather than -1. Writing it the other way round turns every ratio
+negative, which is how the error announces itself.
+
+| Date | Basis | Equity down | Equity up | Rates down | Rates up |
+|---|---|---|---|---|---|
+| 2021-12-31 | pre-LDTI guarantee | 112% | 42% | 24% | 27% |
+| 2022-12-31 | pre-LDTI guarantee | 135% | 102% | 52% | 62% |
+| 2024-12-31 | market risk benefit | 49% | 50% | 80% | 88% |
+| 2025-12-31 | market risk benefit | 9% | -9% | 79% | 86% |
+| 2024-12-31 | both liability lines | 49% | 50% | 76% | 83% |
+| 2025-12-31 | both liability lines | 44% | -53% | 71% | 76% |
+
+The rate shock is 50bp on the first two rows and 100bp on the rest, because the shock size is a
+property of the filing. The two bases are not comparable in level - one is pre-LDTI carrying
+value and the other is the market risk benefit - so each is read within itself.
+
+**The 2025 equity figure is the RILA book, not a withdrawn hedge.** Taken alone, the equity
+offset of the market risk benefit falls from 49% at the end of 2024 to 9% at the end of 2025 and
+turns negative on the up move, which reads as a hedge being dismantled. It is not. The same
+filing discloses a fixed-index and RILA embedded derivative whose equity sensitivity goes from
+$4m to $1,321m over that year, against a market risk benefit sensitivity of $1,574m - a liability
+that owes more when equity rises is a natural short against a guarantee that gets cheaper, and it
+absorbs 79% of the guarantee's down move and 84% of its up move before any derivative is
+involved. On the combined basis the equity offset is 49% then 44%, and the rate offset 76-83%
+then 71-76%: both close to flat. Reading the market-risk-benefit row on its own would have
+produced a confident wrong conclusion, and the two rows that make the 2024 combined figure
+computable were missing from the committed table until the reference audit went looking for them.
+
+The remaining caveat is that the up-move combined ratio divides by what is left after the two
+lines cancel, which at the end of 2025 is a sixth of the guarantee's own move. A ratio built on a
+sixth of a number is arithmetic rather than a measurement, so the denominator is published beside
+it and the -53% is not read as an offset.
+
+**What a full hedge would have looked like, for comparison.** An offset below one is not by
+itself evidence of a partial hedge: the liability is convex in rates and a swap is nearly linear,
+so even a book sized to kill rho exactly under-recovers a 100bp shift. The model supplies that
+benchmark by sizing its own hedge at each of these dates, off the full Greeks rather than the
+regression proxy, and repricing both sides under the same shocks.
+
+| | Disclosed | S1, futures | S2, plus the swap | S3, plus puts |
+|---|---|---|---|---|
+| Rates | 52% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
+| Equity | -9% to 135% | 90% to 113% | 90% to 113% | 101% to 109% |
+
+So convexity over a 50 to 100bp shift accounts for about eight points of scatter either side of
+one, not a twenty to forty point shortfall. Jackson's rate book covers meaningfully less of the
+economic rate sensitivity than a full hedge would, and the share it covers rose from about a
+quarter in 2021 to about five sixths by 2024 while the equity share fell. That is the same
+conclusion the statutory and reporting lenses reach from the inside - the programme is not
+targeting the economic liability alone - arrived at this time from Jackson's own numbers.
+
+The futures-only row is a sanity check rather than a result: a hedge of equity delta should barely
+touch a rate shock, and 2 to 3% is the small rho the futures forward carries through its own
+discount factor. A number near one there would have meant the rate shock was leaking into the
+equity leg.
 
 ### The crisis replays
 

@@ -1,0 +1,2 @@
+observations,mean_model_index,mean_observed_index,mean_error_index_points,sd_error_index_points,share_model_above_observed,model_skewness_at_mean_index,observed_skewness_at_mean_index,model_vs_observed_rank_correlation,quote_vs_observed_rank_correlation
+2943,123.0965,135.0429,-11.9464,12.3677,0.2029,-2.3097,-3.5043,0.1279,-0.1279

@@ -20,6 +20,7 @@ from vahedge.market.heston_cos import (
     characteristic_function,
     cos_price,
     implied_vol,
+    log_return_skewness,
 )
 from vahedge.market.hull_white import HullWhite, calibrate_historical
 from vahedge.market.simulate import (
@@ -135,6 +136,60 @@ def test_characteristic_function_is_one_at_zero():
     value = complex(characteristic_function(np.array([0.0]), _heston(), 3.0)[0])
     assert approx(1.0, abs=1e-12) == value.real
     assert approx(0.0, abs=1e-12) == value.imag
+
+
+def test_skewness_from_the_characteristic_function_matches_a_simulated_sample():
+    """The skew check in the data step reads a third moment off the characteristic function,
+    and the simulator reaches the same number by a completely different route. Across ten seeds
+    at this path count the sample skewness scatters with a standard deviation of 0.046 and sits
+    no further than 0.085 from the closed form, so the tolerance here is wide enough to be
+    quiet and far too tight to survive a sign error or a mis-scaled rho."""
+    params = _heston()
+    nss = fit_curve(ZeroCurve(tenors=np.arange(0.5, 30.5, 0.5), zero_rates=np.full(60, 0.04)))
+    paths = simulate(params, HullWhite(a=0.27, sigma=1e-9, curve=nss),
+                     Correlations(params.rho, 0.0), SubAccountMix.all_equity(),
+                     n_years=1, n_paths=200000, seed=23)
+    sample = np.log(paths.index_growth[:, 0])
+    centred = sample - sample.mean()
+    simulated = float((centred**3).mean() / (centred**2).mean() ** 1.5)
+    assert log_return_skewness(params, 1.0) == approx(simulated, abs=0.15)
+
+
+def test_skewness_vanishes_as_the_volatility_of_variance_does():
+    """With a deterministic variance the log return is exactly normal, whatever rho is set to,
+    so the skewness has to go to zero in proportion to xi. Nothing in the stochastic-volatility
+    part of the characteristic function is exercised in that limit, which is the point.
+
+    The sweep starts at a tenth rather than at the calibrated 1.78 because proportionality is
+    only the leading term: at the fitted value the higher-order terms take ten per cent out of
+    the ratio, which is a fact about Heston and not something to test around.
+    """
+    previous = None
+    for xi in (0.1, 0.01, 0.001):
+        skewness = abs(log_return_skewness(
+            HestonParameters(v0=0.0199, kappa=4.80, theta=0.0470, xi=xi, rho=-0.588), 1.0))
+        if previous is not None:
+            assert skewness == approx(0.1 * previous, rel=0.05)
+        previous = skewness
+    assert previous < 0.002
+
+
+def test_skewness_steepens_as_the_leverage_correlation_does():
+    """A one-sided check on the one parameter the volatility indices cannot see. The variance
+    term structure is identical along this sweep; only the shape of the density moves."""
+    values = [log_return_skewness(
+        HestonParameters(v0=0.0199, kappa=4.80, theta=0.0470, xi=1.780, rho=rho), 0.5)
+        for rho in (-0.9, -0.588, -0.2)]
+    assert values[0] < values[1] < values[2] < 0.0
+
+
+def test_skewness_does_not_depend_on_the_difference_step():
+    """The default step is the middle of a flat region. A step that drifts out of it would move
+    the number without failing anything, so pin the width of the region rather than the value."""
+    params = _heston()
+    reference = log_return_skewness(params, 30.0 / 365.0)
+    for step in (1e-2, 3e-3, 3e-4, 1e-4):
+        assert log_return_skewness(params, 30.0 / 365.0, step=step) == approx(reference, rel=1e-4)
 
 
 def test_implied_vol_inverts_black76():

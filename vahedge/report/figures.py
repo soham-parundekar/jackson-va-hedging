@@ -118,6 +118,31 @@ def volatility_calibration(name: str = "volatility_calibration") -> str:
     right.set_ylabel("average volatility to the horizon, %")
     right.set_title("Almost all of the liability sits past the last quote")
     right.legend(frameon=False, loc="lower right")
+
+    # The part of that extrapolation free data can check, inset on the same panel. Today's curve
+    # is not the comparison - it starts from today's variance and the indices are a decade - so
+    # this plots the decade mean at each index tenor against the decade mean of what the model's
+    # own mapping produces when it carries one of those quotes to another tenor. Level is held
+    # equal on both sides by construction and only the slope is being judged.
+    tenors = table("volatility_curve_check")
+    observed = pd.concat([
+        tenors[["quoted_tenor_years", "mean_quoted_vol_points"]].rename(
+            columns={"quoted_tenor_years": "tenor", "mean_quoted_vol_points": "level"}),
+        tenors[["target_tenor_years", "mean_target_vol_points"]].rename(
+            columns={"target_tenor_years": "tenor", "mean_target_vol_points": "level"}),
+    ]).drop_duplicates().sort_values("tenor")
+
+    inset = right.inset_axes([0.30, 0.26, 0.40, 0.46])
+    inset.plot(observed["tenor"], observed["level"], color=MUTED, marker="D", markersize=5,
+               linewidth=1.4, label="the indices")
+    carried = tenors["mean_target_vol_points"] + tenors["mean_error_vol_points"]
+    inset.plot(tenors["target_tenor_years"], carried, color=ACCENT, marker="x", markersize=7,
+               linestyle="none", label="carried there by the model")
+    inset.set_xlim(0, 0.58)
+    inset.set_xlabel("tenor, years", fontsize=7)
+    inset.tick_params(labelsize=7)
+    inset.set_title("decade means: the model's slope is the flatter", fontsize=8)
+    inset.legend(frameon=False, fontsize=7, loc="upper left")
     return _save(fig, name)
 
 
@@ -227,19 +252,28 @@ def leg_comparison(name: str = "leg_comparison") -> str:
         left.annotate(f"{value:.3f}", (bar.get_x() + bar.get_width() / 2, value),
                       ha="center", va="bottom", fontsize=9)
     left.set_ylabel("residual daily standard deviation, % of account value")
-    unhedged = base[base["strategy"] == "S0"]["pnl_sd_pct"]
-    removed = ("" if unhedged.empty else
-               f": the fullest hedge removes "
-               f"{100 * (1 - (base['pnl_sd_pct'].min() / float(unhedged.iloc[0])) ** 2):.1f}% "
-               f"of the variance")
-    left.set_title(f"Each instrument class takes out less than the one before{removed}")
+    left.set_title("what each one removes")
 
-    right.bar(base["strategy"], 100 * base["total_cost_pct"], color="white", edgecolor=ACCENT,
-              hatch="//")
+    costs = 100 * base["total_cost_pct"]
+    cost_bars = right.bar(base["strategy"], costs, color="white", edgecolor=ACCENT, hatch="//")
+    # The option leg is two orders of magnitude above the others, so on a linear axis the first
+    # three bars are a flat line. Labelling them is the only way the ratio is readable without
+    # a log axis, which the unhedged book's exact zero rules out anyway.
+    for bar, value in zip(cost_bars, costs):
+        right.annotate(f"{value:.2f}", (bar.get_x() + bar.get_width() / 2, value),
+                       ha="center", va="bottom", fontsize=9)
     right.set_ylabel("total cost over the decade, % of account value")
-    right.set_title("The option leg is where the cost is")
+    right.set_title("what each one cost")
     for ax in (left, right):
         ax.set_xlabel("strategy")
+
+    unhedged = base[base["strategy"] == "S0"]["pnl_sd_pct"]
+    removed = ("" if unhedged.empty else
+               f", removing {100 * (1 - (base['pnl_sd_pct'].min() / float(unhedged.iloc[0])) ** 2):.1f}% "
+               f"of the variance between them")
+    fig.suptitle(f"Each instrument class takes out less than the one before{removed}, "
+                 f"and the option leg is where the cost is")
+    fig.tight_layout()
     return _save(fig, name)
 
 
@@ -280,8 +314,65 @@ def economic_versus_reported(name: str = "economic_versus_reported") -> str:
     return _save(fig, name)
 
 
+def disclosed_offset(name: str = "disclosed_offset") -> str:
+    """How much of its own guarantee move Jackson's derivative book covered, against a full hedge.
+
+    The reference line at one is where a complete hedge sits, and the band around it is the range
+    the model's own delta-and-rho hedge reaches across these dates - not a tolerance, but the
+    scatter convexity alone produces over a shock this large. A disclosed bar inside the band is
+    indistinguishable from a full hedge; one well below it is not.
+    """
+    offsets = table("hedge_offset_comparison").sort_values(["risk", "as_of", "shock"])
+
+    fig, panels = plt.subplots(1, 2, figsize=(11.5, 5), sharey=True)
+    for ax, (risk, colour) in zip(panels, (("rates", LINE), ("equity", ACCENT))):
+        side = offsets[offsets["risk"] == risk]
+        model = side["model_offset_S2"]
+        position = np.arange(len(side))
+        ax.axhspan(100 * model.min(), 100 * model.max(), color=FILL, zorder=0,
+                   label=f"a full hedge of the model's liability, "
+                         f"{100 * model.min():.0f} to {100 * model.max():.0f}%")
+        ax.axhline(100, color=MUTED, linewidth=1.0, linestyle="--", zorder=1)
+        heights = 100 * side["offset_of_guarantee"]
+        bars = ax.bar(position, heights, color=colour, zorder=2)
+        for bar, value in zip(bars, heights):
+            ax.annotate(f"{value:.0f}", (bar.get_x() + bar.get_width() / 2, value),
+                        ha="center", va="bottom" if value >= 0 else "top", fontsize=8)
+        ax.axhline(0, color="black", linewidth=0.8, zorder=3)
+        ax.set_xticks(position)
+        ax.set_xticklabels([f"{row.as_of[:4]}\n{'down' if 'down' in row.shock else 'up'}"
+                            for row in side.itertuples()], fontsize=9)
+        # The 2022 bars are the pre-LDTI carrying value and the rest are the market risk benefit.
+        # Two measurements, not one series, so the break is drawn rather than left to the reader.
+        pre_ldti = int((side["liability_basis"] == "pre-LDTI guarantee liability").sum())
+        if 0 < pre_ldti < len(side):
+            ax.axvline(pre_ldti - 0.5, color=MUTED, linewidth=0.9, linestyle=":", zorder=4)
+            ax.annotate("pre-LDTI basis", (pre_ldti / 2 - 0.5, 0.97), xycoords=("data", "axes fraction"),
+                        ha="center", va="top", fontsize=8, color=MUTED)
+            ax.annotate("market risk benefit", ((pre_ldti + len(side)) / 2 - 0.5, 0.97),
+                        xycoords=("data", "axes fraction"), ha="center", va="top",
+                        fontsize=8, color=MUTED)
+        ax.set_title(f"{risk}, {'50bp in 2022 and 100bp after' if risk == 'rates' else '10%'}")
+        ax.legend(frameon=False, loc="lower left", fontsize=8)
+    panels[1].annotate("the 2025 pair is the guarantee alone.\nThe RILA book absorbs 79 to 84% of "
+                       "its\nequity move before any derivative does,\nleaving these 44% of what "
+                       "remains",
+                       (0.74, 0.57), xycoords="axes fraction", ha="center", va="center",
+                       fontsize=8, color=MUTED,
+                       bbox=dict(boxstyle="round,pad=0.4", facecolor="white", edgecolor="none"))
+    panels[0].set_ylabel("derivative impact over guarantee impact, %")
+    # Headroom for the basis labels along the top, which the 2022 equity bar otherwise runs into.
+    heights = 100 * offsets["offset_of_guarantee"]
+    panels[0].set_ylim(min(heights.min(), 0.0) - 16.0, heights.max() + 18.0)
+    fig.suptitle("Jackson's derivative book covers four fifths of its guarantees' rate "
+                 "sensitivity and half the equity sensitivity,\nwhere a full hedge of the same "
+                 "exposure would cover all of it")
+    fig.tight_layout()
+    return _save(fig, name)
+
+
 ALL = (cash_flow_profile, volatility_calibration, moneyness_curve, shock_comparison,
-       hedge_frontier, leg_comparison, economic_versus_reported)
+       hedge_frontier, leg_comparison, disclosed_offset, economic_versus_reported)
 
 
 def draw_all() -> list[str]:

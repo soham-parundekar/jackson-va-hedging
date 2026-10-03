@@ -13,12 +13,14 @@ Usage:  python -m scripts.build_dataset
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pandas as pd
 
 from vahedge import paths
 from vahedge.liability import mortality
-from vahedge.market import scenarios
+from vahedge.market import heston_cos, scenarios
 from vahedge.market.curves import bootstrap
 from vahedge.market.heston_cos import HestonParameters
 from vahedge.market.state import PAR_SERIES
@@ -121,30 +123,117 @@ def zero_curve_history(panel: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records).set_index("date")
 
 
-def volatility_check(panel: pd.DataFrame, heston: HestonParameters) -> pd.DataFrame:
-    """The 30-day index against what the calibrated variance curve implies at 30 days.
+def volatility_indices(panel: pd.DataFrame) -> pd.DataFrame:
+    """The four volatility index levels on the days all four traded, as decimals.
 
-    A genuine out-of-sample check rather than a restatement: the instantaneous variance is
-    implied from the three-month index, and the one-month level the Heston forward curve then
-    produces is compared with the one-month index, which was not used. Mean reversion cannot
-    reproduce a steep one-to-three-month slope, so a gap is expected on the days when the front
-    of the curve is dislocated; a gap that is large on ordinary days, or one-sided across the
-    decade, would mean the variance mapping is wrong.
+    VIXCLS and VXVCLS come from the FRED panel and VIX6M and SKEW from Cboe directly, because
+    FRED does not carry either. An inner join is deliberate: a comparison across tenors on a day
+    one tenor is missing is not a comparison.
     """
-    quotes = panel[list(VOLATILITY_SERIES)].dropna()
-    three_month = quotes["VXVCLS"].to_numpy(dtype=float) / 100.0
-    one_month = quotes["VIXCLS"].to_numpy(dtype=float) / 100.0
-    implied = scenarios.implied_at_tenor(three_month, heston, quoted_tenor=0.25,
-                                         target_tenor=scenarios.VIX_TENOR_YEARS)
-    error = implied - one_month
+    cboe = pd.read_csv(paths.CBOE_VOL_PANEL, parse_dates=["date"]).set_index("date")
+    joined = panel[list(VOLATILITY_SERIES)].join(cboe[["VIX6M", "SKEW"]], how="inner").dropna()
+    return pd.DataFrame({
+        "one_month": joined["VIXCLS"] / 100.0,
+        "three_month": joined["VXVCLS"] / 100.0,
+        "six_month": joined["VIX6M"] / 100.0,
+        "skew_index": joined["SKEW"],
+    })
+
+
+# Each row is (name of the quoted tenor, its length in years, name of the target, its length).
+# The first is an interpolation and the two below it reach outward, which is the direction the
+# option leg actually needs: the puts run one and two years and six months is as far as free
+# data goes, so the outward rows are the only test of that extension there is.
+TENOR_COMPARISONS = (
+    ("three_month", 0.25, "one_month", scenarios.VIX_TENOR_YEARS),
+    ("one_month", scenarios.VIX_TENOR_YEARS, "six_month", scenarios.VIX6M_TENOR_YEARS),
+    ("three_month", 0.25, "six_month", scenarios.VIX6M_TENOR_YEARS),
+)
+
+
+def volatility_check(indices: pd.DataFrame, heston: HestonParameters) -> pd.DataFrame:
+    """Quoted volatility at one tenor, carried to another by the calibrated variance curve.
+
+    Out of sample in every row: the surface is fitted to one afternoon's option chain and never
+    sees a volatility index, so the whole decade is a holdout. Mean reversion cannot reproduce a
+    front end that has dislocated from the back, so a gap on panic days is expected; a gap that
+    is large on ordinary days, or one-sided across the decade, would mean the variance mapping
+    is wrong rather than merely smooth.
+    """
+    rows = []
+    for quoted, quoted_tenor, target, target_tenor in TENOR_COMPARISONS:
+        implied = scenarios.implied_at_tenor(indices[quoted].to_numpy(dtype=float), heston,
+                                             quoted_tenor=quoted_tenor,
+                                             target_tenor=target_tenor)
+        error = implied - indices[target].to_numpy(dtype=float)
+        rows.append({
+            "quoted": quoted,
+            "quoted_tenor_years": quoted_tenor,
+            "target": target,
+            "target_tenor_years": target_tenor,
+            "direction": "inward" if target_tenor < quoted_tenor else "outward",
+            "observations": int(error.size),
+            # The levels as well as the error, so the table says what the market's own term
+            # structure looks like rather than only how far the model is from it. The figure
+            # draws the model's variance curve against these three points.
+            "mean_quoted_vol_points": 100 * float(indices[quoted].mean()),
+            "mean_target_vol_points": 100 * float(indices[target].mean()),
+            "mean_error_vol_points": 100 * float(error.mean()),
+            "median_error_vol_points": 100 * float(np.median(error)),
+            "sd_error_vol_points": 100 * float(error.std(ddof=1)),
+            "worst_over_vol_points": 100 * float(error.max()),
+            "worst_under_vol_points": 100 * float(error.min()),
+            "share_within_two_points": float(np.mean(np.abs(error) <= 0.02)),
+        })
+    return pd.DataFrame(rows)
+
+
+def skew_check(indices: pd.DataFrame, heston: HestonParameters) -> pd.DataFrame:
+    """The SKEW index against the skewness the calibrated parameters actually generate.
+
+    This is the one check in the project that tests the shape of the risk-neutral density rather
+    than its width. Every volatility index is a variance quote, so the whole set of them is
+    silent on rho and xi: those two can trade off against each other without moving the expected
+    average variance at any tenor. SKEW is not silent on them, and it is free.
+
+    The level still comes from the quote - instantaneous variance is implied from the one-month
+    index exactly as the paths do it - so what is left for the model to get right is the third
+    moment alone. Heston has no jumps, and a pure diffusion reaches a deeply negative short-dated
+    skew only by pushing rho towards minus one, so the expected failure is a model skew too
+    shallow, meaning a model index too high. The direction matters downstream: too little left
+    tail at thirty days understates the chance of the sharp declines that put a living benefit in
+    the money, so it biases the liability down rather than up.
+    """
+    levels = []
+    for one_month in indices["one_month"]:
+        variance = float(scenarios.instantaneous_variance(np.array([one_month]), heston)[0])
+        skewness = heston_cos.log_return_skewness(replace(heston, v0=variance),
+                                                  scenarios.VIX_TENOR_YEARS)
+        levels.append(100.0 - 10.0 * skewness)
+    model = np.array(levels)
+    observed = indices["skew_index"].to_numpy(dtype=float)
+    error = model - observed
+
+    def rank_correlation(left, right) -> float:
+        return float(pd.Series(left).corr(pd.Series(right), method="spearman"))
+
     return pd.DataFrame({
         "observations": [int(error.size)],
-        "mean_error_vol_points": [100 * float(error.mean())],
-        "median_error_vol_points": [100 * float(np.median(error))],
-        "sd_error_vol_points": [100 * float(error.std(ddof=1))],
-        "worst_over_vol_points": [100 * float(error.max())],
-        "worst_under_vol_points": [100 * float(error.min())],
-        "share_within_two_points": [float(np.mean(np.abs(error) <= 0.02))],
+        "mean_model_index": [float(model.mean())],
+        "mean_observed_index": [float(observed.mean())],
+        "mean_error_index_points": [float(error.mean())],
+        "sd_error_index_points": [float(error.std(ddof=1))],
+        "share_model_above_observed": [float(np.mean(error > 0))],
+        "model_skewness_at_mean_index": [float((100.0 - model.mean()) / 10.0)],
+        "observed_skewness_at_mean_index": [float((100.0 - observed.mean()) / 10.0)],
+        # Read these two together or not at all. The model's skewness falls out of its one state
+        # variable, so the model index is a monotone function of the one-month quote and its rank
+        # correlation with the observed index is forced to be minus the quote's own: the two
+        # numbers below are mirror images by construction. What that means is not weak agreement
+        # but no information - whatever makes the market's skew move day to day is not in here.
+        "model_vs_observed_rank_correlation": [rank_correlation(model, observed)],
+        "quote_vs_observed_rank_correlation": [
+            rank_correlation(indices["one_month"].to_numpy(dtype=float), observed)],
     })
 
 
@@ -242,7 +331,6 @@ def main() -> None:
 
     curves = zero_curve_history(panel)
     curves.to_csv(paths.ZERO_CURVES, float_format="%.8f")
-    panel.to_csv(paths.MARKET_PANEL)
 
     mortality_table = mortality_check()
     mortality_table.to_csv(paths.TABLES / "mortality_check.csv", index=False,
@@ -252,23 +340,37 @@ def main() -> None:
     # this check uses the saved calibration when there is one and says so when there is not.
     if paths.MARKET_CALIBRATION.exists():
         from vahedge.market import state as market_state
-        volatility = volatility_check(panel, market_state.load().heston)
+        heston = market_state.load().heston
+        indices = volatility_indices(panel)
+
+        volatility = volatility_check(indices, heston)
         volatility.to_csv(paths.TABLES / "volatility_curve_check.csv", index=False,
                           float_format="%.4f")
-        row = volatility.iloc[0]
-        print(f"  one-month volatility implied from the three-month index is "
-              f"{row['mean_error_vol_points']:+.2f} points off the one-month index on average, "
-              f"within two points on {row['share_within_two_points']:.0%} of "
-              f"{int(row['observations']):,} days")
+        for _, row in volatility.iterrows():
+            print(f"  {row['target'].replace('_', '-')} volatility carried {row['direction']} "
+                  f"from the {row['quoted'].replace('_', '-')} index is "
+                  f"{row['mean_error_vol_points']:+.2f} points off on average, within two points "
+                  f"on {row['share_within_two_points']:.0%} of "
+                  f"{int(row['observations']):,} days")
+
+        skew = skew_check(indices, heston)
+        skew.to_csv(paths.TABLES / "skew_check.csv", index=False, float_format="%.4f")
+        row = skew.iloc[0]
+        print(f"  the calibrated parameters generate a SKEW index of "
+              f"{row['mean_model_index']:.1f} on average against {row['mean_observed_index']:.1f} "
+              f"observed, so a thirty-day skewness of "
+              f"{row['model_skewness_at_mean_index']:.2f} against "
+              f"{row['observed_skewness_at_mean_index']:.2f}, too shallow on "
+              f"{1 - row['share_model_above_observed']:.0%} of days")
     else:
-        print("  volatility check skipped: run scripts/run_calibration.py first")
+        print("  volatility and skew checks skipped: run scripts/run_calibration.py first")
 
     scaled = scaled_disclosure()
     scaled.to_csv(paths.DISCLOSED_SCALED, index=False)
     mrb = scaled.query("line_item == 'market_risk_benefits'")
     print(f"  scaled {len(mrb)} market risk benefit sensitivities across "
           f"{mrb['as_of'].nunique()} balance-sheet dates")
-    print(f"\nwrote the curve history, the scaled disclosure and four checks to "
+    print(f"\nwrote the curve history, the scaled disclosure and five checks to "
           f"{paths.DATA_PROCESSED} and {paths.TABLES}")
 
 
