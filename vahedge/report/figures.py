@@ -374,8 +374,53 @@ def disclosed_offset(name: str = "disclosed_offset") -> str:
     return _save(fig, name)
 
 
+def rila_netting(name: str = "rila_netting") -> str:
+    """What the index-linked book absorbs, against what the filings say it absorbed.
+
+    The left panel is the mechanism: a segment's equity exposure across its term and its index
+    level, which the cap flattens and the buffer does not. The right is the consequence - four
+    year-ends where a book of the filed size should have offset a third to a half of the
+    guarantee's equity move, against a filed line that reports almost none of it until the last.
+    """
+    surface = table("rila_exposure_surface")
+    netting = table("rila_netting")
+
+    fig, (left, right) = plt.subplots(1, 2, figsize=(12, 4.8))
+    for elapsed, block in surface.groupby("elapsed_years"):
+        shade = 0.15 + 0.85 * elapsed / max(surface["elapsed_years"].max(), 1)
+        left.plot(block["index_since_issue"], block["equity_exposure_pct_of_account"],
+                  color=LINE, alpha=shade, linewidth=1.6,
+                  label=f"{int(elapsed)} years in" if elapsed in (0, 5) else None)
+    left.axvline(1.0, color=MUTED, linewidth=0.9, linestyle=":")
+    left.set_xlabel("index since the segment was written")
+    left.set_ylabel("equity exposure, per unit of account value")
+    left.set_title("The cap flattens the exposure; the buffer does not")
+    left.legend(frameon=False, fontsize=8)
+
+    down = netting[netting["shock"] == "equity_down_10pct"].sort_values("as_of")
+    position = np.arange(len(down))
+    width = 0.38
+    right.bar(position - width / 2, 100 * down["model_absorbed_at_observed_size"], width,
+              color=FILL, edgecolor=LINE, label="a book of the filed size, modelled")
+    right.bar(position + width / 2, 100 * down["disclosed_absorbed_share"], width,
+              color=ACCENT, label="what the filings report")
+    for x, value in zip(position + width / 2, 100 * down["disclosed_absorbed_share"]):
+        right.annotate(f"{value:.2f}" if value < 10 else f"{value:.0f}", (x, value),
+                       ha="center", va="bottom", fontsize=8)
+    right.set_xticks(position)
+    right.set_xticklabels([a[:4] for a in down["as_of"]])
+    right.set_ylabel("share of the guarantee's equity move absorbed, %")
+    right.set_title("Three years of almost nothing, then more than the book can carry")
+    right.legend(frameon=False, fontsize=8)
+    fig.suptitle("An index-linked book is the guarantee's natural offset, and the line that "
+                 "reports it\nchanged meaning between the FY2024 and FY2025 filings")
+    fig.tight_layout()
+    return _save(fig, name)
+
+
 ALL = (cash_flow_profile, volatility_calibration, moneyness_curve, shock_comparison,
-       hedge_frontier, leg_comparison, disclosed_offset, economic_versus_reported)
+       hedge_frontier, leg_comparison, disclosed_offset, rila_netting,
+       economic_versus_reported)
 
 
 def draw_all() -> list[str]:

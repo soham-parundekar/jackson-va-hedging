@@ -179,12 +179,29 @@ the guarantee is wrong, which is why the offset ratio is reported against both t
 benefit alone and the two disclosed liability lines together, and why neither is treated as the
 hedge of the variable annuity by itself.
 
-**One of those two lines moved by more than its balance can explain.** The fixed-index and RILA
-embedded derivative's equity sensitivity goes from $4m at the end of 2024 to $1,321m at the end of
-2025 in the same table of the same filing, on a balance that only doubled. Nothing public explains
-a change that size. It is reported as disclosed and the 2025 equity comparison is run on both
-bases rather than leaning on either, because a conclusion drawn from a figure nobody can account
-for is not a conclusion.
+**One of those two lines moved by more than its balance can explain, and E5 says no book can.**
+The fixed-index and RILA embedded derivative's equity sensitivity goes from $4m at the end of 2024
+to $1,321m at the end of 2025 in the same table of the same filing, on a balance that only doubled.
+Modelling the index-linked book directly puts its whole reachable exposure within a factor of 2.4
+across every cap, term position and composition, against a filed move of 330. A book of the filed
+size would have shown 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
+year-ends where the filings show 0.04%, 0.1%, 0.2% and 79%.
+
+So the two bases are not two views of one thing. **The combined-basis figures are not comparable
+across 2024 and 2025**, the apparent flatness of that series is an artefact of a presentation
+change, and the market-risk-benefit column is the one that carries a consistent measurement. The
+likeliest explanation - a line carried net of the derivatives hedging it through FY2024 and gross
+from FY2025 - is an inference the filings do not state, and it is not relied on for anything beyond
+declining to read the combined series as a series.
+
+**E5's own exposure is a model of a product, not of Jackson's product.** Six-year point-to-point
+terms, a 20% buffer because that is the 10-K's example, and caps swept because none is published
+and the break-even cap does not bind at these rates. Jackson sells one-, three- and six-year terms
+at caps it does not disclose. What makes the exposure worth quoting is that the model's level
+tracks the filed embedded derivative - 15.9 to 24.7% of account value against 10.9 to 29.8%, same
+direction of travel - on a quantity nothing was fitted to. The denominator is "other contract
+holder funds", which the filings say *includes* the embedded derivative and so is not the contract
+account value; the account value is not disclosed separately, and the size ratio inherits that.
 
 **The combined ratio divides by a remainder.** Once the two liability lines nearly cancel - which
 at the end of 2025 they do, leaving a sixth of the guarantee's own up-move - the combined offset

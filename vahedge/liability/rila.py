@@ -175,6 +175,9 @@ def project(
     terms: RilaTerms,
     account_value: float = 1.0,
     steps_per_year: int = 1,
+    realised_growth: float = 1.0,
+    elapsed_years: int = 0,
+    index_shock: float = 0.0,
 ) -> dict:
     """Value the current term by simulation, on the same paths the guarantee book uses.
 
@@ -185,19 +188,41 @@ def project(
     ``paths.index_growth`` is annual, so a term is the product of its years and the term has to
     be a whole number of them. A six-year term on annual factors is exact for a point-to-point
     credit, which is what the contract does.
+
+    ``realised_growth`` and ``elapsed_years`` value a segment partway through its term. A
+    point-to-point credit looks at the index on one day and on one other, so what has already
+    happened enters only as a multiplier: the term return is the growth to date times the growth
+    still to come, and the only state a live segment carries is that one number. The paths then
+    supply the remaining years.
+
+    ``index_shock`` scales the index now, which scales the whole term return by the same factor,
+    because the realised part moves with the index and the future part is a ratio to it. That
+    makes a delta three valuations of one simulation rather than three simulations, and it is
+    what E5 needs to put the RILA's own equity exposure next to the guarantee's.
     """
     term_years = int(round(terms.term_years))
     if abs(terms.term_years - term_years) > 1e-9:
         raise ValueError("a point-to-point term has to be a whole number of annual factors")
-    if paths.index_growth.shape[1] < term_years:
+    if not 0 <= elapsed_years <= term_years:
+        raise ValueError(f"elapsed_years {elapsed_years} is outside a {term_years}-year term")
+    if realised_growth <= 0:
+        raise ValueError("realised_growth is an index ratio and has to be positive")
+    remaining = term_years - elapsed_years
+    if paths.index_growth.shape[1] < remaining:
         raise ValueError(
-            f"paths carry {paths.index_growth.shape[1]} years, the term needs {term_years}"
+            f"paths carry {paths.index_growth.shape[1]} years, the term needs {remaining}"
         )
 
-    growth = np.prod(paths.index_growth[:, :term_years], axis=1)
+    future = (np.prod(paths.index_growth[:, :remaining], axis=1) if remaining
+              else np.ones(paths.index_growth.shape[0]))
+    growth = realised_growth * (1.0 + index_shock) * future
     index_return = growth - 1.0
     credited = credited_return(index_return, terms.buffer, terms.cap)
-    discount = paths.discount[:, term_years - 1]
+    # Discounted over the remaining term, not the original one. A segment three years into six
+    # owes its credit in three years' time, and discounting it over six would value an
+    # obligation nobody has.
+    discount = (paths.discount[:, remaining - 1] if remaining
+                else np.ones(paths.index_growth.shape[0]))
 
     payoff = discount * credited
     half = payoff.size // 2
@@ -216,4 +241,68 @@ def project(
         "share_capped": float((index_return >= terms.cap).mean()),
         "share_through_buffer": float((index_return <= -terms.buffer).mean()),
         "share_protected": float(((index_return < 0) & (index_return > -terms.buffer)).mean()),
+    }
+
+
+def equity_exposure(
+    paths,
+    terms: RilaTerms,
+    account_value: float = 1.0,
+    realised_growth: float = 1.0,
+    elapsed_years: int = 0,
+    bump: float = 0.01,
+) -> dict:
+    """dV/d(ln S) of the embedded derivative, on common random numbers.
+
+    The sign convention is the guarantee book's, so the two can be added: this is what the
+    insurer owes, so a positive number means the obligation grows when the index does. That is
+    the opposite of a withdrawal guarantee, which gets cheaper in a rally, and it is the whole
+    mechanism behind the netting.
+
+    One simulation, three shocks. Under Heston the return distribution does not depend on the
+    index level, so shocking the index is a multiplier on the term return rather than a reason
+    to redraw - the same economy that lets the convexity surface walk a node up a ladder.
+
+    **The cap kills the exposure and the buffer does not**, which is the opposite of the
+    intuition the word "buffer" invites and is worth stating because the first version of this
+    had it backwards. Differentiating the credit in the term return gives a slope of one between
+    zero and the cap, zero above the cap, zero inside the buffer, and one again below it: the
+    buffer absorbs the *first* slice of a loss and the contract holder bears everything past it,
+    so an insurer whose segments are through their buffers is still fully exposed. Only a capped
+    segment has stopped moving.
+
+    The number is per unit log move in the index, so it also carries the index ratio itself -
+    the chain rule puts a factor of one plus the term return on the slope, and a segment up 20%
+    with a year to run reaches about 1.08 per unit of account value rather than stopping at one.
+    The shape across a term is what E5 is built on: roughly 0.2 to 0.5 at issue, where six years
+    of drift already put a third of the mass above the cap, rising to near one for a segment late
+    in its term sitting just under the cap, and collapsing to around 0.1 once it is through.
+    """
+    def value(shock: float) -> float:
+        return project(paths, terms, account_value=account_value,
+                       realised_growth=realised_growth, elapsed_years=elapsed_years,
+                       index_shock=shock)["embedded_derivative"]
+
+    up, down = value(bump), value(-bump)
+    base = project(paths, terms, account_value=account_value,
+                   realised_growth=realised_growth, elapsed_years=elapsed_years)
+    span = np.log((1.0 + bump) / (1.0 - bump))
+    # The ten per cent repricings as well as the derivative, because Item 7A runs a 10% shock and
+    # a credit with a cap and a buffer in it is not linear over a move that size. Comparing a
+    # per-log-move delta with a per-10%-move disclosure is out by one over ln(1.1), a factor of
+    # 10.5, which is large enough to be mistaken for a finding.
+    shocked_up = value(0.10)
+    shocked_down = value(-0.10)
+    return {
+        "embedded_derivative": base["embedded_derivative"],
+        "equity_exposure": (up - down) / span,
+        "equity_exposure_pct_of_account": (up - down) / span / account_value,
+        "equity_up_10pct": shocked_up - base["embedded_derivative"],
+        "equity_down_10pct": shocked_down - base["embedded_derivative"],
+        "equity_up_10pct_pct_of_account": (shocked_up - base["embedded_derivative"]) / account_value,
+        "equity_down_10pct_pct_of_account": (shocked_down - base["embedded_derivative"])
+                                            / account_value,
+        "share_capped": base["share_capped"],
+        "share_through_buffer": base["share_through_buffer"],
+        "std_error": base["std_error"],
     }

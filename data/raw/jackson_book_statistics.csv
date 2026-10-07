@@ -1,5 +1,13 @@
-as_of,va_separate_account_musd,cash_surrender_value_musd,sa_equity_musd,sa_bond_musd,sa_balanced_musd,sa_money_market_musd,va_net_mrb_gross_musd,va_net_mrb_net_of_reins_musd,weighted_avg_attained_age,net_amount_at_risk_musd,pct_av_gmwb_for_life,pct_av_gmwb,pct_av_enhanced_gmdb,source_filing_fy
-2022-12-31,195550,190243,,,,,767,584,69,15592,,,,2023
-2023-12-31,219381,214395,,,,,-2000,-2090,69,8225,,,,2023
-2024-12-31,228851,224157,163904,19486,42909,2552,-5176,-5238,70,6360,73,3,11,2025
-2025-12-31,236406,231711,171046,19711,43317,2332,-4265,-4306,70,5471,72,3,10,2025
+### Book statistics read off the filings named in source_filing_fy.
+###
+### The two index-linked columns are the registered index-linked annuity's "other contract holder
+### funds" from the policy and contract liabilities table, and its embedded derivative liability
+### from the fair value hierarchy note. They are not the same quantity and neither is the contract
+### account value: the note says the embedded derivative is *included within* other contract holder
+### funds, so the host sits between them. E5 uses the funds figure as the size denominator and says
+### so, because the account value is not disclosed separately.
+as_of,va_separate_account_musd,cash_surrender_value_musd,sa_equity_musd,sa_bond_musd,sa_balanced_musd,sa_money_market_musd,va_net_mrb_gross_musd,va_net_mrb_net_of_reins_musd,weighted_avg_attained_age,net_amount_at_risk_musd,pct_av_gmwb_for_life,pct_av_gmwb,pct_av_enhanced_gmdb,source_filing_fy,rila_contract_holder_funds_musd,rila_embedded_derivative_musd
+2022-12-31,195550,190243,,,,,767,584,69,15592,,,,2023,1875,205
+2023-12-31,219381,214395,,,,,-2000,-2090,69,8225,,,,2023,5219,1224
+2024-12-31,228851,224157,163904,19486,42909,2552,-5176,-5238,70,6360,73,3,11,2025,11685,3065
+2025-12-31,236406,231711,171046,19711,43317,2332,-4265,-4306,70,5471,72,3,10,2025,20282,6043

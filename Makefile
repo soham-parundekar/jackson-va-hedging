@@ -1,5 +1,5 @@
 .PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory macro reporting replica \
-        offset real-world figures test clean help
+        offset netting real-world figures test clean help
 
 PY ?= python3
 
@@ -22,6 +22,7 @@ help:
 	@echo "reporting   economic against reported earnings, and the own-credit OCI split (~15 min)"
 	@echo "replica     the model's offset against Jackson's filed XBRL series (fast, reads a table)"
 	@echo "offset      the hedge book against the disclosed derivative sensitivities"
+	@echo "netting     what the index-linked book absorbs before any hedge (~10 min)"
 	@echo "real-world  the hedge over bootstrap reorderings of the decade, two drift arms (~1h)"
 	@echo "figures     redraw every figure from the tables, which takes seconds"
 	@echo "test        the test suite"
@@ -29,7 +30,7 @@ help:
 	@echo "clean       remove generated outputs, leaving data/raw alone"
 
 all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
-     reporting replica offset real-world figures test
+     reporting replica offset netting real-world figures test
 
 data:
 	$(PY) -m scripts.build_dataset
@@ -82,6 +83,11 @@ replica: reporting
 # nothing the backtest builds. The disclosed half of it is arithmetic on two filed tables.
 offset: calibrate
 	$(PY) -m scripts.run_hedge_disclosure
+
+# One simulation of the index alone, reused across every segment on the grid, so it needs the
+# market state and nothing the liability engine builds.
+netting: calibrate
+	$(PY) -m scripts.run_rila_netting
 
 # Reuses the hedging experiments' setup and its curvature surface, so it carries the same
 # prerequisite.

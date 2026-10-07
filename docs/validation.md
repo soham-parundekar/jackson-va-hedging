@@ -28,7 +28,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Disclosed derivative lines sum to their disclosed totals | all 32 blocks, exactly | `tests/test_disclosures.py` |
 | Both routes to the hedge's exposure vector land on the same index delta | exact | `tests/test_hedge.py` |
 
-255 tests, no framework required.
+261 tests, no framework required.
 
 ### Monte Carlo error and truncation
 
@@ -358,19 +358,41 @@ Every one of those readings is on the same basis and the same shock size except 
 the shift than a complete hedge is, which is the opposite of what a convexity explanation of the
 shortfall would predict.
 
-**The 2025 equity figure is the RILA book, not a withdrawn hedge.** Taken alone, the equity offset
-falls from 49% to 9% and turns negative on the up move, which reads as a programme being
-dismantled. The same filing discloses a fixed-index and RILA embedded derivative whose equity
-sensitivity goes from $4m to $1,321m over that year against a market risk benefit sensitivity of
-$1,574m - a liability that owes more when equity rises is a natural short against a guarantee that
-gets cheaper - and it absorbs 79% of the guarantee's down move and 84% of its up move before any
-derivative is involved. On the combined basis the equity offset is 49% then 44%. The hedge did not
-shrink; the net exposure did.
+**The 2025 equity figure is the index-linked book, and the combined series is not a series.**
+Taken alone, the equity offset falls from 49% to 9% and turns negative on the up move, which reads
+as a programme being dismantled. The same filing discloses a fixed-index and RILA embedded
+derivative whose equity sensitivity goes from $4m to $1,321m over that year against a market risk
+benefit sensitivity of $1,574m - a liability that owes more when equity rises is a natural short
+against a guarantee that gets cheaper - so on the combined basis the equity offset reads 49% then
+44%, and the obvious conclusion is that the hedge did not shrink but the net exposure did.
 
-The caveat on that combined column is that it divides by what is left after the two lines cancel,
-which at the end of 2025 is a fifth of the guarantee's down move and a sixth of its up move. A
-ratio built on a sixth of a number is arithmetic rather than a measurement, so the denominator is
-published beside it and the -53% is not read as an offset.
+**E5 says that conclusion is not available.** Modelling the index-linked book directly - six-year
+point-to-point segments, a 20% buffer, caps swept, cohorts rolled along realised index history and
+weighted by the issuance the filings imply - puts a book of Jackson's own disclosed size at 3.5%,
+10.5%, 27% and 50% of the guarantee's equity move across the four year-ends. The filings report
+0.04%, 0.1%, 0.2% and 79%. The first three are one to three *per cent* of what an unhedged book of
+that size would show; the last is 1.6 times it. The model's own exposure spans a factor of 2.4
+across every cap and composition it can reach, and 9.8 for a single segment at any point in its
+term. The filed line moved by a factor of 330 in one year, which nothing an index-linked book can
+do accounts for.
+
+What does account for it is a change in what the line reports - a book carried net of the
+derivatives hedging it through the FY2024 filing and gross from FY2025 would look exactly like
+this. That is an inference and the filings do not say it. What follows from it either way is that
+the 2024 and 2025 combined figures are not the same measurement, so the apparent flatness of the
+combined series across those two years is an artefact, and the market-risk-benefit column is the
+one to read. `docs/limitations.md` carries this where the comparison is caveated.
+
+The model's level is what licenses its exposure. Its embedded derivative comes out at 15.9%, 20.0%,
+22.7% and 24.7% of account value across the four dates against 10.9%, 23.5%, 26.2% and 29.8%
+filed - the same magnitude and the same direction of travel, within about a fifth, on a quantity
+nothing was fitted to. A delta nobody can check is worth little; agreement on the level does not
+make the delta right, but disagreement would have made it worthless.
+
+A second caveat on the combined column is arithmetic: it divides by what is left after the two
+lines cancel, which at the end of 2025 is a fifth of the guarantee's down move and a sixth of its
+up move. A ratio built on a sixth of a number is not a measurement, so the denominator is published
+beside it and the -53% is not read as an offset.
 
 **What a full hedge would have looked like, for comparison.** An offset below one is not by
 itself evidence of a partial hedge: the liability is convex in rates and a swap is nearly linear,

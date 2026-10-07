@@ -90,12 +90,21 @@ hedge of the model's own liability at those same dates covers 93 to 109% of the 
 to 113% of the equity shock, so convexity buys about eight points either side of one and not the
 shortfall on show.
 
-Two things make that readable rather than suggestive. 2024-12-31 is disclosed at both a 50bp and a
-100bp shift by two different filings, and the disclosed ratio moves 1 to 3 points between them
-where a full hedge moves 4 - so the gap is a sizing choice, not curvature. And the 2025 equity
-figure is not a dismantled programme: the same filing discloses a RILA book whose equity
-sensitivity went from $4m to $1,321m that year and which absorbs 79 to 84% of the guarantee's
-equity move before any derivative is involved. The hedge did not shrink, the net exposure did.
+2024-12-31 is disclosed at both a 50bp and a 100bp shift by two different filings, and the
+disclosed ratio moves 1 to 3 points between them where a full hedge moves 4 - so the gap is a
+sizing choice, not curvature.
+
+**The one line that cannot be read at face value is the index-linked book's.** Its disclosed equity
+sensitivity went from $4m to $1,321m over 2025, a factor of 330, on a balance that doubled.
+Modelling that book directly - six-year segments, a 20% buffer, caps swept, cohorts rolled along
+realised index history and weighted by filed issuance - says a book of Jackson's own disclosed size
+should have absorbed 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
+year-ends. The filings report 0.04%, 0.1%, 0.2% and 79%. The model's whole reachable range is a
+factor of 2.4; nothing an index-linked book can do moves a sensitivity by 330. The model's level
+agrees with the filed one throughout (15.9 to 24.7% of account value against 10.9 to 29.8%), which
+is what makes its exposure worth quoting. The likeliest reading is a line carried net of its hedges
+until FY2025 and gross afterwards - which means the 2024 and 2025 combined-basis figures are not
+the same measurement, and the market-risk-benefit column is the one to read.
 
 **The economic hedge is not the capital hedge, and it is not the earnings hedge.**
 
@@ -125,6 +134,7 @@ make valuation   # at-issue valuation, cash flows, robustness, convergence
 make greeks      # Greeks on paired paths, and the moneyness profile
 make validate    # disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep
 make offset      # the hedge book against the disclosed derivative sensitivities
+make netting     # what the index-linked book absorbs before any hedge   (~10 minutes)
 make proxy       # the regression proxy against nested simulation          (~6 minutes)
 make convexity   # the nested curvature surface the option leg is sized from (~8 minutes)
 make hedge       # crisis replays, the cost frontier, the put sweep, model risk (~15 minutes)

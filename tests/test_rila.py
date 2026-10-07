@@ -161,3 +161,106 @@ def test_the_insurer_gains_on_a_rally_where_the_guarantee_book_loses():
     up = rila.value_black_scholes(1.12 * 1.10, discount, vol, terms)
     down = rila.value_black_scholes(1.12 * 0.90, discount, vol, terms)
     assert up > down
+
+
+# ---------------------------------------------------------------- in-force segments and delta
+
+
+def _paths(n_years: int = 6, n_paths: int = 200_000, rate: float = 0.04, seed: int = 3):
+    params = _heston()
+    return simulate(params, HullWhite(a=0.27, sigma=1e-9, curve=_flat_curve(rate)),
+                    Correlations(params.rho, 0.0), SubAccountMix.all_equity(),
+                    n_years=n_years, n_paths=n_paths, seed=seed)
+
+
+def test_a_segment_partway_through_its_term_is_the_closed_form_on_what_is_left():
+    """A point-to-point credit looks at two index levels and nothing between them, so three
+    years into a six-year term the contract is the same contract on an index that has already
+    moved. The growth to date goes into the forward, not into the buffer and cap: the payoff is
+    homogeneous in the index, so scaling the forward scales the whole thing. Rescaling the
+    strikes instead is the obvious move and it is wrong, which is how this test earned its
+    keep."""
+    curve, params = _flat_curve(), _heston()
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    discount = float(curve.discount(3.0))
+    remaining = rila.RilaTerms(buffer=terms.buffer, cap=terms.cap, term_years=3.0)
+    paths = _paths()
+    for realised in (0.80, 1.00, 1.30):
+        simulated = rila.project(paths, terms, realised_growth=realised, elapsed_years=3)
+        closed_form = rila.value_heston(params, realised / discount, discount, remaining)
+        z_score = (simulated["embedded_derivative"] - closed_form) / simulated["std_error"]
+        assert abs(z_score) < 3.0, f"realised {realised}: z {z_score:.2f}"
+
+
+def test_a_segment_at_the_end_of_its_term_has_no_optionality_left():
+    """With nothing remaining the credit is known, so the value is the credited return itself
+    and the delta is zero. A path count of one would do; the point is that the code does not
+    index past the end of the simulation."""
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    for realised, expected in ((1.80, 0.55), (1.20, 0.20), (0.95, 0.0), (0.70, -0.20)):
+        done = rila.project(_paths(n_paths=1000), terms,
+                            realised_growth=realised, elapsed_years=6)
+        assert approx(expected, abs=1e-12) == done["embedded_derivative"]
+        assert approx(0.0, abs=1e-12) == done["std_error"]
+
+
+def test_the_insurer_owes_more_when_the_index_rises():
+    """The sign the whole netting argument rests on. A withdrawal guarantee gets cheaper in a
+    rally; this gets dearer, so the exposure is positive on the same convention."""
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    exposure = rila.equity_exposure(_paths(), terms)
+    assert exposure["equity_exposure"] > 0.0
+
+
+def test_the_cap_kills_the_exposure_and_the_buffer_does_not():
+    """The asymmetry the netting argument depends on, and the one that reads backwards. A
+    buffer absorbs the first slice of a loss and the holder bears everything past it, so a
+    segment well below its buffer is still fully exposed; a segment above its cap has stopped
+    moving entirely. At a 55% cap with a year to run, a segment up 90% is 90% capped and keeps
+    about a tenth of its exposure, while one down 30% keeps two thirds - and one just under the
+    cap carries more than a unit of account value, because the measure is per log move and
+    carries the index ratio with it."""
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    paths = _paths()
+    at = {g: rila.equity_exposure(paths, terms, realised_growth=g, elapsed_years=5)
+          for g in (0.70, 1.20, 1.90)}
+    assert at[1.90]["share_capped"] > 0.85
+    assert at[1.90]["equity_exposure_pct_of_account"] < 0.2
+    # Through the buffer and still carrying most of its exposure, which is the point.
+    assert at[0.70]["share_through_buffer"] > 0.9
+    assert at[0.70]["equity_exposure_pct_of_account"] > 0.5
+    assert at[1.20]["equity_exposure_pct_of_account"] > 1.0
+    assert all(v["equity_exposure_pct_of_account"] > 0.0 for v in at.values())
+
+
+def test_an_elapsed_term_longer_than_the_segment_is_refused():
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    with raises(ValueError, match="outside a 6-year term"):
+        rila.project(_paths(n_paths=1000), terms, elapsed_years=7)
+    with raises(ValueError, match="positive"):
+        rila.project(_paths(n_paths=1000), terms, realised_growth=0.0)
+
+
+def test_the_ten_per_cent_repricing_is_not_the_delta_times_ten_per_cent():
+    """Item 7A runs a 10% shock and a credit with a cap and a buffer in it is not linear over a
+    move that size, so the two have to be reported separately. They also carry different units -
+    a delta is per log move and a disclosed impact is per 10% move, a factor of one over ln(1.1)
+    - and confusing them inflates a comparison by 10.5, which is large enough to look like a
+    finding. This pins both the units and the curvature."""
+    terms = rila.RilaTerms(buffer=0.10, cap=0.55, term_years=6.0)
+    point = rila.equity_exposure(_paths(), terms, realised_growth=1.15, elapsed_years=4)
+
+    # The insurer owes more when the index rises and less when it falls, on both measures.
+    assert point["equity_up_10pct_pct_of_account"] > 0.0
+    assert point["equity_down_10pct_pct_of_account"] < 0.0
+    assert point["equity_exposure_pct_of_account"] > 0.0
+
+    # A linear read of the delta would land near delta * ln(1.1); the true repricing is below it
+    # on the way up, because the cap takes the top off a large move and nothing takes the
+    # equivalent off a large fall.
+    linear = point["equity_exposure_pct_of_account"] * np.log(1.1)
+    assert point["equity_up_10pct_pct_of_account"] < linear
+    assert abs(point["equity_down_10pct_pct_of_account"]) > point["equity_up_10pct_pct_of_account"]
+
+    # And the scale: a 10% repricing is about a tenth of a per-log-move delta, never equal to it.
+    assert point["equity_up_10pct_pct_of_account"] < 0.3 * point["equity_exposure_pct_of_account"]
