@@ -32,7 +32,6 @@ Usage:  python -m scripts.run_reporting_lens
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from vahedge import paths

@@ -27,8 +27,21 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Risk-neutral skewness off the characteristic function against a simulated sample | agree to 1% at one year | `tests/test_market_models.py` |
 | Disclosed derivative lines sum to their disclosed totals | all 32 blocks, exactly | `tests/test_disclosures.py` |
 | Both routes to the hedge's exposure vector land on the same index delta | exact | `tests/test_hedge.py` |
+| Cash moved by the five things that have ledger columns and nothing else | exact | `tests/test_hedge.py` |
+| The economic decomposition adds to the ledger's own profit | exact by construction | `tests/test_hedge.py` |
+| The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
 
-261 tests, no framework required.
+266 tests, no framework required.
+
+The parity check is the one of these that is not arithmetic. The regression behind the chain's
+forwards is self-validating on fit - the call-minus-put spread is linear in strike by
+construction, and the worst residual across eighteen expiries is 0.96 index points on an index at
+7,710 - but a perfectly straight line can sit at the wrong level, which is what a mislabelled
+strike column or a snapshot taken on the wrong date produces. The level has an external check.
+Each expiry's discount factor is a financing rate, and across eighteen expiries from eighteen days
+to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury, tight around
+45 everywhere past the first month. That is what an SPX box spread looks like, and nothing in the
+calibration was told to make it so.
 
 ### Monte Carlo error and truncation
 
@@ -307,14 +320,18 @@ of an instrument for it.
 Residual daily standard deviation over the ten-year replay, as a share of account value, at daily
 rebalancing and base costs:
 
-| Strategy | Residual sd | Cost over the decade |
+| Strategy | Residual sd | Trading cost over the decade |
 |---|---|---|
 | S1, futures | 0.304% | 0.05% |
 | S2, plus a receive-fixed swap | 0.188% | 0.08% |
 | S3, plus listed puts | 0.139% | 21.67% |
 
-The rate leg costs almost nothing and takes out a third of what the equity leg left. The option
-leg takes out another quarter and costs two hundred times as much.
+The rate leg costs almost nothing to trade and takes out a third of what the equity leg left. The
+option leg takes out another quarter and costs two hundred times as much to trade.
+
+The cost column is commission, spread and carry. On the first two rows it is not what running the
+hedge cost: funding the losses the equity leg realised against a rising market was a hundred to
+three hundred times larger, and the section on what the rider earned measures it.
 
 ### The hedge against the one external check there is
 
@@ -436,7 +453,7 @@ Chosen by what happened rather than by what flatters a hedge, and deliberately d
 Unhedged is the episode's total profit as a share of account value; the strategy columns are
 variance reduction. February and March 2020 is the clearest case: the unhedged guarantee lost 22%
 of account value in twenty-four trading days, futures alone recovered two thirds of it, futures
-and swaps left 2.7%, and the option leg turned it into a 2.0% gain.
+and swaps left 2.7%, and the option leg turned it into a 1.9% gain.
 
 Volmageddon is the opposite case and the one worth dwelling on. An 8.8% index move with volatility
 doubling, and the futures-and-swaps hedge removes only 74.5% of the variance against 94% in covid.
@@ -518,6 +535,108 @@ happened to go, and a wrong model that happened to be wrong in the direction the
 looks better than a right one. The honest reading is that this experiment bounds the magnitude -
 the effect is a tenth to a quarter of the residual either way - and says nothing reliable about
 its sign.
+
+### What the rider earned, after paying for the hedge
+
+Every result above is about variance. None of them says whether the product made money, and the
+rider charge is levied on the benefit base, so that is the basis everything here is quoted on.
+Over any window the hedged book's profit splits exactly:
+
+    net  =  rider charge  +  interest on cash  -  trading and carry  -  the guarantee, net of the hedge
+
+with the last term defined as claims paid plus the change in the guarantee's value less the
+hedge's own result. It is an identity rather than an attribution - the pieces are a rearrangement
+of the ledger's own columns - so there is no residual for an error to hide in, and the four terms
+reconcile to the ledger's profit to within 2e-14 on a benefit base of 153 across all seventy-five
+runs. The cash balance is spent on a second check rather than on the decomposition: it has to
+equal the flows that are supposed to make it up, and a run where it does not is one where
+something reached cash without a column.
+
+Five cohorts, replayed through the same decade on each of three strategies. Basis points of
+benefit base a year:
+
+| Cohort | | charge | interest | trading | guarantee, net of hedge | net |
+|---|---|---|---|---|---|---|
+| at issue | unhedged | 223 | +38 | 0.0 | -230 | **+491** |
+| | delta and rho | 223 | -47 | 0.5 | +330 | **-154** |
+| | plus puts | 223 | -56 | 145.4 | +213 | **-191** |
+| deferring | unhedged | 229 | +40 | 0.0 | -260 | **+529** |
+| | delta and rho | 229 | -35 | 0.3 | +217 | **-24** |
+| | plus puts | 229 | -42 | 103.6 | +136 | **-53** |
+| first income | unhedged | 227 | +40 | 0.0 | -204 | **+471** |
+| | delta and rho | 227 | -50 | 0.2 | +276 | **-99** |
+| | plus puts | 227 | -53 | 59.1 | +228 | **-113** |
+| drawing | unhedged | 202 | +33 | 0.0 | -159 | **+393** |
+| | delta and rho | 202 | -42 | 0.2 | +232 | **-72** |
+| | plus puts | 202 | -43 | 26.8 | +211 | **-79** |
+| late | unhedged | 167 | +14 | 0.0 | +6 | **+174** |
+| | delta and rho | 167 | -52 | 0.2 | +367 | **-252** |
+| | plus puts | 167 | -52 | 9.8 | +364 | **-259** |
+
+**The cost of a futures-and-swaps hedge is not its trading cost.** The frontier table puts S2's
+cost over the decade at 0.08% of account value, and that figure is right for what it measures:
+commission, spread and carry. But the hedge lost money against a rising market, those losses were
+funded, and the funding ran 35 to 52 basis points of benefit base a year - a sixth to a third of
+the rider's entire charge, and between a hundred and three hundred times the trading cost. The interest
+line also changes sign with the strategy: the unhedged book accumulates fees and earns 14 to 40
+basis points, the hedged books borrow and pay. None of that is a cost in a bear decade; it is the
+financing of whatever the hedge's mark happens to do, and on the decade that happened it is the
+largest single charge against the product after the guarantee itself.
+
+**The unhedged rider earned 174 to 529 basis points a year and the hedge took all of it back.** That is not a finding about hedging being a bad idea, for the same reason the realised
+decade sat at the 93rd to 100th percentile of its own bootstrap: an equity guarantee is short the
+market, the market rose 14.4% a year, and a programme that removes that exposure removes the gain
+with it. The symmetric statement is the covid column.
+
+**Under stress the ranking is kept and the level is not.** Net on the delta-and-rho hedge, at an
+annual rate, against the decade's own figure:
+
+| Cohort | decade | volmageddon | Q4 2018 | covid | 2022 double |
+|---|---|---|---|---|---|
+| at issue | -154 | -1,257 | -308 | -3,451 | -530 |
+| deferring | -24 | -3,394 | -595 | -2,854 | -315 |
+| first income | -99 | -972 | -174 | -5,248 | -314 |
+| drawing | -72 | -621 | -135 | +432 | -204 |
+| late | -252 | -534 | -129 | -959 | -238 |
+
+An annual rate on an eleven-day window is a rate and not an outcome, and the covid column is
+eleven weeks of fee income against a month of crash. The sign is the content: a hedge carrying no
+convexity under-covers a convex guarantee in a fall, so the crisis columns are negative even
+though the hedge itself gained, and the one positive cell belongs to the cohort whose account had
+already fallen far enough that the guarantee had little convexity left to miss.
+
+**The loop does not close on a break-even fee, because at these rates there is not one.** The
+valuation solves for the charge that makes the guarantee worth zero at issue. Off the September
+2016 curve the solve refuses, and the fee curve says why:
+
+| Charge | 5bp | 50bp | 125bp | 200bp | 300bp | 500bp | 800bp |
+|---|---|---|---|---|---|---|---|
+| Guarantee, % of premium | 17.4 | 15.1 | 11.9 | 9.6 | 7.5 | 6.5 | 9.9 |
+
+The guarantee gets cheaper as the charge rises, because the charge is revenue; it stops getting
+cheaper near 5%, because by then the charge is draining the account fast enough to bring the
+claim forward and to end the fee stream before the payments do; and it never reaches zero. There
+is no root, not two roots, and a solve that trusted monotonicity across that bracket would have
+returned one of the bounds as a price.
+
+That failure is not specific to one cell. Across issue ages 65, 70 and 75 and income starting at
+70, 75 and 80, six of the eight contracts admit no charge that prices them. The two that do are
+both sold at 75, and both need more than they are paid: 214 basis points with income starting at
+once, 151 deferring five years, against the 125 charged.
+
+The at-issue valuation, off the December 2025 curve, has the market risk benefit at zero with an
+attribution percentage of 0.786 - fees comfortably covering claims. The difference between the
+two is 264 basis points of ten-year rate, 1.57% against 4.21%, and nothing else: same contract,
+same engine, same mortality. On a guarantee whose payments run forty years past the valuation date
+that is the whole of the economics, and it is the plainest statement in the project of why
+Jackson's rate hedge is the half of its programme that quadrupled.
+
+A last caution on reading the two halves together. The replay says the rider earned money
+unhedged on the path that happened; the valuation says it was underpriced at the moment it was
+sold. Those do not contradict each other - one is a realised outcome on a single favourable
+ordering of a single favourable decade, the other is a risk-neutral expectation across all of
+them - and neither is a statement about what Jackson charged or earned, since the contract here
+is a stylised reconstruction and the fee a published rate sheet figure.
 
 ## Economic against reported
 

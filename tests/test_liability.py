@@ -73,6 +73,26 @@ def test_an_age_outside_every_band_is_refused_rather_than_guessed():
         _core().withdrawal_rate(np.array([30]))
 
 
+def test_a_contract_already_drawing_keeps_the_percentage_it_locked_in():
+    """The percentage is set at the first withdrawal and never moves again. A contract issued at
+    70 that started income at 75 is on 5.95% at 82 as well, and letting the attained age pick the
+    band instead hands it the 81-and-over rate it never qualified for - a guarantee 4% dearer
+    than the same contract's at any earlier point in its own life."""
+    drawing = dict(terms=_core(), issue_age=70, base_contract_charge=0.0, fund_expense=0.0,
+                   premium=100.0, deferral_years=0, years_since_issue=12, max_age=105)
+    aged_into_the_band = cohorts.single_contract(**drawing)
+    locked = cohorts.single_contract(**drawing, first_withdrawal_age=75)
+    assert float(aged_into_the_band.gawa_pct[0]) == approx(0.0620)
+    assert float(locked.gawa_pct[0]) == approx(0.0595)
+    # The default is still right for a contract that has not started: deferral carries it to the
+    # age it will actually first draw at.
+    deferring = cohorts.single_contract(
+        terms=_core(), issue_age=70, base_contract_charge=0.0, fund_expense=0.0,
+        premium=100.0, deferral_years=5, years_since_issue=0, max_age=105,
+    )
+    assert float(deferring.gawa_pct[0]) == approx(0.0595)
+
+
 def test_the_three_benefit_options_differ_the_way_the_rate_sheet_says():
     loaded = terms_module.load()
     value = loaded[("flex_gmwb", "single", "value")]

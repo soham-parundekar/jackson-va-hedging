@@ -216,13 +216,45 @@ def test_the_break_even_fee_zeroes_the_guarantee():
     assert at_fair.market_risk_benefit == approx(0.0, abs=1e-4 * at_fair.account_value)
 
 
-def test_the_guarantee_is_worth_less_to_the_insurer_the_less_it_charges():
-    """Monotone in the fee, which is what makes the solve well posed. It is not linear, because
-    a higher charge drains the account faster and brings the claim forward."""
+def test_the_guarantee_gets_cheaper_as_the_charge_rises_over_the_range_products_are_sold_at():
+    """Falling but not linear across half a per cent to three, which is where every rider on the
+    market is priced and the only range the solve has to be well posed over."""
     book = _rewind_to_issue(_small_book())
     valuer, state = _valuer(), _state()
     table = breakeven.fee_sensitivity(valuer, book, state, [0.005, 0.0125, 0.02, 0.03])
     assert np.all(np.diff(table["value"].to_numpy()) < 0)
+
+
+def test_the_curve_turns_back_up_once_the_charge_starts_exhausting_the_account():
+    """The reason the solve checks its bracket instead of trusting monotonicity. A charge big
+    enough to empty the account ends the fee stream and leaves the guarantee to pay, so past a
+    few per cent a higher fee makes the guarantee dearer rather than cheaper - and a bracket
+    spanning the turn has a root on each side of it, or none.
+
+    Six per cent against fourteen rather than adjacent points, because the two values differ by
+    a couple of dollars and the Monte Carlo error on either is a few tens of cents."""
+    book = _rewind_to_issue(_small_book())
+    table = breakeven.fee_sensitivity(_valuer(), book, _state(), [0.06, 0.14])
+    assert table["value"].iloc[1] > table["value"].iloc[0]
+
+
+def test_a_bracket_with_no_root_in_it_reports_no_fee_rather_than_its_own_bound():
+    """Both failure modes, and the reason each has to be separable from a solved answer.
+    Returning the bound - the first version of this - put 800 basis points in the fee column of
+    a table whose own convergence flag said the number was not a fee."""
+    book = _rewind_to_issue(_small_book())
+    valuer, state = _valuer(), _state()
+
+    # Below the turn, where the guarantee is dear at both ends and the root is above the bracket.
+    costly = breakeven.solve(valuer, book, state, bounds=(0.0005, 0.005))
+    assert not costly.converged and costly.reason == "no root in the bracket"
+    assert np.isnan(costly.fair) and np.isnan(costly.margin) and np.isnan(costly.margin_bp)
+    assert costly.charged > 0.0
+
+    # Above it, where the fee already covers the guarantee at the bottom of the bracket.
+    cheap = breakeven.solve(valuer, book, state, bounds=(0.02, 0.08))
+    assert not cheap.converged and cheap.reason == "the fair fee is below the bracket"
+    assert np.isnan(cheap.fair)
 
 
 def test_the_margin_is_the_charged_fee_less_the_fair_one():

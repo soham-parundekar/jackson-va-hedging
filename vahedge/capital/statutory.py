@@ -39,6 +39,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from ..hedge.simulator import daily_profit
+
 # Share of account value a surrendering policyholder receives, across the block. Taken from the
 # disclosure rather than from a surrender charge schedule: at 31 December 2025 Jackson reported
 # 231,711 million of cash surrender value against 236,406 million of variable annuity separate
@@ -229,8 +231,14 @@ def statutory_capital(
         account + ledger["hedge_mark"].to_numpy(dtype=float)
         + ledger["cash"].to_numpy(dtype=float) - reserve["reserve"]
     )
-    out["economic_pnl"] = out["economic_capital"].diff().fillna(0.0)
-    out["statutory_pnl"] = out["statutory_capital"].diff().fillna(0.0)
+    # Before the programme there is no hedge and no cash, so the opening economic position is
+    # minus the guarantee and the opening statutory one is the account less its reserve. Both
+    # first days then carry the cost of striking the book, which keeps the basis gap at zero on
+    # a day when nothing but the hedge changed.
+    out["economic_pnl"] = daily_profit(out["economic_capital"], -guarantee[0])
+    out["statutory_pnl"] = daily_profit(
+        out["statutory_capital"], account[0] - float(reserve["reserve"][0])
+    )
     out["basis_gap_pnl"] = out["statutory_pnl"] - out["economic_pnl"]
     return out
 

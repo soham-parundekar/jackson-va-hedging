@@ -134,6 +134,12 @@ position and swept at half, one and two times their base level. The liability is
 a regression proxy, because a full valuation at every rebalance date is not affordable, and the
 proxy's own error is measured against nested simulation before any hedging result is read.
 
+The same ledger is then read a second way, as fee income against the funding, the trading cost and
+the part of the guarantee the hedge did not recover, so the hedging result can be stated as a
+margin on the benefit base rather than only as a variance removed. That comparison is against the
+charge the valuation says the rider needed at issue, which is where the two halves of the project
+meet.
+
 Validation runs against four balance-sheet dates, 2022 through 2025, on sign, shape and scale
 separately. `docs/validation.md` has the results and `docs/methodology.md` the equations.
 

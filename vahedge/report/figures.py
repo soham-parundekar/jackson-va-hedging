@@ -20,6 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import FuncFormatter
 
 from .. import paths
 
@@ -277,6 +278,75 @@ def leg_comparison(name: str = "leg_comparison") -> str:
     return _save(fig, name)
 
 
+def rider_economics(name: str = "rider_economics") -> str:
+    """Where the rider's charge went on the decade that happened, and what it was worth at issue.
+
+    The left panel's bars carry the sign with which each term enters the net, so they sum to the
+    marker rather than needing a reader to work out which ones to subtract. Funding is a bar of
+    its own because it is the term a fee-and-cost summary leaves out and it is forty times the
+    trading cost on this strategy.
+    """
+    economics = table("rider_economics")
+    hedged = (economics[(economics["scenario"] == "the whole replay")
+                        & (economics["strategy"] == "S2")]
+              .sort_values("years_since_issue"))
+    curve = table("rider_fee_curve")
+
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11.5, 4.6))
+    pieces = (("fee_income_bp", 1.0, "rider charge", FILL),
+              ("cash_interest_bp", 1.0, "interest on cash", MUTED),
+              ("hedge_cost_bp", -1.0, "trading and carry", "white"),
+              ("uncovered_cost_bp", -1.0, "guarantee, net of the hedge", ACCENT))
+    position = np.arange(len(hedged))
+    width = 0.2
+    for offset, (column, sign, label, colour) in enumerate(pieces):
+        left.bar(position + (offset - 1.5) * width, sign * hedged[column], width,
+                 color=colour, edgecolor=LINE, label=label,
+                 hatch="//" if colour == "white" else None)
+    left.plot(position, hedged["net_bp"], "o", color="black", label="net")
+    left.axhline(0.0, color="black", linewidth=0.8)
+    left.set_xticks(position)
+    left.set_xticklabels(hedged["cohort"], fontsize=8)
+    left.set_ylabel("basis points of benefit base a year")
+    # The trading bar is invisible at this scale because it is a fraction of a basis point, which
+    # is the comparison worth making rather than a drawing problem: on a hedge of futures and
+    # swaps the cost that matters is the funding beside it, two orders of magnitude larger.
+    traded = hedged["hedge_cost_bp"].max()
+    left.set_title(f"a delta and rho hedge, over the replayed decade\ntrading and carry never "
+                   f"reach {traded:.1f}bp a year and do not show at this scale", fontsize=10)
+    left.legend(frameon=False, fontsize=8, ncol=2, loc="lower left")
+
+    charge = 10000 * curve["fee_pct"]
+    # The account equals the premium at issue, so the table's share-of-account column is the
+    # value as a share of premium and carries no dependence on the model policy's size.
+    cost = 100 * curve["value_pct_of_account"]
+    right.plot(charge, cost, color=LINE, marker="o", markersize=3.5)
+    cheapest = int(curve["value"].idxmin())
+    right.annotate(f"least at {charge.iloc[cheapest]:.0f}bp,\nand still {cost.iloc[cheapest]:.1f}%",
+                   (charge.iloc[cheapest], cost.iloc[cheapest]),
+                   textcoords="offset points", xytext=(-24, -34), fontsize=8, ha="center",
+                   arrowprops=dict(arrowstyle="-", color=MUTED, linewidth=0.8))
+    charged = 125.0
+    right.axvline(charged, color=ACCENT, linestyle="--", linewidth=1.0)
+    right.annotate("charged", (charged, cost.max()), textcoords="offset points",
+                   xytext=(6, -4), fontsize=8, color=ACCENT)
+    right.axhline(0.0, color="black", linewidth=0.8)
+    right.set_ylim(bottom=-1.0)
+    right.set_xscale("log")
+    right.set_xticks([5, 12.5, 50, 200, 800])
+    right.get_xaxis().set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}"))
+    right.set_xlabel("rider charge, basis points of benefit base a year")
+    right.set_ylabel("guarantee's value at issue, % of premium")
+    right.set_title("the charge that would price it does not exist\nthe curve turns before it "
+                    "reaches zero", fontsize=10)
+
+    fig.suptitle("The rider earned its charge on the decade that happened and the hedge took "
+                 "the margin back;\nat the rates it was sold into, no charge prices the "
+                 "guarantee at all")
+    fig.tight_layout()
+    return _save(fig, name)
+
+
 def economic_versus_reported(name: str = "economic_versus_reported") -> str:
     """One hedge, measured economically and on the reporting basis, with the own-credit line."""
     daily = table("reporting_lens_daily_s2")
@@ -419,7 +489,7 @@ def rila_netting(name: str = "rila_netting") -> str:
 
 
 ALL = (cash_flow_profile, volatility_calibration, moneyness_curve, shock_comparison,
-       hedge_frontier, leg_comparison, disclosed_offset, rila_netting,
+       hedge_frontier, leg_comparison, disclosed_offset, rila_netting, rider_economics,
        economic_versus_reported)
 
 

@@ -1,9 +1,11 @@
 """The hedging experiments: crisis replays, the cost frontier, and the cost of model risk.
 
-Four of the six experiments the project design calls for are here, and the two that are not are
-not ready rather than skipped: the real-world Monte Carlo and the variable-annuity-plus-RILA
-netting both need the capital work in W5 to say anything, and the rider-economics experiment
-closes the loop with the break-even fee, which is the same.
+Three of the six experiments the design calls for are here. The other three need things this
+script does not build and have scripts of their own: the bootstrap reordering of the decade in
+run_real_world, the index-linked netting in run_rila_netting, and the rider economics in
+run_rider_economics. All three reuse ``build`` and ``_run`` below, so the policy, the proxy and
+the replay path are the same objects in every experiment rather than four reconstructions of
+them.
 
 E1, crisis replays. Every strategy over every stress window the free data reaches, with the
 unhedged baseline beside it and the attribution behind it. The windows are chosen by what
@@ -141,8 +143,12 @@ def build(backtest_start: str = "2016-09-26"):
 
 
 def _run(setup, path, strategy, cost_multiple: float = 1.0, greeks_override=None,
-         nested_gamma: bool = True):
+         nested_gamma: bool = True, years_at_start: float | None = None):
     """One strategy over one path.
+
+    ``years_at_start`` overrides the contract's age on the first date, which the cohort sweep in
+    E6 needs: it replays the same decade for policies at five different durations, and the age
+    is what lines each one up with the right annual fit in the proxy.
 
     ``nested_gamma`` decides where the liability's curvature comes from. The proxy's own second
     derivative is off by about the size of the quantity at every horizon, so by default it is
@@ -162,7 +168,8 @@ def _run(setup, path, strategy, cost_multiple: float = 1.0, greeks_override=None
         source = None             # the simulator's own default path
     return simulator.run(
         path, setup["policy"], setup["survival"], setup["deaths"], setup["proxy"], strategy,
-        setup["smile"], years_at_start=float(DURATION_AT_START),
+        setup["smile"],
+        years_at_start=float(DURATION_AT_START if years_at_start is None else years_at_start),
         equity_weight=setup["state"].mix.equity_weight, dividend_yield=DIVIDEND_YIELD,
         cost_multiple=cost_multiple, greeks_override=source,
     )

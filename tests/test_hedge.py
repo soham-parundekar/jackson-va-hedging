@@ -579,8 +579,63 @@ def test_the_ledger_reconciles_cash_the_hedge_and_the_liability_into_net_worth()
     assert approx(ledger["net_worth"].to_numpy(), rel=1e-12, abs=1e-12) == (
         ledger["cash"] + ledger["hedge_mark"] - ledger["liability"]
     ).to_numpy()
+    # Against the position before the programme starts, which is the guarantee alone: no cash,
+    # no book, so net worth is minus the liability. Differencing from the first row instead -
+    # which is what this did first - drops the cost of striking the book, while the cost columns
+    # keep it, and the two halves of the frontier table then cover different windows.
     assert approx(float(ledger["pnl"].sum()), rel=1e-9, abs=1e-9) == float(
-        ledger["net_worth"].iloc[-1] - ledger["net_worth"].iloc[0]
+        ledger["net_worth"].iloc[-1] + ledger["liability"].iloc[0]
+    )
+    assert approx(float(ledger["pnl"].iloc[0]), rel=1e-12, abs=1e-12) == float(
+        ledger["cash"].iloc[0] + ledger["hedge_mark"].iloc[0]
+    )
+
+
+def test_the_first_days_profit_is_what_the_book_cost_to_put_on():
+    """A put book is struck at a cost and marked at mid, so the premium paid and the mark cancel
+    and the opening day's result is the transaction cost on its own. The unhedged arm trades
+    nothing and opens at zero, which is the control: a convention that charged the first day
+    something on S0 would be measuring the contract rather than the hedge."""
+    path, policy, survival, deaths, proxy, mix = _backtest_fixture()
+    matrix = strategies.matrix()
+    opening = {}
+    for key in ("S0", "S3"):
+        run = simulator.run(path, policy, survival, deaths, proxy, matrix[key], _smile(),
+                            years_at_start=2.0, equity_weight=mix.equity_weight)
+        opening[key] = (float(run.ledger["pnl"].iloc[0]),
+                        float(run.ledger["trade_cost"].iloc[0]))
+    assert opening["S0"] == (0.0, 0.0)
+    assert opening["S3"][1] > 0.0
+    assert approx(opening["S3"][0], rel=1e-12, abs=1e-12) == -opening["S3"][1]
+
+
+def test_the_economic_decomposition_adds_to_the_ledgers_own_profit():
+    """Fee income, funding, cost and what the hedge did not recover, against the total. The
+    pieces are a rearrangement of the cash recursion rather than an approximation of it, so the
+    tolerance is machine precision and not a judgement about how good the fit is."""
+    path, policy, survival, deaths, proxy, mix = _backtest_fixture()
+    matrix = strategies.matrix()
+    for key in ("S0", "S2", "S3"):
+        run = simulator.run(path, policy, survival, deaths, proxy, matrix[key], _smile(),
+                            years_at_start=2.0, equity_weight=mix.equity_weight)
+        pieces = attribution.economics(run.ledger)
+        assert approx(pieces["net"], rel=1e-10, abs=1e-10) == pieces["ledger_pnl"]
+        assert approx(pieces["uncovered_cost"], rel=1e-10, abs=1e-10) == (
+            pieces["claims_paid"] + pieces["liability_change"] - pieces["hedge_result"]
+        )
+        # Cash moved by the five things that have columns and by nothing else. The decomposition
+        # reads the trading flow off the ledger, so this is the check that the column is the
+        # whole of it rather than most of it.
+        assert approx(pieces["cash_recursion_error"], abs=1e-10) == 0.0
+    # Nothing to recover without a hedge, so the whole cost of the guarantee sits in one term.
+    unhedged = attribution.economics(simulator.run(
+        path, policy, survival, deaths, proxy, matrix["S0"], _smile(),
+        years_at_start=2.0, equity_weight=mix.equity_weight,
+    ).ledger)
+    assert unhedged["hedge_cost"] == 0.0
+    assert approx(unhedged["hedge_result"], abs=1e-12) == 0.0
+    assert approx(unhedged["uncovered_cost"], rel=1e-10, abs=1e-10) == (
+        unhedged["claims_paid"] + unhedged["liability_change"]
     )
 
 

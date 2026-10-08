@@ -377,6 +377,39 @@ liability, and their change adds to the reported period profit by construction, 
 attribution splitting it into delta, gamma, vega, rho, theta, the anniversary's own cash flows and
 a residual.
 
+The period profit is measured against the position before the programme starts, which is the
+guarantee with no cash and no book against it. The first day's profit is therefore the cost of
+striking the book rather than zero. Starting from the first row's net worth instead - the hedge
+already on - drops that cost from the profit column while the cost column keeps it, which leaves
+the two halves of a frontier table covering different windows; on the strategy holding one-year
+puts it was 0.11% of account value.
+
+### What the rider earned
+
+The same profit cut a second way, into terms a pricing committee rather than a hedging desk would
+recognise:
+
+$$\text{net} = \text{fee income} + \text{interest on cash} - \text{trading and carry} - \text{uncovered cost}$$
+
+$$\text{uncovered cost} = \text{claims paid} + \Delta L - \text{hedge result}$$
+
+The hedge result is its closing mark plus every dollar the trading moved - premium paid for
+options, the realised result of closing a futures position, the proceeds of a short - and the
+simulator records that flow per day rather than leaving it to be backed out of the cash balance.
+What the balance is then good for is a check: cash opens at zero and moves by the contract's
+flows, its own interest, the trading costs and that recorded flow, so the gap between the closing
+balance and those four is zero unless something has reached cash without a column, and every run
+reports it. On the unhedged arm there is nothing to recover and the uncovered cost is the whole
+cost of the guarantee, which is what makes the two arms comparable.
+
+Unlike the Taylor attribution there is no residual here. Every term is an exact rearrangement of
+the cash recursion, which is why it can be quoted as a decomposition of the margin rather than as
+an explanation of it, and why the reconciliation tolerance in the test is machine precision.
+
+Everything is reported per unit of benefit base and annualised, because the rider charge is levied
+on the benefit base and because the cohorts differ by a factor of three in how large that base has
+grown. On a window of a few weeks the annualisation makes a rate, not an outcome.
+
 ### The offset ratio, which is how the hedge is compared with a disclosed one
 
 Item 7A publishes the fair-value impact of each shock on the guarantee liabilities and, in a

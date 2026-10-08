@@ -31,7 +31,7 @@ import pandas as pd
 
 from .. import paths as project_paths
 from .chain import load_chain
-from .curves import NelsonSiegelSvensson, ZeroCurve, bootstrap, fit_curve
+from .curves import NelsonSiegelSvensson, bootstrap, fit_curve
 from .heston_cos import HestonParameters, calibrate
 from .hull_white import HullWhite, calibrate_historical
 from .simulate import Correlations, SubAccountMix

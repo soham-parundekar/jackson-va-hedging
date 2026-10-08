@@ -43,7 +43,6 @@ from vahedge.market import state as market_state
 from vahedge.valuation import greeks as greeks_module
 
 from scripts.run_shock_validation import (
-    DISCLOSED_DATES,
     DIVIDEND_YIELD,
     INCEPTION,
     contract_at,

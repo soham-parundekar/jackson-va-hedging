@@ -134,6 +134,24 @@ def annual_market(path, anniversaries: np.ndarray) -> MarketPaths:
     )
 
 
+def daily_profit(net_worth: pd.Series, opening: float) -> pd.Series:
+    """Period movements in a net worth series, measured from before the programme started.
+
+    The first row of any of these series is already after the hedge has been struck, so
+    differencing it and filling the opening gap with zero asserts that the first day earned
+    nothing - and the first day cost whatever the book cost to put on. The cost columns keep that
+    figure, so dropping it leaves the two halves of a frontier table covering different windows;
+    on the strategy holding one-year puts it was 0.11% of account value.
+
+    ``opening`` is the position before any of it: no cash and no book, so minus the liability on
+    whichever basis the series is measured. Every basis in the project opens that way, which is
+    why the capital and reporting lenses share this rather than each writing their own.
+    """
+    profit = net_worth.diff()
+    profit.iloc[0] = float(net_worth.iloc[0]) - float(opening)
+    return profit
+
+
 def roll_contract(policy_book, path, survival, deaths, equity_weight: float = 1.0) -> dict:
     """The contract's annual state along the realised path, and the cash flows it produced."""
     anniversaries = anniversary_indices(path)
@@ -178,6 +196,12 @@ def daily_state(path, rolled: dict, book, opening_account: float, opening_base: 
     account = np.empty(path.dates.size)
     base = np.empty(path.dates.size)
     cash_flow = np.zeros(path.dates.size)
+    # The two halves of that cash flow, kept apart as well as netted. They are the same number
+    # to the hedge and opposite things to the economics: the fee is what the rider earns and the
+    # claim is what the guarantee costs once the account can no longer fund the withdrawal, and
+    # E6 is the experiment that needs them separately.
+    fee_paid = np.zeros(path.dates.size)
+    claim_paid = np.zeros(path.dates.size)
     # The state an instant before each anniversary's events, which is where the day's market
     # move ends and the contract's own events begin. Equal to the smooth state everywhere else.
     pre_account = np.empty(path.dates.size)
@@ -209,6 +233,8 @@ def daily_state(path, rolled: dict, book, opening_account: float, opening_base: 
         # cash as well - which this did first - counts the same fee twice inside the year and
         # then has the anniversary take back only one of them, which put a three per cent spike
         # on a single day and dominated the daily standard deviation of every strategy.
+        fee_paid[end] += rolled["fee"][position]
+        claim_paid[end] += rolled["claim"][position]
         cash_flow[end] += rolled["fee"][position] - rolled["claim"][position]
 
     tail = anniversaries[-1] + 1
@@ -224,6 +250,7 @@ def daily_state(path, rolled: dict, book, opening_account: float, opening_base: 
     pre_base[not_anniversary] = base[not_anniversary]
     return {
         "account_value": account, "benefit_base": base, "cash_flow": cash_flow,
+        "fee": fee_paid, "claim": claim_paid,
         "pre_account_value": pre_account, "pre_benefit_base": pre_base,
         "is_anniversary": is_anniversary,
     }
@@ -323,6 +350,7 @@ def run(
         )
 
         trade_cost = 0.0
+        cash_delta = 0.0
         rebalancing = day == 0 or (calendar[day] and (
             not on_band or _drifted(exposure, book, market, strategy, float(account[day]))
         ))
@@ -373,6 +401,13 @@ def run(
             "hedge_mark": hedge_mark,
             "cash": cash,
             "cash_flow": cash_flow[day],
+            "fee": daily["fee"][day],
+            "claim": daily["claim"][day],
+            # What the day's trading put into cash or took out of it: premium paid for options,
+            # the realised result of closing a futures position, the proceeds of a short. It is
+            # recorded rather than left to be backed out of the cash balance, because it is half
+            # of the hedge's economic result and the other half is already a column.
+            "rebalance_cash": cash_delta,
             "trade_cost": trade_cost,
             "carry_cost": carry,
             "interest": interest,
@@ -381,7 +416,7 @@ def run(
         })
 
     ledger = pd.DataFrame(rows).set_index("date")
-    ledger["pnl"] = ledger["net_worth"].diff().fillna(0.0)
+    ledger["pnl"] = daily_profit(ledger["net_worth"], -float(ledger["liability"].iloc[0]))
     return HedgeRun(
         strategy=strategy.name,
         path=path.label,

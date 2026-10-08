@@ -344,11 +344,20 @@ def single_contract(
     lapse_beta: float = 0.0,
     lapse_floor: float = 0.0,
     death_benefit: DeathBenefitTerms | None = None,
+    first_withdrawal_age: int | None = None,
 ) -> CohortBook:
     """A one-cohort book, for the at-issue valuation and for the hedging backtest.
 
     The backtest rolls one representative policy along realised history, so it needs the same
     projection machinery the book uses, pointed at a single model point.
+
+    ``first_withdrawal_age`` is what the guaranteed withdrawal percentage is read off, and it
+    defaults to the age the contract will reach when its remaining deferral ends. That default is
+    right for a contract that has not started drawing and wrong for one that has: the percentage
+    locks at the first withdrawal and never moves again, so a contract twelve years into a life
+    that began drawing at 75 keeps 5.95% rather than picking up the 81-and-over band's 6.20% by
+    having aged into it. Pass it explicitly whenever the account value says withdrawals have
+    already been happening.
     """
     death_benefit = death_benefit or DEATH_BENEFITS["basic"]
     attained = issue_age + years_since_issue
@@ -359,7 +368,8 @@ def single_contract(
         adjustment_year = -1
 
     drag = base_contract_charge + fund_expense
-    first_withdrawal_age = attained + deferral_years
+    if first_withdrawal_age is None:
+        first_withdrawal_age = attained + deferral_years
     array = lambda value, dtype=float: np.array([value], dtype=dtype)
     return CohortBook(
         issue_age=array(issue_age, int),

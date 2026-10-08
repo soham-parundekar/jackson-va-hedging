@@ -5,8 +5,9 @@ number twenty minutes into a backtest: a par curve that cannot be bootstrapped, 
 index missing on a day the market traded, a mortality table whose margins run the wrong way, a
 disclosed sensitivity that two filings do not agree on.
 
-Nothing here is a model. Every check is either arithmetic that has to close or a comparison
-between two things the filings say, which is what makes a failure here unambiguous.
+Nothing here is a model. Every check is arithmetic that has to close, or a comparison between two
+things the filings say, or between two market sources that have to agree - which is what makes a
+failure here unambiguous.
 
 Usage:  python -m scripts.build_dataset
 """
@@ -20,10 +21,10 @@ import pandas as pd
 
 from vahedge import paths
 from vahedge.liability import mortality
-from vahedge.market import heston_cos, scenarios
+from vahedge.market import chain, heston_cos, scenarios
 from vahedge.market.curves import bootstrap
 from vahedge.market.heston_cos import HestonParameters
-from vahedge.market.state import PAR_SERIES
+from vahedge.market.state import PAR_SERIES, treasury_curve
 
 # Round-trip tolerance on the par bootstrap, as a decimal yield. A tenth of a basis point is
 # far above floating-point error and far below anything that would move a valuation, so a
@@ -39,6 +40,13 @@ CASH_SERIES = ("DFF", "DTB3")
 # Zero tenors kept in the committed curve history. Enough to see the shape move without
 # writing a file the size of the panel.
 KEPT_TENORS = (1, 2, 5, 10, 20, 30)
+# The chain snapshot's trade date, which is in the file's own header and not in the panel.
+OPTION_CHAIN_AS_OF = "2026-09-28"
+# What the parity-implied financing rate is allowed to sit at over the matched-maturity
+# Treasury. An SPX box trades a few tens of basis points above Treasury; a zero or negative
+# spread would mean the discount factors came out too high, and anything past a per cent and a
+# half means the chain is not what it says it is. Wide enough that only a broken input trips it.
+PARITY_SPREAD_RANGE_BP = (5.0, 150.0)
 
 
 def load_panel() -> pd.DataFrame:
@@ -237,6 +245,40 @@ def skew_check(indices: pd.DataFrame, heston: HestonParameters) -> pd.DataFrame:
     })
 
 
+def parity_check(panel: pd.DataFrame) -> pd.DataFrame:
+    """What the option chain's own discount factors imply about financing, against Treasury.
+
+    The parity regression is self-validating on fit - the call-minus-put spread is linear in
+    strike by construction, and a slice where the line misses has stale quotes in it - but a
+    perfectly straight line can still sit at the wrong level, which is what a mislabelled strike
+    column or a chain snapped on the wrong date produces. The level has an external check: the
+    discount factor per expiry is a financing rate, and for SPX that rate sits a few tens of basis
+    points above the matched-maturity Treasury, which is the box spread.
+
+    Compared against the Treasury curve on the last date the panel carries a full set of
+    quotes rather than on the snapshot date, because the chain is a Friday afternoon snapshot and
+    the constant-maturity series publish with a lag.
+    """
+    as_of = pd.Timestamp(OPTION_CHAIN_AS_OF)
+    forwards = chain.implied_forwards(paths.DATA_RAW / "cboe_spx_parity_quotes.csv", as_of)
+    forwards = forwards[forwards["used"]].copy()
+
+    quoted = panel[list(PAR_SERIES.values())].dropna()
+    curve_date = quoted.index[quoted.index <= as_of][-1]
+    curve = treasury_curve(panel, curve_date)
+
+    maturity = forwards["maturity"].to_numpy(dtype=float)
+    implied = -np.log(forwards["discount"].to_numpy(dtype=float)) / maturity
+    treasury = np.array([float(curve.zero(float(m))) for m in maturity])
+    forwards["curve_date"] = curve_date.date()
+    forwards["implied_rate"] = implied
+    forwards["treasury_zero"] = treasury
+    forwards["spread_bp"] = 1e4 * (implied - treasury)
+    return forwards[["expiry", "maturity", "n_pairs", "forward", "discount", "parity_r2",
+                     "parity_max_resid", "curve_date", "implied_rate", "treasury_zero",
+                     "spread_bp"]]
+
+
 def mortality_check() -> pd.DataFrame:
     """Survival on both tables, and the direction the margins run.
 
@@ -332,6 +374,21 @@ def main() -> None:
     curves = zero_curve_history(panel)
     curves.to_csv(paths.ZERO_CURVES, float_format="%.8f")
 
+    parity = parity_check(panel)
+    parity.to_csv(paths.TABLES / "parity_discount_check.csv", index=False, float_format="%.6f")
+    low, high = PARITY_SPREAD_RANGE_BP
+    outside = parity[(parity["spread_bp"] < low) | (parity["spread_bp"] > high)]
+    if not outside.empty:
+        raise ValueError(
+            f"{len(outside)} of {len(parity)} expiries imply a financing spread outside "
+            f"{low:.0f} to {high:.0f}bp over Treasury: "
+            f"{outside['spread_bp'].round(0).tolist()}"
+        )
+    print(f"  the chain's own discount factors imply financing "
+          f"{parity['spread_bp'].min():.0f} to {parity['spread_bp'].max():.0f}bp over the "
+          f"{parity['curve_date'].iloc[0]} Treasury curve across {len(parity)} expiries, worst "
+          f"parity residual {parity['parity_max_resid'].max():.2f} index points")
+
     mortality_table = mortality_check()
     mortality_table.to_csv(paths.TABLES / "mortality_check.csv", index=False,
                            float_format="%.4f")
@@ -370,7 +427,7 @@ def main() -> None:
     mrb = scaled.query("line_item == 'market_risk_benefits'")
     print(f"  scaled {len(mrb)} market risk benefit sensitivities across "
           f"{mrb['as_of'].nunique()} balance-sheet dates")
-    print(f"\nwrote the curve history, the scaled disclosure and five checks to "
+    print(f"\nwrote the curve history, the scaled disclosure and six checks to "
           f"{paths.DATA_PROCESSED} and {paths.TABLES}")
 
 

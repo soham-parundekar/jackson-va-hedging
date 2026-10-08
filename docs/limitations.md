@@ -140,6 +140,34 @@ the rate path, the curve and the credit spread are held on history's own course 
 level is not a rate scenario. So the experiment says nothing about the joint equity-and-rate tail;
 the crisis replays do, because they keep every day whole.
 
+## The rider's economics
+
+**Five cohorts, not a book.** The duration-and-moneyness pairs are set together rather than swept,
+because a contract twelve years in has been drawing for seven of them and cannot be at its benefit
+base; but they are five chosen points on a surface, not a weighted in-force. Aggregating them
+would need the issuance history the filings do not break out by rider.
+
+**Every cohort starts at a benefit base of one.** That is the normalisation, not a claim that a
+twelve-year-old contract has had no roll-up: the figures are per unit of benefit base, so the
+level of the base divides out. What it does mean is that the cohorts cannot be added together, and
+that the account-to-base ratio is carrying all the information about where in its life each
+contract is.
+
+**The funding rate is the path's own cash rate with no spread.** Interest accrues at the effective
+federal funds rate whether the balance is positive or negative. A hedging desk borrows above that
+and lends below it, so the funding line is a lower bound on what carrying the hedge cost, and the
+asymmetry would widen the figure rather than narrow it.
+
+**Annualising a crisis window makes a rate.** The covid window is twenty-four trading days, so its
+figures are scaled by a factor of eleven. They are comparable with each other and with the
+decade's rate; they are not a forecast of a year that looks like February 2020.
+
+**The break-even comparison is against a fee the contract never had.** The valuation solves at
+issue, off the curve the backtest starts from. A contract sold in 2016 and still in force in 2026
+was priced against a rate sheet set some time earlier still, on a curve this project does not
+have, so the gap between the charge and the fee the guarantee needed is a statement about
+September 2016 rather than a reconstruction of the issuer's pricing decision.
+
 ## Data
 
 **Ten years of equity history.** The FRED S&P 500 series is a rolling ten-year window, which fixes

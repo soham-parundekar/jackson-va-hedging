@@ -1,5 +1,5 @@
 .PHONY: all data calibrate proxy valuation greeks validate convexity hedge statutory macro reporting replica \
-        offset netting real-world figures test clean help
+        offset netting real-world economics figures test clean help
 
 PY ?= python3
 
@@ -24,13 +24,14 @@ help:
 	@echo "offset      the hedge book against the disclosed derivative sensitivities"
 	@echo "netting     what the index-linked book absorbs before any hedge (~10 min)"
 	@echo "real-world  the hedge over bootstrap reorderings of the decade, two drift arms (~1h)"
+	@echo "economics   fee income against hedge cost and breakage, by cohort (~15 min)"
 	@echo "figures     redraw every figure from the tables, which takes seconds"
 	@echo "test        the test suite"
 	@echo "all         everything, in dependency order"
 	@echo "clean       remove generated outputs, leaving data/raw alone"
 
 all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
-     reporting replica offset netting real-world figures test
+     reporting replica offset netting real-world economics figures test
 
 data:
 	$(PY) -m scripts.build_dataset
@@ -93,6 +94,11 @@ netting: calibrate
 # prerequisite.
 real-world: convexity
 	$(PY) -m scripts.run_real_world
+
+# Replays five cohorts through three strategies on five windows and then prices the guarantee
+# across the fee grid, so it needs both the curvature surface and the valuation engine.
+economics: convexity
+	$(PY) -m scripts.run_rider_economics
 
 # Figures read the committed tables and nothing else, so this is the one step that is cheap to
 # rerun and the one that has to be rerun whenever a number moves.

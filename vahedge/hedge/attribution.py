@@ -40,6 +40,13 @@ that difference. The expansion's gamma term accumulates to roughly one half gamm
 variance over the period, while the premium paid for the puts is the implied variance; whether
 the convexity hedge was worth buying is that comparison, and quoting the gamma bar without it
 hides the trade.
+
+``economics`` is the same P&L cut the other way. ``attribute`` splits it by risk factor and
+carries a residual, which is what a hedging desk wants; ``economics`` splits it into fee income,
+funding, trading cost and the part of the guarantee the hedge did not recover, which is what a
+pricing committee wants, and it is exact. Nothing in it is a Taylor term, so there is no residual
+to read - the four pieces are a rearrangement of the cash recursion and the ledger's own net
+worth, and they add to the total identically.
 """
 
 from __future__ import annotations
@@ -155,6 +162,57 @@ def attribute(ledger: pd.DataFrame, equity_weight: float) -> pd.DataFrame:
              "cost"]
     out["residual"] = out["total"] - out[names].sum(axis=1)
     return out
+
+
+ECONOMIC_TERMS = ("fee_income", "cash_interest", "hedge_cost", "uncovered_cost")
+
+
+def economics(ledger: pd.DataFrame) -> dict:
+    """Fee income, funding, trading cost and what the hedge did not recover, in currency.
+
+    An identity, not an attribution:
+
+        net  =  fee income  +  interest on cash  -  hedge cost  -  uncovered cost
+
+    where the last term is what the guarantee cost that the hedge did not cover - claims paid
+    plus the change in the guarantee's value, less the hedge's own result. With no hedge there is
+    nothing to recover and the term is the whole cost of the guarantee, which is what makes a
+    hedged row and an unhedged row comparable.
+
+    The hedge's result is its closing mark plus every dollar the trading moved: premium paid for
+    options, the realised result of closing a futures position, the proceeds of a short. The
+    simulator records that flow per day, so this reads it rather than backing it out of the cash
+    balance, and ``cash_recursion_error`` reports the gap between the balance and the flows that
+    are supposed to make it up - zero unless something has gone into cash without a column.
+
+    Everything is measured against the position before the programme starts, which is the
+    guarantee on its own, so the first day's trading cost is inside the result rather than
+    outside it - the same convention the ledger's own ``pnl`` column uses.
+    """
+    fee = float(ledger["fee"].sum())
+    claims = float(ledger["claim"].sum())
+    cost = float(ledger["trade_cost"].sum() + ledger["carry_cost"].sum())
+    interest = float(ledger["interest"].sum())
+
+    rebalancing_cash = float(ledger["rebalance_cash"].sum())
+    hedge_result = float(ledger["hedge_mark"].iloc[-1]) + rebalancing_cash
+    liability_change = float(ledger["liability"].iloc[-1] - ledger["liability"].iloc[0])
+    uncovered = claims + liability_change - hedge_result
+
+    return {
+        "cash_recursion_error": float(ledger["cash"].iloc[-1]) - (
+            fee - claims + interest - cost + rebalancing_cash
+        ),
+        "fee_income": fee,
+        "cash_interest": interest,
+        "hedge_cost": cost,
+        "claims_paid": claims,
+        "liability_change": liability_change,
+        "hedge_result": hedge_result,
+        "uncovered_cost": uncovered,
+        "net": fee + interest - cost - uncovered,
+        "ledger_pnl": float(ledger["pnl"].sum()),
+    }
 
 
 def summarise(pieces: pd.DataFrame, account_value: float) -> dict:

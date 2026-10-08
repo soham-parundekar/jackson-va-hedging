@@ -42,22 +42,26 @@ and costs two hundred times as much.**
 One policy, three years in force, rolled along realised history from September 2016 to September
 2026 and rebalanced daily, on Jackson's disclosed fund mix.
 
-| Hedge | Residual daily sd | Cost over the decade |
+| Hedge | Residual daily sd | Trading cost over the decade |
 |---|---|---|
 | Unhedged | 0.656% | - |
 | Futures | 0.304% | 0.05% |
 | Plus a receive-fixed swap | 0.188% | 0.08% |
 | Plus listed puts | 0.139% | 21.67% |
 
-All figures as a share of account value. The rate leg costs almost nothing and takes out a third
-of what the equity leg left. The option leg takes out another quarter at two hundred times the
-cost, and the put design sweep says most of that cost is in the tenor rather than the protection:
-a quarter-year put at 0.90 of spot costs 7.7% of account value over the decade against 21.2% for
-a one-year put at the same strike, for almost the same residual.
+All figures as a share of account value. The rate leg costs almost nothing to trade and takes out
+a third of what the equity leg left. The option leg takes out another quarter at two hundred times
+the cost, and the put design sweep says most of that cost is in the tenor rather than the
+protection: a quarter-year put at 0.90 of spot costs 7.7% of account value over the decade against
+21.2% for a one-year put at the same strike, for almost the same residual.
+
+Trading cost is commission, spread and carry, and on the first two rows it is not what the hedge
+cost. Funding the losses the equity leg realised against a rising market ran a hundred to three
+hundred times larger, and the section below on what the rider earned puts a number on it.
 
 February and March 2020 makes the point better than the summary statistics. The unhedged guarantee
 lost 22.0% of account value in twenty-four trading days. Futures alone recovered two thirds of it,
-futures and swaps left 2.7%, and the option leg turned it into a 2.0% gain. Volmageddon is the
+futures and swaps left 2.7%, and the option leg turned it into a 1.9% gain. Volmageddon is the
 opposite case: an 8.8% index move with volatility doubling, where futures and swaps remove 74.5%
 of the variance against 94% in covid, because instruments carrying no vega were never going to
 catch a volatility event.
@@ -106,6 +110,31 @@ is what makes its exposure worth quoting. The likeliest reading is a line carrie
 until FY2025 and gross afterwards - which means the 2024 and 2025 combined-basis figures are not
 the same measurement, and the market-risk-benefit column is the one to read.
 
+**What the hedge costs is not what it costs to trade, and the fee the rider needed does not
+exist at the rates it was sold into.**
+
+Splitting the hedged book's profit into the rider charge, interest on cash, trading cost and the
+part of the guarantee the hedge did not recover - an identity, so there is no residual - says
+something the variance tables cannot. The delta-and-rho hedge's trading cost over the decade is
+0.08% of account value. Funding its losses against a rising market cost 35 to 52 basis points of
+benefit base a year, a sixth to a third of the entire rider charge and a hundred to three hundred
+times the trading cost. In a falling decade that line is a credit rather than a charge; the point
+is that it is the large one either way and a cost column that reports commission and spread
+leaves it out.
+
+Across five cohorts the unhedged rider earned 174 to 529 basis points a year on the decade that
+happened and every hedged arm gave it back, which is what hedging a short-equity position through
+a 14.4%-a-year market does.
+
+The break-even fee was meant to close the loop and it closes it the other way. Off the September
+2016 curve there is no charge that makes the guarantee worth zero: its value falls from 17.4% of
+premium at 5bp to 6.5% at 500bp, then turns back up to 9.9% at 800bp as the charge starts
+exhausting the account and ending the fee stream before the payments end. Six of eight contracts
+across issue ages 65 to 75 admit no break-even charge at all; the two that do are both sold at 75
+and need 151 to 214 basis points against the 125 charged. The same engine on the December 2025
+curve prices the same contract at a market risk benefit of zero. The difference is 264 basis
+points of ten-year rate and nothing else.
+
 **The economic hedge is not the capital hedge, and it is not the earnings hedge.**
 
 The statutory requirement is a real-world tail measure with a cash surrender value floor under it.
@@ -138,8 +167,12 @@ make netting     # what the index-linked book absorbs before any hedge   (~10 mi
 make proxy       # the regression proxy against nested simulation          (~6 minutes)
 make convexity   # the nested curvature surface the option leg is sized from (~8 minutes)
 make hedge       # crisis replays, the cost frontier, the put sweep, model risk (~15 minutes)
+make macro       # what the tail put spread buys, swept over size and strikes (~10 minutes)
 make statutory   # the real-world requirement and the surrender value floor
+make economics   # fee income against hedge cost and breakage, by cohort     (~15 minutes)
 make reporting   # economic against reported earnings, and the own-credit split (~15 minutes)
+make replica     # the model's offset against the filed XBRL series, from reporting's table
+make real-world  # the hedge over bootstrap reorderings of the decade, two arms (~1 hour)
 make figures     # redraw every figure from the tables, in seconds
 make test        # the test suite
 make all
@@ -196,9 +229,9 @@ references/                 the sources themselves, with a register saying what 
 notebooks/                  the results end to end, in reading order
 ```
 
-## Three things that took a rewrite
+## Four things that took a rewrite
 
-Worth flagging because all three were wrong in a way that looked right.
+Worth flagging because all four were wrong in a way that looked right.
 
 **Two models of the same liability.** The valuation, the Greeks and every disclosure validation
 were produced by an earlier single-factor implementation - lognormal equity on a deterministic
@@ -220,6 +253,14 @@ different simulations rather than a prefix and its extension. The test that was 
 projection horizon does not matter was reporting ninety dollars of Monte Carlo difference as a
 truncation effect, and passing for the wrong reason. On common draws, cutting at age 115 costs
 less than a dollar and at 105 costs thirty-six.
+
+**A solve that returned its own bracket.** The break-even fee was solved by bisection between 5
+and 800 basis points on the stated grounds that the guarantee gets cheaper the more it is charged.
+It does, up to about 5%, and then the charge starts exhausting the account faster than it raises
+revenue and the curve turns back up. On the 2016 curve it never crosses zero at all, so the solve
+had no root to find - and it reported the top of its bracket as the fee, with a convergence flag
+beside it that nothing was reading. The first table built on it said the rider was worth 800 basis
+points. It now returns a NaN and a reason, and a test holds it to that in both directions.
 
 ## Scope
 

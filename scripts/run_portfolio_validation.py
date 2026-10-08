@@ -35,12 +35,10 @@ from vahedge import paths
 from vahedge.hedge import simulator
 from vahedge.liability import cohorts, mortality
 from vahedge.market import scenarios
-from vahedge.valuation import greeks as greeks_module
 
 from scripts.run_shock_validation import (
     DISCLOSED_DATES,
     DIVIDEND_YIELD,
-    contract_at,
     load_disclosed,
     market_at,
     shock_row,

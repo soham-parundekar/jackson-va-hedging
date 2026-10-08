@@ -40,7 +40,7 @@ from vahedge import paths
 from vahedge.liability import rila
 from vahedge.market import scenarios
 from vahedge.market import state as market_state
-from vahedge.market.simulate import Correlations, SubAccountMix, simulate
+from vahedge.market.simulate import SubAccountMix, simulate
 
 # The 10-K gives 20% as its buffer example and does not publish caps, which move with the term,
 # the index and the rate environment. Six years is Jackson's longest standard point-to-point term

@@ -56,6 +56,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 import pandas as pd
 
+from ..hedge.simulator import daily_profit
 from ..liability import gmwb, mortality
 from ..market.simulate import MarketPaths
 from ..valuation import lsmc
@@ -180,8 +181,11 @@ def mark(ledger: pd.DataFrame, path, bases: ReportingBasis) -> pd.DataFrame:
     out["reported_net_worth"] = (
         out["cash"] + out["hedge_mark"] - out["reporting_ex_own_credit"]
     )
-    out["economic_pnl"] = out["economic_net_worth"].diff().fillna(0.0)
-    out["net_income"] = out["reported_net_worth"].diff().fillna(0.0)
+    out["economic_pnl"] = daily_profit(out["economic_net_worth"], -out["economic"].iloc[0])
+    out["net_income"] = daily_profit(out["reported_net_worth"],
+                                     -out["reporting_ex_own_credit"].iloc[0])
+    # The own-credit adjustment is not new on the first day - the liability and its spread both
+    # existed before the hedge did - so the opening movement in it really is zero.
     out["oci"] = -out["own_credit_adjustment"].diff().fillna(0.0)
     out["comprehensive_income"] = out["net_income"] + out["oci"]
     return out

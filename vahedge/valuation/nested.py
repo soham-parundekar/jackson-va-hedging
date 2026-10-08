@@ -27,7 +27,6 @@ import numpy as np
 import pandas as pd
 
 from ..liability import cohorts as cohorts_module
-from ..liability import gmwb
 from ..market.curves import ZeroCurve, fit_curve
 
 CURVE_TENORS = np.array([0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0])

@@ -9,9 +9,18 @@ at a loss and has to be made back somewhere else.
 
 The solve is on the fee itself rather than on a scaling of the fee's value, because the fee
 changes the contract. Charging more takes more out of the account every year, which brings
-exhaustion forward, which raises the claim. The function is monotone - a higher fee is always
-worth more to the insurer over any range that matters - but it is not linear, and treating it
-as linear overstates the break-even fee by enough to matter on a long deferral.
+exhaustion forward, which raises the claim. Over the range a product is actually sold at the
+revenue wins and the guarantee gets cheaper as the charge rises, but not in proportion, and
+treating the relationship as linear overstates the break-even fee by enough to matter on a long
+deferral.
+
+Past a few per cent the two effects change places and the curve turns back up: a charge large
+enough to exhaust the account ends the fee stream and leaves the insurer paying the guaranteed
+withdrawal for the rest of a life with nothing to charge it against. So the objective is
+U-shaped over a wide enough bracket, there can be two roots or none, and a bracket that spans
+the turning point will find neither. ``solve`` therefore checks both ends and refuses rather
+than returning a bound that reads like a price - which is exactly what an earlier version did,
+and the refusal is how the September 2016 curve turned out to admit no break-even fee at all.
 
 This is also where the attributed fee in the GAAP lens comes from. Under ASU 2018-12 the
 attribution percentage is set so the market risk benefit is zero at inception where the fees
@@ -20,7 +29,7 @@ can cover the benefits, which is the same calculation read from the other end.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -29,13 +38,23 @@ from scipy.optimize import brentq
 
 @dataclass(frozen=True)
 class BreakEven:
-    """One cohort's fair fee, against what it is charged."""
+    """One cohort's fair fee, against what it is charged.
+
+    ``fair`` and ``margin`` are NaN unless ``reason`` is ``"solved"``. The first version of this
+    put the failing bracket bound in ``fair`` instead, and the first caller to meet an unsolvable
+    contract printed 800 basis points as the fee the guarantee was worth. A NaN cannot be quoted
+    by accident.
+    """
 
     charged: float
     fair: float
     margin: float
     iterations: int
-    converged: bool
+    reason: str
+
+    @property
+    def converged(self) -> bool:
+        return self.reason == "solved"
 
     @property
     def margin_bp(self) -> float:
@@ -67,6 +86,11 @@ def solve(
     Monte Carlo noise makes the objective slightly ragged, so the bracket is checked before the
     solve rather than letting Brent wander into a sign change that is not there. The same paths
     are used at every fee, which is what keeps the objective smooth enough to solve at all.
+
+    Both ends positive means no fee in the bracket prices the guarantee, which is a result and
+    not a failure - see the module docstring for why the curve can do that - and the bracket's
+    top is not reported as the answer. ``fee_sensitivity`` is what to call next: it draws the
+    curve the solve only sampled at two points.
     """
     charged = float(np.average(book.rider_charge_pct, weights=book.weight))
     calls = {"n": 0}
@@ -83,16 +107,22 @@ def solve(
 
     low, high = bounds
     at_low, at_high = objective(low), objective(high)
+    unresolved = lambda reason: BreakEven(charged=charged, fair=float("nan"),
+                                          margin=float("nan"), iterations=calls["n"],
+                                          reason=reason)
     if at_low < 0:
-        return BreakEven(charged=charged, fair=low, margin=charged - low,
-                         iterations=calls["n"], converged=False)
+        # Already worth less than the fees it attracts at the smallest charge in the bracket, so
+        # the fair fee is below the bracket rather than inside it.
+        return unresolved("the fair fee is below the bracket")
     if at_high > 0:
-        return BreakEven(charged=charged, fair=high, margin=charged - high,
-                         iterations=calls["n"], converged=False)
+        # Costly at both ends. Whether that means no fee prices this contract at all or only
+        # that the bracket sits on one side of the turn is a question for fee_sensitivity, so it
+        # is not answered here.
+        return unresolved("no root in the bracket")
 
     fair = float(brentq(objective, low, high, xtol=tolerance, maxiter=60))
     return BreakEven(charged=charged, fair=fair, margin=charged - fair,
-                     iterations=calls["n"], converged=True)
+                     iterations=calls["n"], reason="solved")
 
 
 def margin_map(
@@ -108,6 +138,9 @@ def margin_map(
     withdrawal percentage and keeps the bonus accruing, which makes the guarantee more
     expensive; it also shortens the payment stream, which makes it cheaper. Where the two
     balance is not obvious in advance and is the point of drawing the map.
+
+    Cells the solve cannot resolve carry NaN and their own reason rather than a bound, so the map
+    distinguishes a contract priced too cheaply from one no charge can price.
     """
     rows = []
     for issue_age in issue_ages:
@@ -123,7 +156,7 @@ def margin_map(
                 "charged_pct": result.charged,
                 "fair_pct": result.fair,
                 "margin_bp": result.margin_bp,
-                "converged": result.converged,
+                "reason": result.reason,
             })
     return pd.DataFrame(rows)
 
@@ -131,8 +164,9 @@ def margin_map(
 def fee_sensitivity(valuer, book, state, fees) -> pd.DataFrame:
     """Value of the guarantee across a range of fees, which is what the solve walks.
 
-    Worth reporting on its own: it shows the objective is monotone, shows how far from linear it
-    is, and makes the solved root checkable by eye rather than only by assertion.
+    Worth reporting on its own: it shows where the curve falls and where it turns, how far from
+    linear it is, and whether a solved root is a root at all rather than an artefact of a
+    bracket. Where ``solve`` refuses, this is the table that says why.
     """
     rows = []
     for fee in fees:

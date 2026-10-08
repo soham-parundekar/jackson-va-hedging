@@ -34,7 +34,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .heston_cos import black76, implied_vol
+from .heston_cos import implied_vol
 
 DAYS_PER_YEAR = 365.0
 MIN_STRIKES_FOR_PARITY = 6

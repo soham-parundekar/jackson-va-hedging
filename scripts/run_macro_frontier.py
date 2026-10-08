@@ -48,7 +48,7 @@ from vahedge import paths
 from vahedge.capital import statutory
 from vahedge.hedge import simulator, strategies
 from vahedge.market import scenarios
-from vahedge.valuation.convexity import ConvexitySurface, with_nested_gamma
+from vahedge.valuation.convexity import with_nested_gamma
 
 from scripts.run_hedge_experiments import DIVIDEND_YIELD, DURATION_AT_START, build
 
