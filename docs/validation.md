@@ -40,8 +40,8 @@ construction, and the worst residual across eighteen expiries is 0.96 index poin
 strike column or a snapshot taken on the wrong date produces. The level has an external check.
 Each expiry's discount factor is a financing rate, and across eighteen expiries from eighteen days
 to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury, and within a
-few points of 45 everywhere except the two shortest expiries. That is what an SPX box spread looks like, and nothing in the
-calibration was told to make it so.
+few points of 45 everywhere except the two shortest expiries. That is what an SPX box spread looks
+like, and nothing in the calibration was told to make it so.
 
 ### Monte Carlo error and truncation
 
@@ -365,7 +365,8 @@ comparable in level with the rows above, so it is kept in the table and read wit
 **The two legs moved in opposite directions, and the dates say when.** The rate share goes
 37-43% at the end of 2022, to 78-86% a year later, and then sits at 79-88% through 2024 and 2025.
 The equity share is at or above a full hedge on the downside through 2023 and four fifths of one
-on the upside - 104% and 77%, then 110% and 82% - and halves to 49% and 50% in 2024, the first full year after Brooke Re was formed in December 2023.
+on the upside - 104% and 77%, then 110% and 82% - and halves to 49% and 50% in 2024, the first
+full year after Brooke Re was formed in December 2023.
 Every one of those readings is on the same basis and the same shock size except where noted.
 
 **2024 is disclosed twice, at two shock sizes, and that is the control.** The FY2024 filing shows
@@ -388,8 +389,8 @@ point-to-point segments, a 20% buffer, caps swept, cohorts rolled along realised
 weighted by the issuance the filings imply - puts a book of Jackson's own disclosed size at 3.5%,
 10.5%, 27% and 50% of the guarantee's equity move across the four year-ends. The filings report
 0.1%, 0.2%, 0.5% and 79%. The first three are under two to three *per cent* of what an unhedged
-book of that size would show; the last is 1.6 times it. The model's own exposure spans a factor of 2.4
-across every cap and composition it can reach, and 9.8 for a single segment at any point in its
+book of that size would show; the last is 1.6 times it. The model's own exposure spans a factor of
+2.4 across every cap and composition it can reach, and 9.8 for a single segment at any point in its
 term. The filed line moved by a factor of 330 in one year, which nothing an index-linked book can
 do accounts for.
 
@@ -402,7 +403,8 @@ one to read. `docs/limitations.md` carries this where the comparison is caveated
 
 The model's level is what licenses its exposure. Its embedded derivative comes out at 15.9%, 20.0%,
 22.7% and 24.7% of account value across the four dates against 10.9%, 23.5%, 26.2% and 29.8%
-filed - the same magnitude and the same direction of travel, within a fifth on three of the four dates and 45% above on the first, on a quantity
+filed - the same magnitude and the same direction of travel, within a fifth on three of the four
+dates and 45% above on the first, on a quantity
 nothing was fitted to. A delta nobody can check is worth little; agreement on the level does not
 make the delta right, but disagreement would have made it worthless.
 
@@ -465,7 +467,8 @@ were never going to catch it.
 
 Every hedging number above comes from one path: the 2,493 trading days between September 2016 and
 September 2026, in the order they arrived. That is one observation, and it is a decade in which
-the index compounded at 14.4% a year and the two bad stretches were short.
+the index grew at 15.4% a year - 14.4% continuously compounded, which is the basis the drift
+arms are set on - and the two bad stretches were short.
 
 So the days are resampled. A stationary bootstrap with an 11.09-day mean block, set from the
 integrated autocorrelation of squared returns rather than by eye, reorders the equity days while
@@ -579,15 +582,16 @@ benefit base a year:
 cost over the decade at 0.08% of account value, and that figure is right for what it measures:
 commission, spread and carry. But the hedge lost money against a rising market, those losses were
 funded, and the funding ran 35 to 52 basis points of benefit base a year - a sixth to a third of
-the rider's entire charge, and between a hundred and three hundred times the trading cost. The interest
-line also changes sign with the strategy: the unhedged book accumulates fees and earns 14 to 40
-basis points, the hedged books borrow and pay. None of that is a cost in a bear decade; it is the
-financing of whatever the hedge's mark happens to do, and on the decade that happened it is the
-largest single charge against the product after the guarantee itself.
+the rider's entire charge, and between a hundred and three hundred times the trading cost. The
+interest line also changes sign with the strategy: the unhedged book accumulates fees and earns
+14 to 40 basis points, the hedged books borrow and pay. None of that is a cost in a bear decade;
+it is the financing of whatever the hedge's mark happens to do, and on the decade that happened
+it is the largest single charge against the product after the guarantee itself.
 
-**The unhedged rider earned 174 to 529 basis points a year and the hedge took all of it back.** That is not a finding about hedging being a bad idea, for the same reason the realised
+**The unhedged rider earned 174 to 529 basis points a year and the hedge took all of it back.**
+That is not a finding about hedging being a bad idea, for the same reason the realised
 decade sat at the 93rd to 100th percentile of its own bootstrap: an equity guarantee is short the
-market, the market rose 14.4% a year, and a programme that removes that exposure removes the gain
+market, the market rose 15.4% a year, and a programme that removes that exposure removes the gain
 with it. The symmetric statement is the covid column.
 
 **Under stress the ranking is kept and the level is not.** Net on the delta-and-rho hedge, at an

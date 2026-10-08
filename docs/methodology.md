@@ -276,9 +276,9 @@ $\psi(u) = \log \mathbb{E}[e^{iu X_T}]$,
 $$\zeta = \frac{i\,\psi'''(0)}{\left(-\psi''(0)\right)^{3/2}},$$
 
 taken by central differences rather than from a published cumulant expression, because the second
-cumulant already in the pricer is the truncation approximation the COS literature uses and sits 5.2% from
-the true value at thirty days, falling to 0.7% at a year - harmless for setting an integration
-range, wrong for a third moment at the tenor the SKEW index is quoted on.
+cumulant already in the pricer is the truncation approximation the COS literature uses and sits
+5.2% from the true value at thirty days, falling to 0.7% at a year - harmless for setting an
+integration range, wrong for a third moment at the tenor the SKEW index is quoted on.
 The derivatives are flat to six figures across four decades of step size and the result agrees
 with a simulated sample to about one per cent. `docs/validation.md` reports what both checks find
 and which way each one biases the result.

@@ -37,10 +37,11 @@ model's own curve implies a benefit base over account value of 0.94 falling to 0
 four years, with the up and down shocks implying the same ratio without being made to.
 
 **A delta and rho hedge removes most of the daily variation. Convexity removes most of the rest,
-and costs two hundred times as much.**
+and costs two hundred and seventy times as much to trade.**
 
 One policy, three years in force, rolled along realised history from September 2016 to September
-2026 and rebalanced daily, on Jackson's disclosed fund mix.
+2026, on Jackson's disclosed fund mix. The table is the daily-rebalancing rows of the frequency
+sweep; the crisis replays below rebalance weekly, which is what the strategies carry by default.
 
 | Hedge | Residual daily sd | Trading cost over the decade |
 |---|---|---|
@@ -50,10 +51,10 @@ One policy, three years in force, rolled along realised history from September 2
 | Plus listed puts | 0.139% | 21.67% |
 
 All figures as a share of account value. The rate leg costs almost nothing to trade and takes out
-a third of what the equity leg left. The option leg takes out another quarter at two hundred and seventy times
-the cost, and the put design sweep says most of that cost is in the tenor rather than the
-protection: a quarter-year put at 0.90 of spot costs 7.7% of account value over the decade against
-21.2% for a one-year put at the same strike, for almost the same residual.
+a third of what the equity leg left. The option leg takes out another quarter at two hundred and
+seventy times the cost, and the put design sweep says most of that cost is in the tenor rather
+than the protection: a quarter-year put at 0.90 of spot costs 7.7% of account value over the
+decade against 21.2% for a one-year put at the same strike, for almost the same residual.
 
 Trading cost is commission, spread and carry, and on the first two rows it is not what the hedge
 cost. Funding the losses the equity leg realised against a rising market ran a hundred to three
@@ -88,9 +89,9 @@ four year-ends on one measurement basis:
 | rates, down / up | 37% / 43% | 86% / 78% | 81% / 86% | 79% / 86% |
 | equity, down / up | 104% / 77% | 110% / 82% | 49% / 50% | 9% / -9% |
 
-The rate share roughly doubled over 2023 and has sat near four fifths since. The equity share was a full
-hedge on the downside through 2023 and four fifths of one on the upside, and halved in 2024, the
-first full year after Brooke Re. A full
+The rate share roughly doubled over 2023 and has sat near four fifths since. The equity share was
+a full hedge on the downside through 2023 and four fifths of one on the upside, and halved in
+2024, the first full year after Brooke Re. A full
 hedge of the model's own liability at those same dates covers 93 to 109% of the rate shock and 90
 to 113% of the equity shock, so convexity buys about eight points either side of one and not the
 shortfall on show.
@@ -100,7 +101,8 @@ disclosed ratio moves 1 to 3 points between them where a full hedge moves 4 - so
 sizing choice, not curvature.
 
 **The one line that cannot be read at face value is the index-linked book's.** Its disclosed equity
-sensitivity went from $4m to $1,321m over 2025, a factor of 330, on a balance that grew by three quarters.
+sensitivity went from $4m to $1,321m over 2025, a factor of 330, on a balance that grew by three
+quarters.
 Modelling that book directly - six-year segments, a 20% buffer, caps swept, cohorts rolled along
 realised index history and weighted by filed issuance - says a book of Jackson's own disclosed size
 should have absorbed 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
@@ -125,7 +127,7 @@ leaves it out.
 
 Across five cohorts the unhedged rider earned 174 to 529 basis points a year on the decade that
 happened and every hedged arm gave it back, which is what hedging a short-equity position through
-a 14.4%-a-year market does.
+a 15.4%-a-year market does.
 
 The break-even fee was meant to close the loop and it closes it the other way. Off the September
 2016 curve there is no charge that makes the guarantee worth zero: its value falls from 17.4% of
