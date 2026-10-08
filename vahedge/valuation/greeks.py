@@ -44,6 +44,11 @@ import pandas as pd
 # matching one against the other is sizing a position off a unit mismatch. Ten rather than two
 # because the liability's own second difference at two per cent is mostly noise, and because a
 # convexity hedge on a guarantee is bought for moves of that order rather than for the limit.
+#
+# The full-repricing route below kept its own two per cent for a while after the proxy and the
+# put were moved onto this constant, which left the disclosure comparison solving a liability
+# gamma measured one way against instrument gammas measured another - the same unit mismatch, in
+# the half of the project that was supposed to have been fixed. Both routes read it now.
 EQUITY_CURVATURE_STEP = 0.10
 
 
@@ -87,7 +92,7 @@ def compute(
     state,
     attribution,
     equity_bump: float = 0.01,
-    gamma_bump: float = 0.02,
+    gamma_bump: float = EQUITY_CURVATURE_STEP,
     rate_bump_bp: float = 10.0,
     vol_bump: float = 0.01,
 ) -> Greeks:

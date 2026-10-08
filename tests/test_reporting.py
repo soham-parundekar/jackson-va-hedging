@@ -11,6 +11,7 @@ import pandas as pd
 
 from tests.checks import approx, raises
 from vahedge.capital import reporting
+from vahedge.market import scenarios
 from vahedge.market.scenarios import DailyPath
 from vahedge.market.simulate import MarketPaths
 
@@ -89,8 +90,10 @@ def test_the_no_own_credit_basis_is_the_zero_spread_member():
 
 
 def test_the_spread_is_interpolated_across_the_grid():
-    out = basis().marks(**state(0.01))
-    # Halfway between the 0.00 and 0.02 members of the grid.
+    """Read off the grid rather than written out, so retuning the levels to a different spread
+    range does not silently turn this into a test of the old ones."""
+    low, mid = reporting.SPREAD_GRID[0], reporting.SPREAD_GRID[1]
+    out = basis().marks(**state(0.5 * (low + mid)))
     assert out["reporting"] == approx(11.5)
 
 
@@ -141,7 +144,7 @@ def test_a_widening_spread_goes_to_oci_and_not_to_net_income():
     Nothing moves but the spread. The economic liability is unchanged, the reporting basis before
     own credit is unchanged, so net income is flat and the entire movement is the OCI line.
     """
-    marked = reporting.mark(ledger(2), spread_path([0.0, 0.02]), basis())
+    marked = reporting.mark(ledger(2), spread_path([0.0, reporting.SPREAD_GRID[1]]), basis())
     assert marked["economic_pnl"].iloc[1] == approx(0.0)
     assert marked["net_income"].iloc[1] == approx(0.0)
     # Liability fell from 12.0 to 11.0, which is a gain, so OCI is positive.
@@ -179,6 +182,8 @@ def test_the_summary_scales_and_reports_the_multiple():
 
 
 def test_the_spread_grid_brackets_the_replay_window():
-    """BAA10Y runs 1.36% to 4.31% across the replay window, so the grid has to reach past it."""
+    """BAA10Y runs 1.36% to 4.31% across the replay window and the own-credit share of it is what
+    the liability is discounted at, so the grid has to reach past that rather than past the raw
+    index. Derived from the share so that retuning either one keeps the test honest."""
     assert min(reporting.SPREAD_GRID) == 0.0
-    assert max(reporting.SPREAD_GRID) >= 0.0431
+    assert max(reporting.SPREAD_GRID) >= scenarios.OWN_CREDIT_SHARE * 0.0431

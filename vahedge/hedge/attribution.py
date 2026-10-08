@@ -26,8 +26,8 @@ against the premium is the whole of the S2-against-S3 question.
 
 *Basis* is the part of the sub-account's move that the index did not explain. With the funds
 modelled as a weighted portfolio of index, bond and cash sleeves this term is mechanical and
-small; with a tracking error switched on it is the cost of hedging managed funds with an index,
-and E3 sweeps it.
+small; with a tracking error switched on it would be the cost of hedging managed funds with an
+index, and nothing here switches it on.
 
 *Rate* is the one the equity-only strategies leave entirely open, and on a forty-year guarantee
 it is not a rounding term - in 2022 it was larger than the equity bar.

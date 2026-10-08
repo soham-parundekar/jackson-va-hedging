@@ -67,7 +67,7 @@ in `scripts/build_dataset.py`.
 
 - `jackson_disclosed_sensitivities.csv`: fair value and shock impacts for market risk
   benefits and for fixed index and RILA embedded derivatives, by balance-sheet date, with
-  the filing each figure came from. Six figures appear in two consecutive filings, and the
+  the filing each figure came from. Twelve figures appear in two consecutive filings, and the
   build script fails if any of them disagree.
 - `jackson_book_statistics.csv`: account value, cash surrender value, the fund-type split,
   net market risk benefit balances, weighted-average attained age, net amount at risk, and
@@ -76,7 +76,7 @@ in `scripts/build_dataset.py`.
 A reconciliation gap worth stating. The market risk benefit figure in the Item 7A
 sensitivity table is not identical to the variable annuity net balance in Note 12: at 31
 December 2025 the sensitivity table shows $(4,238)m while Note 12 shows $(4,265)m for
-variable annuities and $(4,113)m in total. Item 7A covers market risk benefits across
+variable annuities. Item 7A covers market risk benefits across
 product lines while Note 12 splits them, and the presentations do not tie exactly. Since
 the sensitivities are only published alongside the Item 7A figure, that is the one used,
 and sensitivities are scaled by variable annuity account value from Note 11. Scaling a

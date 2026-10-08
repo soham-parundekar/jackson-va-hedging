@@ -549,8 +549,12 @@ def test_the_ledger_on_a_date_does_not_depend_on_anything_after_it():
                           years_at_start=2.0, equity_weight=mix.equity_weight)
 
     common = short.ledger.index.intersection(full.ledger.index)[:-1]
+    # The traded columns are in the list as well as the marked ones. A hedge that peeked would
+    # show up first in what it chose to do - the size it put on and what that cost - and those
+    # are the columns the economic decomposition is built from.
     for column in ("liability", "delta", "hedge_delta", "hedge_mark", "cash", "net_worth",
-                   "account_value", "benefit_base"):
+                   "account_value", "benefit_base", "rebalance_cash", "trade_cost",
+                   "carry_cost", "fee", "claim", "pnl"):
         assert approx(full.ledger.loc[common, column].to_numpy(), rel=1e-12, abs=1e-12) == (
             short.ledger.loc[common, column].to_numpy()
         ), column

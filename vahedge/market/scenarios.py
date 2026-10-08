@@ -51,6 +51,13 @@ from .state import PAR_SERIES
 TRADING_DAYS = 252.0
 VIX_TENOR_YEARS = 30.0 / 365.0
 VIX6M_TENOR_YEARS = 0.5
+# Share of the Baa index taken as the insurer's own non-performance spread. Jackson National
+# Life is rated several notches above Baa, so the index overstates what the market would charge
+# on its claims-paying credit, and ASU 2018-12's own-credit adjustment is about that credit
+# rather than about the average Baa issuer. No public series prices the subsidiary's own spread
+# across this decade, so the share is a stated assumption, not an estimate - the figure it most
+# affects is the own-credit line in the reporting lens, and docs/limitations.md says so.
+OWN_CREDIT_SHARE = 0.6
 
 # Stress windows, with the reason each one is in the list. Start and end are inclusive. Which
 # of these a run can actually use depends on how far back the index series reaches; the loader
@@ -249,13 +256,20 @@ def load_history(
         implied_vol=implied_at_tenor(quoted, heston, vol_tenor, reference_tenor),
         variance=instantaneous_variance(quoted, heston, vol_tenor),
         cash_rate=cash_rate,
-        own_credit_spread=_filled_spread(panel, dates, credit_column),
+        own_credit_spread=_own_credit_spread(panel, dates, credit_column),
         label=label,
     )
 
 
-def _filled_spread(panel: pd.DataFrame, dates: pd.DatetimeIndex, column: str):
-    """The credit spread on the equity trading calendar, carried forward where it is missing.
+def _own_credit_spread(panel: pd.DataFrame, dates: pd.DatetimeIndex, column: str):
+    """The insurer's own non-performance spread, from the Baa index, on the equity calendar.
+
+    The published series is Moody's Baa over the ten-year Treasury, and Jackson's insurance
+    subsidiaries are rated several notches above Baa, so the index is scaled rather than used
+    raw. ``OWN_CREDIT_SHARE`` is that scaling, and the factor is applied here rather than at the
+    point of use so that the field this fills means what its name says everywhere it is read -
+    the figure plotted on the reporting figure and differenced in the disclosure replica is the
+    own-credit spread, not a corporate index that stands in for one.
 
     Deliberately not added to the columns a date has to have. Requiring it drops two of the
     2,491 replay dates, and two dates is immaterial to every conclusion while being enough to
@@ -273,7 +287,7 @@ def _filled_spread(panel: pd.DataFrame, dates: pd.DatetimeIndex, column: str):
             f"{column} has a gap longer than five days at {missing[0].date()} "
             f"({series.isna().sum()} dates unfilled); check the panel rather than widening the fill"
         )
-    return series.to_numpy(dtype=float) / 100.0
+    return OWN_CREDIT_SHARE * series.to_numpy(dtype=float) / 100.0
 
 
 def available_episodes(path: DailyPath) -> dict:

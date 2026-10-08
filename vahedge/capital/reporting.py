@@ -35,10 +35,11 @@ assumption.
 **How the spread enters.** Not by shifting the curve the paths are simulated under, which would
 move the equity drift as well and price a different contract. The liability's cash flows are
 discounted at the risk-free rate times ``exp(-spread * t)`` on the same paths, so the dynamics
-stay risk-neutral and only the discounting moves. Because the spread itself moves daily - 1.4 to
-4.3 per cent across the replay window, and 2.1 to 4.3 through covid alone - the liability is
-fitted at a grid of spread levels and read off by interpolation, rather than at one level and
-extrapolated.
+stay risk-neutral and only the discounting moves. The spread itself is the Baa index scaled to
+the insurance subsidiaries' own credit, which `vahedge/market/scenarios.py` explains, and it moves
+daily - 0.8 to 2.6 per cent across the replay window, and 1.3 to 2.6 through covid alone - so the
+liability is fitted at a grid of spread levels and read off by interpolation, rather than at one
+level and extrapolated.
 
 **Both differences flip sign when the market risk benefit does.** On this contract the benefit
 starts as a small net liability and ends the replay window as a large net asset, and discounting
@@ -62,11 +63,11 @@ from ..market.simulate import MarketPaths
 from ..valuation import lsmc
 
 # Spread levels the reporting-basis liability is fitted at, as decimals. The replay window's own
-# BAA10Y spread runs 1.36 to 4.31 per cent, so the grid brackets it and the zero member doubles
-# as the no-own-credit basis. Three interior points would buy very little: the liability is close
-# to linear in the spread over a range this narrow, and each extra level is another regression
-# fit over twenty thousand paths.
-SPREAD_GRID = (0.0, 0.02, 0.045)
+# BAA10Y spread runs 1.36 to 4.31 per cent and the own-credit share of it is 0.82 to 2.59, so the
+# grid brackets that and the zero member doubles as the no-own-credit basis. Three interior points
+# would buy very little: the liability is close to linear in the spread over a range this narrow,
+# and each extra level is another regression fit over twenty thousand paths.
+SPREAD_GRID = (0.0, 0.013, 0.027)
 
 
 def discounted_at_spread(paths: MarketPaths, spread: float) -> MarketPaths:
@@ -197,7 +198,7 @@ def summarise(marked: pd.DataFrame, account_value: float) -> dict:
         return float(marked[column].sum() / account_value)
 
     def sd(column: str) -> float:
-        return float(marked[column].std(ddof=0) / account_value)
+        return float(marked[column].std(ddof=1) / account_value)
 
     economic_sd = sd("economic_pnl")
     return {

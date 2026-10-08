@@ -50,7 +50,7 @@ One policy, three years in force, rolled along realised history from September 2
 | Plus listed puts | 0.139% | 21.67% |
 
 All figures as a share of account value. The rate leg costs almost nothing to trade and takes out
-a third of what the equity leg left. The option leg takes out another quarter at two hundred times
+a third of what the equity leg left. The option leg takes out another quarter at two hundred and seventy times
 the cost, and the put design sweep says most of that cost is in the tenor rather than the
 protection: a quarter-year put at 0.90 of spot costs 7.7% of account value over the decade against
 21.2% for a one-year put at the same strike, for almost the same residual.
@@ -88,8 +88,9 @@ four year-ends on one measurement basis:
 | rates, down / up | 37% / 43% | 86% / 78% | 81% / 86% | 79% / 86% |
 | equity, down / up | 104% / 77% | 110% / 82% | 49% / 50% | 9% / -9% |
 
-The rate share quadrupled over 2023 and has sat near four fifths since. The equity share was at or
-above a full hedge through 2023 and halved in 2024, the first full year after Brooke Re. A full
+The rate share roughly doubled over 2023 and has sat near four fifths since. The equity share was a full
+hedge on the downside through 2023 and four fifths of one on the upside, and halved in 2024, the
+first full year after Brooke Re. A full
 hedge of the model's own liability at those same dates covers 93 to 109% of the rate shock and 90
 to 113% of the equity shock, so convexity buys about eight points either side of one and not the
 shortfall on show.
@@ -99,11 +100,11 @@ disclosed ratio moves 1 to 3 points between them where a full hedge moves 4 - so
 sizing choice, not curvature.
 
 **The one line that cannot be read at face value is the index-linked book's.** Its disclosed equity
-sensitivity went from $4m to $1,321m over 2025, a factor of 330, on a balance that doubled.
+sensitivity went from $4m to $1,321m over 2025, a factor of 330, on a balance that grew by three quarters.
 Modelling that book directly - six-year segments, a 20% buffer, caps swept, cohorts rolled along
 realised index history and weighted by filed issuance - says a book of Jackson's own disclosed size
 should have absorbed 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
-year-ends. The filings report 0.04%, 0.1%, 0.2% and 79%. The model's whole reachable range is a
+year-ends. The filings report 0.1%, 0.2%, 0.5% and 79%. The model's whole reachable range is a
 factor of 2.4; nothing an index-linked book can do moves a sensitivity by 330. The model's level
 agrees with the filed one throughout (15.9 to 24.7% of account value against 10.9 to 29.8%), which
 is what makes its exposure worth quoting. The likeliest reading is a line carried net of its hedges
@@ -144,10 +145,10 @@ binds in the states a delta hedge is busy in.
 
 Reported net income under identical positions is 9 to 15% more variable than the economic outcome,
 and the multiple *rises* as the hedge gets tighter. The own-credit adjustment, which no hedge
-targets, has a daily standard deviation larger than the whole of the best-hedged strategy's net
-income - and under ASU 2018-12 it is reported outside net income. Credit spreads widen when equity
-markets fall, so that piece is a natural offset to the guarantee that the accounting boundary
-turns into a mismatch.
+targets, has a daily standard deviation of 0.127% of account value against 0.153% for the whole of
+the best-hedged strategy's net income - and under ASU 2018-12 it is reported outside net income.
+Credit spreads widen when equity markets fall, so that piece is a natural offset to the guarantee
+that the accounting boundary turns into a mismatch.
 
 Eighteen quarters of Jackson's own filed XBRL show a correlation of +0.006 between the liability
 movement and the hedging result. At that sample size the smallest correlation detectable at five

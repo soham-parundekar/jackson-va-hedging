@@ -65,9 +65,13 @@ rejects the alternative" is a weaker statement than "the data identifies the val
 forty-five-year liability the difference matters. The robustness table prices the issuer's level at
 -2.3% of premium and E4 prices a 17% long-run level as a misspecification arm.
 
-**One equity factor.** The sub-account is a single risky asset at the mix's equity weight. The bond
-sleeve's own duration risk is not inside the valuation, only in the realised path, which is what
-creates the fund basis term in the hedge residual.
+**The fund menu is three sleeves, not a fund menu.** The sub-account is modelled as a rebalanced
+portfolio of an index sleeve, a rolling constant-maturity bond sleeve and cash, in the valuation as
+well as along the realised path, so the bond sleeve's duration risk is inside both. What is missing
+is the step from that portfolio to an actual menu of managed funds. The simulator carries a
+``tracking_error`` parameter for exactly that and it is zero in every result here, so the basis
+term in the hedge residual is the three-sleeve-against-index gap alone. A real book hedged with
+index instruments would carry more.
 
 **A constant 1.5% dividend yield.** FRED carries the S&P 500 price index, so the dividend yield
 enters as an assumption in both the sub-account's total return and the futures excess return.
@@ -135,7 +139,7 @@ margin funding.
 
 **One realised decade, widened but not escaped.** The bootstrap experiment resamples the decade's
 equity days into other orderings, which gives the hedging result a distribution rather than a
-single number. It does not escape the sample: every path is built from the same 2,492 days, and
+single number. It does not escape the sample: every path is built from the same 2,493 days, and
 the rate path, the curve and the credit spread are held on history's own course because a reordered
 level is not a rate scenario. So the experiment says nothing about the joint equity-and-rate tail;
 the crisis replays do, because they keep every day whole.
@@ -195,8 +199,8 @@ years while the disclosed dates are year-ends and the inception is in September,
 valued at the anniversary on or before it with the market and the account value of the disclosed
 date itself. Every date is also valued at the following anniversary and the spread is reported: it
 moves the equity-down figure by 0.18 to 0.23 points of account value against a disclosed figure of
-about 1.11, so it is a fifth of the quantity being compared and a fifteenth of the gap being
-explained.
+about 1.11, so it is a fifth of the quantity being compared and a ninth to a thirteenth of the gap
+being explained.
 
 ## The comparison with the disclosed hedge book
 
@@ -213,7 +217,7 @@ to $1,321m at the end of 2025 in the same table of the same filing, on a balance
 Modelling the index-linked book directly puts its whole reachable exposure within a factor of 2.4
 across every cap, term position and composition, against a filed move of 330. A book of the filed
 size would have shown 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
-year-ends where the filings show 0.04%, 0.1%, 0.2% and 79%.
+year-ends where the filings show 0.1%, 0.2%, 0.5% and 79%.
 
 So the two bases are not two views of one thing. **The combined-basis figures are not comparable
 across 2024 and 2025**, the apparent flatness of that series is an artefact of a presentation

@@ -362,8 +362,8 @@ def economic_versus_reported(name: str = "economic_versus_reported") -> str:
              linestyle="--", label="reported comprehensive income")
     top.axhline(0, color="black", linewidth=0.8)
     top.set_ylabel("cumulative, dollars")
-    economic_sd = float(daily["economic_pnl"].std(ddof=0))
-    reported_sd = float(daily["net_income"].std(ddof=0))
+    economic_sd = float(daily["economic_pnl"].std(ddof=1))
+    reported_sd = float(daily["net_income"].std(ddof=1))
     top.set_title("One hedge, two measurements: reported net income is "
                   f"{reported_sd / economic_sd:.1f} times as variable day to day as the "
                   "economic outcome the hedge was sized on")

@@ -117,9 +117,9 @@ def log_return_skewness(params: HestonParameters, maturity: float, step: float =
 
     Taken off the characteristic function by central differences rather than from a published
     cumulant expression, because the second cumulant already in this file is the truncation
-    approximation from the COS literature and sits about one and a half per cent away from the
-    true value - harmless for setting an integration range, wrong for a third standardised
-    moment. The default step is flat to six figures across four decades either side of it.
+    approximation from the COS literature and sits 5.2 per cent away from the true value at thirty
+    days, 0.7 at a year - harmless for setting an integration range, wrong for a third
+    standardised moment at the tenor this is used on. The default step is flat to six figures across four decades either side of it.
 
     Drift is excluded from the characteristic function, which costs nothing here: shifting a
     distribution leaves its skewness alone.

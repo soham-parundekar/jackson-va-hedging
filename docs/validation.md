@@ -39,8 +39,8 @@ construction, and the worst residual across eighteen expiries is 0.96 index poin
 7,710 - but a perfectly straight line can sit at the wrong level, which is what a mislabelled
 strike column or a snapshot taken on the wrong date produces. The level has an external check.
 Each expiry's discount factor is a financing rate, and across eighteen expiries from eighteen days
-to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury, tight around
-45 everywhere past the first month. That is what an SPX box spread looks like, and nothing in the
+to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury, and within a
+few points of 45 everywhere except the two shortest expiries. That is what an SPX box spread looks like, and nothing in the
 calibration was told to make it so.
 
 ### Monte Carlo error and truncation
@@ -214,7 +214,7 @@ But the two shock families do not move together, and that is the result:
 
 | | static benchmark | far corner |
 |---|---|---|
-| Equity multiple | 2.10 | 1.59 |
+| Equity multiple | 1.90 | 1.60 |
 | Rate multiple | 2.09 | 0.47 |
 | Equity over rate | 0.91 | 3.42 |
 
@@ -327,7 +327,7 @@ rebalancing and base costs:
 | S3, plus listed puts | 0.139% | 21.67% |
 
 The rate leg costs almost nothing to trade and takes out a third of what the equity leg left. The
-option leg takes out another quarter and costs two hundred times as much to trade.
+option leg takes out another quarter and costs two hundred and seventy times as much to trade.
 
 The cost column is commission, spread and carry. On the first two rows it is not what running the
 hedge cost: funding the losses the equity leg realised against a rising market was a hundred to
@@ -364,8 +364,8 @@ comparable in level with the rows above, so it is kept in the table and read wit
 
 **The two legs moved in opposite directions, and the dates say when.** The rate share goes
 37-43% at the end of 2022, to 78-86% a year later, and then sits at 79-88% through 2024 and 2025.
-The equity share is at or above a full hedge through 2023 - 104% and 77%, then 110% and 82% - and
-halves to 49% and 50% in 2024, the first full year after Brooke Re was formed in December 2023.
+The equity share is at or above a full hedge on the downside through 2023 and four fifths of one
+on the upside - 104% and 77%, then 110% and 82% - and halves to 49% and 50% in 2024, the first full year after Brooke Re was formed in December 2023.
 Every one of those readings is on the same basis and the same shock size except where noted.
 
 **2024 is disclosed twice, at two shock sizes, and that is the control.** The FY2024 filing shows
@@ -387,8 +387,8 @@ against a guarantee that gets cheaper - so on the combined basis the equity offs
 point-to-point segments, a 20% buffer, caps swept, cohorts rolled along realised index history and
 weighted by the issuance the filings imply - puts a book of Jackson's own disclosed size at 3.5%,
 10.5%, 27% and 50% of the guarantee's equity move across the four year-ends. The filings report
-0.04%, 0.1%, 0.2% and 79%. The first three are one to three *per cent* of what an unhedged book of
-that size would show; the last is 1.6 times it. The model's own exposure spans a factor of 2.4
+0.1%, 0.2%, 0.5% and 79%. The first three are under two to three *per cent* of what an unhedged
+book of that size would show; the last is 1.6 times it. The model's own exposure spans a factor of 2.4
 across every cap and composition it can reach, and 9.8 for a single segment at any point in its
 term. The filed line moved by a factor of 330 in one year, which nothing an index-linked book can
 do accounts for.
@@ -402,7 +402,7 @@ one to read. `docs/limitations.md` carries this where the comparison is caveated
 
 The model's level is what licenses its exposure. Its embedded derivative comes out at 15.9%, 20.0%,
 22.7% and 24.7% of account value across the four dates against 10.9%, 23.5%, 26.2% and 29.8%
-filed - the same magnitude and the same direction of travel, within about a fifth, on a quantity
+filed - the same magnitude and the same direction of travel, within a fifth on three of the four dates and 45% above on the first, on a quantity
 nothing was fitted to. A delta nobody can check is worth little; agreement on the level does not
 make the delta right, but disagreement would have made it worthless.
 
@@ -420,10 +420,11 @@ regression proxy, and repricing both sides under the same shocks.
 | | Disclosed | S1, futures | S2, plus the swap | S3, plus puts |
 |---|---|---|---|---|
 | Rates | 37% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
-| Equity | -9% to 135% | 90% to 113% | 90% to 113% | 101% to 109% |
+| Equity | -9% to 135% | 90% to 113% | 90% to 113% | 101% to 108% |
 
-Convexity therefore accounts for about eight points of scatter either side of one, not the twenty
-to sixty point shortfall the disclosure shows outside 2022-2023. That is the same conclusion the
+Convexity therefore accounts for about eight points of scatter either side of one, not the twelve
+to twenty point rate shortfall or the fifty to a hundred point equity one the disclosure shows
+outside 2022-2023. That is the same conclusion the
 statutory and reporting lenses reach from the inside - the programme is not targeting the economic
 liability alone - arrived at this time from Jackson's own numbers rather than from the model's.
 
@@ -630,7 +631,7 @@ attribution percentage of 0.786 - fees comfortably covering claims. The differen
 two is 264 basis points of ten-year rate, 1.57% against 4.21%, and nothing else: same contract,
 same engine, same mortality. On a guarantee whose payments run forty years past the valuation date
 that is the whole of the economics, and it is the plainest statement in the project of why
-Jackson's rate hedge is the half of its programme that quadrupled.
+Jackson's rate hedge is the half of its programme that doubled over 2023.
 
 A last caution on reading the two halves together. The replay says the rider earned money
 unhedged on the path that happened; the valuation says it was underpriced at the moment it was
@@ -646,20 +647,25 @@ economic outcome, on every hedged strategy:
 
 | Strategy | Economic sd | Net income sd | Multiple | OCI sd | Comprehensive sd |
 |---|---|---|---|---|---|
-| S0 unhedged | 0.0066% | 0.0069% | 1.05 | 0.0019% | 0.0051% |
-| S1 | 0.0031% | 0.0034% | 1.09 | 0.0019% | 0.0021% |
-| S2 | 0.0019% | 0.0022% | 1.11 | 0.0019% | 0.0016% |
-| S3 | 0.0014% | 0.0015% | 1.11 | 0.0019% | 0.0017% |
-| S5 | 0.0016% | 0.0018% | 1.15 | 0.0019% | 0.0013% |
+| S0 unhedged | 0.656% | 0.688% | 1.05 | 0.127% | 0.572% |
+| S1 | 0.310% | 0.338% | 1.09 | 0.127% | 0.248% |
+| S2 | 0.195% | 0.216% | 1.11 | 0.127% | 0.161% |
+| S3 | 0.137% | 0.153% | 1.11 | 0.127% | 0.142% |
+| S5 | 0.158% | 0.182% | 1.15 | 0.127% | 0.126% |
+
+Daily standard deviations as a share of the account value at the start, in per cent. An earlier
+version of this table printed the raw fractions with a per-cent sign and was out by a factor of a
+hundred against the frontier table two sections above it.
 
 The multiple *rises* as the hedge gets tighter, which is the mechanism rather than a paradox: the
 hedge removes economic variation and the reporting basis carries margins that move with the market
 and are not in the hedge's target, so what is removed from the numerator is not removed from the
 gap.
 
-The own-credit line is the one no hedge targets. Its daily standard deviation is 0.0019% of
-account value, which is larger than the whole of S3's hedged net income, and under ASU 2018-12 its
-movement goes to other comprehensive income rather than through net income. Credit spreads widen
+The own-credit line is the one no hedge targets. Its daily standard deviation is 0.127% of account
+value against 0.153% for S3's hedged net income - five sixths of the entire residual the tightest
+hedge in the study leaves - and under ASU 2018-12 its movement goes to other comprehensive income
+rather than through net income. Credit spreads widen
 when equity markets fall, so that piece is a natural offset to the guarantee - and the rule books
 it outside net income, which is what Item 7A means when it says the company does not use hedging
 to offset movements in its US GAAP liabilities and that this has produced net income volatility.
@@ -673,8 +679,8 @@ rather than as a result.
 |---|---|---|---|---|
 | filed, quarterly | 18 | +0.006 | 0.98 | 1.24 |
 | filed, annual | 4 | -0.821 | 0.25 | 1.12 |
-| model, quarterly | 41 | -0.977 | 0.00 | 1.39 |
-| model, annual | 11 | -0.958 | 0.00 | 1.37 |
+| model, quarterly | 41 | -0.986 | 0.00 | 1.25 |
+| model, annual | 11 | -0.965 | 0.00 | 1.23 |
 
 Eighteen quarters of filed data show a correlation of +0.006 between the liability movement and
 the hedging result. At that sample size the smallest correlation detectable at five per cent is

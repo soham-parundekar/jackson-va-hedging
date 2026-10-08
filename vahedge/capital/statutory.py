@@ -262,8 +262,8 @@ def floor_summary(marked: pd.DataFrame, account_value: float) -> dict:
         # the hedge mark is in both capital series and cancels; see statutory_capital.
         "basis_gap_total_pct": float(marked["basis_gap_pnl"].sum() / account_value),
         "basis_gap_per_year_pct": float(marked["basis_gap_pnl"].sum() / account_value / years),
-        "economic_sd_pct": float(marked["economic_pnl"].std(ddof=0) / account_value),
-        "statutory_sd_pct": float(marked["statutory_pnl"].std(ddof=0) / account_value),
+        "economic_sd_pct": float(marked["economic_pnl"].std(ddof=1) / account_value),
+        "statutory_sd_pct": float(marked["statutory_pnl"].std(ddof=1) / account_value),
         "economic_worst_day_pct": float(marked["economic_pnl"].min() / account_value),
         "statutory_worst_day_pct": float(marked["statutory_pnl"].min() / account_value),
     }
