@@ -446,7 +446,7 @@ Chosen by what happened rather than by what flatters a hedge, and deliberately d
 | Episode | Days | Index | Rates | Peak vol | Unhedged | S1 | S2 | S3 |
 |---|---|---|---|---|---|---|---|---|
 | volmageddon | 11 | -8.8% | +18bp | 26.5% | -1.96% | 59.1% | 74.5% | 97.9% |
-| Q4 2018 | 64 | -19.5% | -32bp | 26.0% | -9.13% | 84.2% | 96.1% | 98.9% |
+| Q4 2018 | 64 | -19.5% | -32bp | 26.0% | -9.13% | 84.2% | 96.1% | 98.8% |
 | covid | 24 | -33.8% | -79bp | 45.4% | -22.00% | 85.7% | 94.1% | 98.9% |
 | 2022 double | 197 | -24.4% | +228bp | 26.2% | +1.16% | 73.7% | 98.5% | 99.1% |
 
@@ -522,19 +522,20 @@ episodes:
 | Misspecification | S1 | S2 | S3 |
 |---|---|---|---|
 | flat volatility, no skew | -0.0017 | -0.0024 | -0.0016 |
-| long-run volatility 17% | +0.0004 | +0.0002 | -0.0002 |
-| long-run volatility 26% | -0.0012 | -0.0011 | -0.0003 |
+| long-run volatility 17% | +0.0004 | +0.0002 | -0.0003 |
+| long-run volatility 26% | -0.0012 | -0.0011 | -0.0004 |
 
-Three of the twelve cells are positive. Sizing from a flat-volatility model, which has no skew and
-so understates how much a guarantee moves in a fall, left a **smaller** residual than sizing from
-the calibrated model on this decade.
+Two of the nine averages are positive, and twelve of the forty-five episode-by-strategy cells
+behind them. Sizing from a flat-volatility model, which has no skew and so understates how much a
+guarantee moves in a fall, left a **smaller** residual than sizing from the calibrated model on
+this decade.
 
 That is not evidence that misspecification helps. It is evidence that one realised path cannot
 measure the cost of misspecification: the sign of the effect is set by how the particular decade
 happened to go, and a wrong model that happened to be wrong in the direction the market moved
 looks better than a right one. The honest reading is that this experiment bounds the magnitude -
-the effect is a tenth to a quarter of the residual either way - and says nothing reliable about
-its sign.
+the median cell is a fifth of the calibrated residual and the worst is nine tenths of it - and
+says nothing reliable about its sign.
 
 ### What the rider earned, after paying for the hedge
 
