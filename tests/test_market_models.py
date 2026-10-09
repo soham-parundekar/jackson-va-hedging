@@ -10,6 +10,8 @@ in the characteristic function, which is the error this module exists to catch.
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 
 from tests.checks import approx, raises
@@ -108,15 +110,81 @@ def test_cos_matches_black_scholes_when_volatility_of_variance_vanishes():
 
 
 def test_cos_holds_put_call_parity_out_to_thirty_years():
-    """At the forward a call and a put are worth the same. The textbook characteristic
-    function fails this past a few years because its complex logarithm crosses a branch cut;
-    the little-trap form does not, and the longest expiry in the chain is over five years."""
+    """C - P = D (F - K), across the strike range and out past every expiry in the chain.
+
+    The textbook characteristic function fails this past a few years because its complex
+    logarithm crosses a branch cut; the little-trap form does not, and the longest expiry in
+    the chain is over five years. The tolerance is a hundredth of a basis point of the forward,
+    which is what the pricer delivers at these parameters - an earlier version of this
+    test allowed half a per cent of the price, thirty times looser, and a tolerance
+    that loose is a test that cannot fail for the reason it exists.
+    """
     params, forward = _heston(), 7702.53
     for maturity in (0.05, 1.0, 5.25, 10.0, 30.0):
         discount = float(np.exp(-0.04 * maturity))
-        call = cos_price(params, forward, np.array([forward]), maturity, discount, True, n_terms=512)
-        put = cos_price(params, forward, np.array([forward]), maturity, discount, False, n_terms=512)
-        assert float(call[0] - put[0]) == approx(0.0, abs=5e-3 * max(1.0, float(call[0])))
+        strikes = forward * np.array([0.6, 0.8, 0.95, 1.0, 1.05, 1.25, 1.6])
+        call = cos_price(params, forward, strikes, maturity, discount, True, n_terms=512)
+        put = cos_price(params, forward, strikes, maturity, discount, False, n_terms=512)
+        residual = call - put - discount * (forward - strikes)
+        assert np.abs(residual).max() < 1e-5 * forward
+
+
+def test_cos_prices_nothing_impossible_anywhere_the_calibration_can_search():
+    """No negative price and no NaN across the fit's own parameter bounds.
+
+    This is the test the parity check above cannot be: parity at the calibrated point says
+    nothing about the corners a least-squares search passes through, and the call payoff's
+    cosine coefficient integrates exp(y) over the upper half of the truncation range, so at a
+    dispersed enough variance distribution it comes out enormous and the sum over terms cannot
+    cancel it back to a price. Before cos_price learned to check its own call against parity,
+    a third of the corners below broke parity by more than a basis point of the forward, a
+    sixth returned a negative price, and the far ones overflowed to NaN - all of it reaching a
+    least-squares objective as a residual it would steer by.
+    """
+    from vahedge.market.heston_cos import DEFAULT_BOUNDS, PARITY_TOLERANCE
+
+    forward = 7702.53
+    corners = [(DEFAULT_BOUNDS[name][i] for name in ("v0", "kappa", "theta", "xi", "rho"))
+               for i in (0, 1)]
+    grid = itertools.product(
+        (0.005, 0.08, 0.30), (0.05, 1.0, 10.0), (0.005, 0.20, 0.50),
+        (0.05, 1.78, 3.0), (-0.995, 0.10),
+    )
+    for v0, kappa, theta, xi, rho in list(grid) + [tuple(c) for c in corners]:
+        params = HestonParameters(v0=v0, kappa=kappa, theta=theta, xi=xi, rho=rho)
+        for maturity in (0.142466, 1.0, 3.230137):
+            discount = float(np.exp(-0.04 * maturity))
+            strikes = forward * np.array([0.75, 1.0, 1.10])
+            call = cos_price(params, forward, strikes, maturity, discount, True, n_terms=192)
+            put = cos_price(params, forward, strikes, maturity, discount, False, n_terms=192)
+            where = f"v0={v0} kappa={kappa} theta={theta} xi={xi} rho={rho} T={maturity}"
+            assert np.all(np.isfinite(call)) and np.all(np.isfinite(put)), where
+            assert call.min() >= 0.0 and put.min() >= 0.0, where
+            residual = call - put - discount * (forward - strikes)
+            assert np.abs(residual).max() <= PARITY_TOLERANCE * discount * forward, where
+
+
+def test_the_call_is_priced_directly_everywhere_the_committed_chain_asks():
+    """The parity fallback must not be quietly standing in for the whole chain.
+
+    Parity loses relative precision on a small out-of-the-money call, so it is the fallback and
+    not the method. This asserts the direct expansion is what every committed quote is priced
+    with, which is also what makes the guard free of any effect on a committed number.
+    """
+    from vahedge.market.heston_cos import PARITY_TOLERANCE, _call_coefficients
+    from vahedge.market.heston_cos import _chi_psi, _cumulants  # noqa: F401  (used below)
+
+    params = _heston()
+    forward, discount = 7702.53, 0.98
+    for maturity in (0.142466, 1.0, 3.230137):
+        strikes = forward * np.array([1.0, 1.02, 1.05, 1.10])
+        call = cos_price(params, forward, strikes, maturity, discount, True, n_terms=192)
+        put = cos_price(params, forward, strikes, maturity, discount, False, n_terms=192)
+        implied = put + discount * (forward - strikes)
+        gap = np.abs(call - implied)
+        # Non-zero means the direct value was kept; zero would mean parity was substituted.
+        assert gap.min() > 0.0
+        assert gap.max() < PARITY_TOLERANCE * discount * forward
 
 
 def test_cos_converges_in_the_number_of_terms():
@@ -234,6 +302,47 @@ def test_hull_white_bond_price_matches_its_own_simulation():
     report = martingale_report(paths, model, SubAccountMix.all_equity())
     bond = report[report["quantity"] == "bond"]
     assert float(bond["z_score"].abs().max()) < 3.0
+
+
+def test_hull_white_bond_price_is_a_martingale_from_a_future_date():
+    """exp(-int_0^t r) P(t,T) has time-zero expectation P(0,T), evaluated in closed form.
+
+    The simulation test above only reaches bonds seen from today, and the nested valuation
+    rebuilds the whole curve at a node from that node's short rate - so A(t,T) for t well
+    inside the projection is load-bearing and nothing was checking it. The moments of the
+    state and of its integral are written out here from the SDE rather than taken from the
+    module, so the two sides are independent.
+    """
+    curve = _curve()
+    for a, sigma in ((0.27, 0.0114), (0.05, 0.02)):
+        model = HullWhite(a=a, sigma=sigma, curve=curve)
+        for t in (0.5, 10.0, 25.0):
+            var_x = sigma**2 * (1.0 - np.exp(-2 * a * t)) / (2 * a)
+            var_integral = (sigma**2 / a**2) * (
+                t - 2 * (1 - np.exp(-a * t)) / a + (1 - np.exp(-2 * a * t)) / (2 * a)
+            )
+            covariance = (sigma**2 / a) * (
+                (1 - np.exp(-a * t)) / a - (1 - np.exp(-2 * a * t)) / (2 * a)
+            )
+            # exp(-int_0^t alpha), with alpha(s) = f(0,s) + sigma^2 (1 - e^{-as})^2 / (2a^2)
+            grid = np.linspace(0.0, t, 100_001)
+            convexity = (sigma**2 / (2 * a**2)) * np.trapezoid(
+                (1.0 - np.exp(-a * grid)) ** 2, grid
+            )
+            deterministic = float(curve.discount(t)) * np.exp(-convexity)
+
+            alpha = float(model.alpha(t))
+            for maturity in (t + 0.5, t + 20.0):
+                # Recover A and B from the module's own prices at two short rates.
+                near = float(np.atleast_1d(model.bond_price(t, np.array([maturity]), alpha))[0])
+                far = float(np.atleast_1d(
+                    model.bond_price(t, np.array([maturity]), alpha + 0.01))[0])
+                b = -np.log(far / near) / 0.01
+                expectation = (
+                    deterministic * near
+                    * np.exp(0.5 * (var_integral + b**2 * var_x + 2.0 * b * covariance))
+                )
+                assert expectation == approx(float(curve.discount(maturity)), rel=1e-9)
 
 
 def test_hull_white_rejects_zero_mean_reversion():

@@ -230,6 +230,20 @@ a price error reads as a volatility error and the wings count. The objective is 
 the COS method rather than by simulation, and the fit comes out at a worst per-maturity root
 mean square error of 0.85 volatility points.
 
+The two payoffs the expansion has to price are not equally well conditioned, and over the
+parameter bounds the search can walk through, only one of them is usable. The put's cosine
+coefficient integrates $e^y$ over the part of the truncation range below zero, where it is
+bounded by one; the call's integrates it over the part above zero, so it evaluates $e^b$ at the
+range's upper edge and the sum over terms has to cancel coefficients of that size back down to a
+price of order one. At a variance distribution dispersed enough, the cancellation is gone: tested
+across the fit's own bounds, the direct call broke put-call parity by more than a basis point of
+the forward at a third of the corners, came out negative at a sixth, and overflowed at the far
+ones. Each of those reaches a least-squares objective as a residual it steers by. So the call is
+priced both ways and the direct value kept only where it is finite, above its own arbitrage floor
+and within a basis point of the forward of parity. At the calibrated parameters the two agree to
+about a hundredth of a basis point, so every quote on this chain is priced by the direct
+expansion and parity is only ever the fallback it is meant to be.
+
 Simulation uses the quadratic-exponential scheme with a martingale correction, which is not a
 refinement here but a requirement: the calibrated parameters violate the Feller condition by a
 wide margin, so a scheme that can take the variance negative would have to truncate it, and

@@ -178,6 +178,25 @@ def cos_price(
     ``forward`` and ``discount`` come from the chain, not from a dividend assumption.
     ``is_call`` may be a scalar or an array matching ``strikes``, which is how an OTM-only
     slice gets priced in one call.
+
+    The two payoffs are not equally well conditioned, and the difference decides how a call
+    gets priced. The put's cosine coefficient integrates exp(y) over the part of the
+    truncation range below zero, where it is bounded by one, so the only error it can carry is
+    the probability mass outside the range. The call's integrates exp(y) over the part above
+    zero, so it evaluates exp of the range's upper edge: the coefficients come out enormous and
+    the sum over terms has to cancel them back down to a price of order one. Inside this
+    project's own calibrated region that costs nothing - the two agree to about a hundredth of
+    a basis point of the forward - but over the whole box the calibration is free to search, the
+    direct call broke put-call parity by more than a basis point of the forward at a third of
+    the corners tested, returned a negative price at a sixth of them, and overflowed to NaN at
+    the far ones. A negative option price steering a least-squares fit is the kind of defect
+    that leaves the fitted parameters looking perfectly reasonable.
+
+    So the call is priced both ways and the direct value is kept only where it agrees with
+    parity off the put. Where it does not, parity wins: it loses relative precision on a small
+    out-of-the-money call, being the difference of two larger numbers, and that is a far better
+    failure than a negative price. On the committed chain the direct value is kept for every
+    quote, so this costs one extra evaluation and changes nothing.
     """
     strikes = np.atleast_1d(np.asarray(strikes, dtype=float))
     is_call = np.broadcast_to(np.asarray(is_call), strikes.shape)
@@ -201,20 +220,57 @@ def cos_price(
     unit = np.real(cf * np.exp(1j * u * (x[:, None] - lower[:, None])))
     unit[:, 0] *= 0.5                       # the primed sum halves the first term
 
-    coefficients = _payoff_coefficients(lower, upper, k, is_call)
-    return discount * np.sum(unit * coefficients, axis=1) * strikes
+    def value(coefficients):
+        return discount * np.sum(unit * coefficients, axis=1) * strikes
+
+    # The expansion can come out under the payoff's own arbitrage floor when the truncation
+    # range is too narrow for the density - at a variance process with almost no mean reversion
+    # and a large volatility of variance the second cumulant stops describing the spread, and a
+    # deep in-the-money put forty-five points under its intrinsic value is what that looks like.
+    # Floored rather than raised on, because the floor is the correct bound and because a
+    # least-squares search that walks through such a corner should get a usable residual rather
+    # than an exception. Flooring the put and taking the call off parity keeps both sides
+    # arbitrage-consistent and keeps parity exact, which flooring each at zero would not.
+    puts = np.maximum(value(_put_coefficients(lower, upper, k)),
+                      discount * np.maximum(strikes - forward, 0.0))
+    if not np.any(is_call):
+        return puts
+
+    # exp of the upper edge is what overflows, and it overflows inside the coefficient rather
+    # than in the price, so the warning says nothing a caller could act on. The disagreement
+    # test below is what acts on it.
+    with np.errstate(over="ignore", invalid="ignore"):
+        direct = value(_call_coefficients(lower, upper, k))
+    parity = puts + discount * (forward - strikes)
+    # Three ways the direct value disqualifies itself, and each of them happens somewhere in the
+    # fit's own parameter box: it overflowed, it came out under its arbitrage floor - which for
+    # a call above the forward means negative - or it simply disagrees with parity. Parity is
+    # already floored, through the put, so the fallback cannot fail any of the three.
+    conditioned = (
+        np.isfinite(direct)
+        & (direct >= discount * np.maximum(forward - strikes, 0.0))
+        & (np.abs(direct - parity) <= PARITY_TOLERANCE * discount * forward)
+    )
+    return np.where(is_call, np.where(conditioned, direct, parity), puts)
 
 
-def _payoff_coefficients(lower, upper, k, is_call) -> np.ndarray:
-    """Cosine coefficients of the call and put payoffs, in units of the strike."""
-    span = (upper - lower)[:, None]
-    call = np.asarray(is_call, dtype=bool)[:, None]
-    zeros = np.zeros_like(lower)
-    chi_c, psi_c = _chi_psi(lower, upper, zeros, upper, k)
-    chi_p, psi_p = _chi_psi(lower, upper, lower, zeros, k)
-    return np.where(call, 2.0 / span * (chi_c - psi_c), 2.0 / span * (psi_p - chi_p))
+# How far the direct call may sit from parity before the expansion is judged to have lost the
+# cancellation and parity is used instead. A basis point of the forward: four orders of
+# magnitude above where the two sit on this chain, and four below where the direct branch
+# starts returning prices of the wrong sign.
+PARITY_TOLERANCE = 1e-4
 
 
+def _put_coefficients(lower, upper, k) -> np.ndarray:
+    """Cosine coefficient of the put payoff, in units of the strike."""
+    chi, psi = _chi_psi(lower, upper, lower, np.zeros_like(lower), k)
+    return 2.0 / (upper - lower)[:, None] * (psi - chi)
+
+
+def _call_coefficients(lower, upper, k) -> np.ndarray:
+    """Cosine coefficient of the call payoff, in units of the strike."""
+    chi, psi = _chi_psi(lower, upper, np.zeros_like(lower), upper, k)
+    return 2.0 / (upper - lower)[:, None] * (chi - psi)
 def _chi_psi(lower, upper, c, d, k) -> tuple[np.ndarray, np.ndarray]:
     """The two analytic integrals behind the payoff coefficients.
 

@@ -15,7 +15,10 @@ These establish that the arithmetic closes before anything is asked of the econo
 |---|---|---|
 | Par bootstrap reprices its own quotes | worst round trip 2e-16 over 2,495 dates | `build_dataset.py`, `tests/test_market_models.py` |
 | Hull-White reproduces the initial curve | exact | `tests/test_market_models.py` |
+| Hull-White's bond price seen from a future date | martingale identity holds to 1e-9 at a = 0.05 and 0.27 | `tests/test_market_models.py` |
 | COS pricer against Black-Scholes at zero volatility of variance | matches | `tests/test_market_models.py` |
+| COS pricer holds put-call parity | under 1e-5 of the forward across 7 strikes and 5 maturities | `tests/test_market_models.py` |
+| COS pricer prices nothing impossible over the fit's own parameter bounds | no negative price, no NaN, parity within a basis point of the forward at 164 corners | `tests/test_market_models.py` |
 | Simulator against the COS pricer with rates switched off | matches | `tests/test_market_models.py` |
 | Discounted index and sub-account are martingales | within Monte Carlo error | `tests/test_market_models.py` |
 | Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
@@ -32,10 +35,28 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
 | Every committed figure carries only the chunks a plot needs | all 10, nothing after IEND | `tests/test_artifacts.py` |
 
-269 tests, no framework required.
+272 tests, no framework required.
 
-The last row is the only check in the project that looks at a file rather than at a number, and it
-is there because something got past every other one. A figure is a binary blob: every viewer
+Three of these rows exist because an earlier version of this table was weaker than it looked, and
+the pattern is worth stating once. A put-call parity check was already here, at the money, at one
+parameter set, with a tolerance of half a per cent of the price - about thirty times looser than
+what the pricer actually delivers. It could not fail for the reason it existed. The defect it was
+meant to find lived where no test had ever priced: the call payoff's cosine coefficient integrates
+exp(y) over the upper half of the truncation range, so it comes out enormous and the sum over
+terms has to cancel it back to a price of order one, and at a dispersed enough variance
+distribution that cancellation is gone. Over the calibration's own parameter bounds, which a
+least-squares search is free to walk through, the direct call branch broke parity by more than a
+basis point of the forward at a third of the corners, returned a *negative* price at a sixth, and
+overflowed to NaN at the far ones - every one of them reaching the objective as a residual it
+would steer by. `cos_price` now prices the call both ways and keeps the direct value only where it
+is finite, above its own arbitrage floor, and within a basis point of the forward of parity. On
+the committed chain the direct value is kept for every quote, so the fitted parameters come out
+bit for bit identical to what is committed, and the Hull-White row is there for the same kind of
+reason: nothing had ever priced a bond seen from a date inside the projection, which is what the
+nested valuation rebuilds its curve from.
+
+The figure row is the only check in the project that looks at a file rather than at a number, and
+it is there because something got past every other one. A figure is a binary blob: every viewer
 renders it identically whatever else is inside it, and a text search of the repository cannot see
 in. Ten of these went to GitHub carrying a 5,758-byte private PNG chunk that the step copying them
 out of the build environment had inserted - no effect on a single pixel, and a plain-text
