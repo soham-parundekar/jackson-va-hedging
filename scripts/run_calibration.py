@@ -118,8 +118,9 @@ def main() -> None:
     print(f"  Heston   v0={heston.v0:.4f} kappa={heston.kappa:.3f} theta={heston.theta:.4f} "
           f"xi={heston.xi:.3f} rho={heston.rho:.3f}")
     print(f"  Feller   2*kappa*theta - xi^2 = {2*heston.kappa*heston.theta - heston.xi**2:+.3f}")
-    print(f"  surface  {int(surface['n_quotes'].sum())} quotes, "
-          f"rmse {1e2*float(np.sqrt((surface['rmse_vol']**2 * surface['n_quotes']).sum() / surface['n_quotes'].sum())):.2f} vol points")
+    quotes = surface["n_quotes"]
+    pooled_rmse = float(np.sqrt((surface["rmse_vol"] ** 2 * quotes).sum() / quotes.sum()))
+    print(f"  surface  {int(quotes.sum())} quotes, rmse {1e2 * pooled_rmse:.2f} vol points")
     print(f"  curve    worst par error {curve['par_error_bp'].abs().max():.2f}bp, "
           f"50y zero {float(calibration.curve.zero(50.0)):.4f}")
     print(f"  rates    a={calibration.mean_reversion:.4f} sigma={calibration.rate_vol:.5f}")

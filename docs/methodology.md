@@ -183,7 +183,7 @@ the last bootstrapped zero and weighted at half a quoted point. The assumption t
 the one the bootstrap already makes when asked past its last knot - the zero rate is flat beyond
 the last quote - and the half weight is there because it is an assumption rather than an
 observation. A forty-five-year liability sits on that tail, so it is stated rather than left
-implicit: the committed fit eases from 5.07 per cent at thirty-five years to 4.97 at fifty.
+implicit: the committed fit eases from 5.06 per cent at thirty-five years to 4.97 at fifty.
 
 The fit is a grid search on the two decays with the four betas solving in closed form at each
 point, rather than a gradient optimiser. Determinism matters here: this runs on every date of a
@@ -192,7 +192,7 @@ into the simulated bond prices that no market made.
 
 What it costs and what it buys are both in `reports/tables/curve_fit.csv`: the fitted par yields
 sit within about three basis points of the quotes at every tenor out to ten years and seven at
-twenty, and past the last quote the zero curve eases from 5.07 per cent at thirty-five years
+twenty, and past the last quote the zero curve eases from 5.06 per cent at thirty-five years
 to 4.97 at fifty rather than drifting.
 
 Rates are stochastic. The short rate follows a one-factor Hull-White process built around that

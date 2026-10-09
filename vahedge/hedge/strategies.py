@@ -48,8 +48,8 @@ from .sizing import DEFAULT_WEIGHTS
 # account value over the ten-year window instead of 21.2 and leaves a slightly smaller average
 # residual, 0.137 against 0.142 per cent a day, because a listed option's spread is charged on
 # its vega while the hedge is bought for its gamma and that ratio rises as the tenor shortens.
-# What it gives up is the tail: through covid the one-year put returned 3.5 per cent of account
-# value against the six-month's 2.0. So the short tenor buys a third off the running cost for
+# What it gives up is the tail: through covid the one-year put returned 3.3 per cent of account
+# value against the six-month's 1.9. So the short tenor buys a third off the running cost for
 # about a point and a half of crisis upside, which is the trade taken here and is reversible by
 # changing these two numbers. The whole grid is on the frontier once the crisis outcome is an
 # axis, and E3 prints it. Jackson's own equity option book averaged 0.24 years of remaining

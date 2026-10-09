@@ -145,6 +145,30 @@ def test_the_profile_tail_is_at_least_as_bad_as_the_whole_sample():
     assert profile["mean_accumulated_tail"].max() > profile["mean_accumulated_all"].max()
 
 
+def test_the_profile_and_the_requirement_count_the_same_tail():
+    """Two views of one tail, so they have to agree on which scenarios are in it.
+
+    The profile used to size its tail with ceil(n * (1 - level)) while cte counted from the kept
+    side. The two agree at 0.90 and differ by one scenario at 0.70, which would have shown up as
+    a profile describing a tail the reported requirement was not taken over.
+    """
+    # Ten scenarios, each peaking in a different year and each worse than the last, so CTE(70)
+    # takes the worst three and the share column has to read a third, a third, a third at years
+    # 8, 9 and 10. Sized with a ceiling it takes four and the shares come out in quarters.
+    deficiency = np.zeros((10, 10))
+    for scenario in range(10):
+        deficiency[scenario, scenario] = scenario + 1.0
+        deficiency[scenario, scenario + 1:] = -100.0
+    gpvad = statutory.greatest_pv_deficiency(deficiency)
+    assert list(gpvad) == [float(n + 1) for n in range(10)]
+
+    profile = statutory.deficiency_profile(deficiency, level=0.70)
+    shares = profile["share_of_tail_peaking_here"].to_numpy()
+    assert statutory.cte(gpvad, level=0.70).scenarios_in_tail == 3
+    assert shares[-3:].tolist() == [approx(1 / 3)] * 3
+    assert shares[:-3].sum() == 0.0
+
+
 def test_the_surrender_share_matches_the_disclosure():
     """231,711 of cash surrender value against 236,406 of separate account at 31 December 2025."""
     assert statutory.SURRENDER_VALUE_SHARE == approx(231_711 / 236_406, abs=5e-4)

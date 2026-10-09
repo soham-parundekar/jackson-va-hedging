@@ -74,8 +74,8 @@ Resampling the decade's equity days into thirty other orderings puts the realise
 91% of the daily variance on the path that happened and a median of 81% across reorderings of the
 same days. The ranking survives - the richer hedge is tighter on 90 to 100% of reorderings - but
 the put leg's edge over futures-and-swaps is about a third smaller than the single path suggested.
-And on a quarter to a third of reorderings the hedged book's worst single day is *worse* than the
-unhedged book's, which is where variance and tail risk part company.
+And on 27 to 37% of reorderings the hedged book's worst single day is *worse* than the unhedged
+book's, which is where variance and tail risk part company.
 
 **Jackson's own filings say its rate hedge and its equity hedge moved in opposite directions, and
 they date when.**
@@ -87,7 +87,7 @@ four year-ends on one measurement basis:
 | | 2022 | 2023 | 2024 | 2025 |
 |---|---|---|---|---|
 | rates, down / up | 37% / 43% | 86% / 78% | 81% / 86% | 79% / 86% |
-| equity, down / up | 104% / 77% | 110% / 82% | 49% / 50% | 9% / -9% |
+| equity, down / up | 104% / 77% | 110% / 81% | 49% / 50% | 9% / -9% |
 
 The rate share roughly doubled over 2023 and has sat near four fifths since. The equity share was
 a full hedge on the downside through 2023 and four fifths of one on the upside, and halved in

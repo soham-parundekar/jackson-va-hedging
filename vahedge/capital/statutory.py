@@ -98,26 +98,32 @@ def greatest_pv_deficiency(deficiency_pv: np.ndarray, floor_at_zero: bool = Fals
     return np.maximum(worst, 0.0) if floor_at_zero else worst
 
 
+def _tail_count(n: int, level: float) -> int:
+    """How many of ``n`` sorted scenarios make up the worst ``1 - level`` of them.
+
+    Counted from the kept side rather than as ``ceil(n * (1 - level))``, which is not stylistic:
+    ``1 - 0.70`` is 0.30000000000000004 in binary and the ceiling of n times it is one scenario
+    too many at every round level. One scenario in three hundred is a small bias in the level and
+    a visible one in the gap between CTE(70) and CTE(90), which is the quantity the hedging
+    comparison turns on.
+    """
+    return max(n - int(np.floor(n * level + 1e-9)), 1)
+
+
 def cte(values: np.ndarray, level: float = 0.70) -> TailMeasure:
     """Mean of the worst ``1 - level`` of the distribution.
 
     Computed by sorting and averaging rather than from a fitted quantile, because the tail is
     the object of interest and a parametric fit to it would be the assumption doing the work.
     The tail size rounds up, so CTE(90) on 999 scenarios averages the worst 100 rather than
-    99.9 of them.
-
-    The tail size is counted from the kept side, and that is not stylistic. Taking
-    ``ceil(n * (1 - level))`` puts one extra scenario in the tail at every round level, because
-    ``1 - 0.70`` is 0.30000000000000004 in binary and the ceiling of ten times it is four rather
-    than three. One scenario in three hundred is a small bias in the level and a visible one in
-    the gap between CTE(70) and CTE(90), which is the quantity the hedging comparison turns on.
+    99.9 of them, and it is counted from the kept side for the reason ``_tail_count`` gives.
     """
     values = np.asarray(values, dtype=float).ravel()
     if values.size == 0:
         raise ValueError("no scenarios to take a tail expectation over")
     if not 0.0 <= level < 1.0:
         raise ValueError(f"level must be in [0, 1), got {level}")
-    count = max(values.size - int(np.floor(values.size * level + 1e-9)), 1)
+    count = _tail_count(values.size, level)
     tail = np.sort(values)[-count:]
     return TailMeasure(
         level=level,
@@ -203,11 +209,14 @@ def statutory_capital(
     reported an identical 23.56 per cent of account value for all seven strategies, including S0,
     which has no hedge to be unoffset.
 
-    The cost the 8-K names shows up instead in how much of each basis the hedge removes. The same
-    position takes 91 to 96 per cent of the variance out of the economic series and 48 to 58 per
-    cent out of the statutory one, so the programme pays its full price and collects under half of
-    the benefit on the basis that drives capital. That asymmetry is the measurement; the level gap
-    is the floor's own cost and belongs to the block rather than to the hedge.
+    The cost the 8-K names shows up instead in how much of each basis the hedge removes. Across
+    the six hedged strategies the same position takes 78 to 96 per cent of the variance out of the
+    economic series and 48 to 58 per cent out of the statutory one, so the programme pays its full
+    price and collects a little over half of the benefit on the basis that drives capital. The gap
+    widens as the hedge gets richer rather than closing: futures alone take out 78 and 48 per cent,
+    and everything from the swap onwards takes out 91 to 96 against 49 to 58. That asymmetry is the
+    measurement; the level gap is the floor's own cost and belongs to the block rather than to the
+    hedge.
 
     Returns the ledger's columns plus the two capital series and their difference, indexed the
     same way, so the daily P&L reconciles against ``ledger["pnl"]`` on the economic side by
@@ -290,7 +299,11 @@ def deficiency_profile(deficiency_pv: np.ndarray, level: float = 0.90) -> pd.Dat
     """
     accumulated = np.cumsum(np.asarray(deficiency_pv, dtype=float), axis=1)
     gpvad = accumulated.max(axis=1)
-    count = max(int(np.ceil(gpvad.size * (1.0 - level))), 1)
+    # Same tail count as cte, and for the reason its docstring gives: ceil(n * (1 - level)) puts
+    # one extra scenario in the tail at round levels because 1 - 0.70 is not 0.30 in binary. The
+    # two agree at the 0.90 this is called with and would not at 0.70, which is exactly the kind
+    # of disagreement that makes two tables of the same tail stop matching.
+    count = _tail_count(gpvad.size, level)
     in_tail = np.argsort(gpvad)[-count:]
     peak_year = accumulated[in_tail].argmax(axis=1) + 1
     return pd.DataFrame({

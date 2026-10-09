@@ -271,8 +271,8 @@ def _own_credit_spread(panel: pd.DataFrame, dates: pd.DatetimeIndex, column: str
     the figure plotted on the reporting figure and differenced in the disclosure replica is the
     own-credit spread, not a corporate index that stands in for one.
 
-    Deliberately not added to the columns a date has to have. Requiring it drops two of the
-    2,491 replay dates, and two dates is immaterial to every conclusion while being enough to
+    Deliberately not added to the columns a date has to have. Requiring it would drop two of the
+    2,493 replay dates, and two dates is immaterial to every conclusion while being enough to
     move every figure in every hedging table - a silent renumbering of results that are quoted
     in commit messages and notes. The credit series publishes on federal business days and the
     equity series on NYSE days, which is the same calendar mismatch the rates already have, so

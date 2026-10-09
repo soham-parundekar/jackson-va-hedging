@@ -213,11 +213,12 @@ hedge of the variable annuity by itself.
 
 **One of those two lines moved by more than its balance can explain, and E5 says no book can.**
 The fixed-index and RILA embedded derivative's equity sensitivity goes from $4m at the end of 2024
-to $1,321m at the end of 2025 in the same table of the same filing, on a balance that only doubled.
-Modelling the index-linked book directly puts its whole reachable exposure within a factor of 2.4
-across every cap, term position and composition, against a filed move of 330. A book of the filed
-size would have shown 3.5%, 10.5%, 27% and 50% of the guarantee's equity move across the four
-year-ends where the filings show 0.1%, 0.2%, 0.5% and 79%.
+to $1,321m at the end of 2025 in the same table of the same filing, on a balance that grew by three
+quarters. Modelling the index-linked book directly puts its whole reachable exposure within a
+factor of 2.4 across every cap and composition, and within 9.8 even for a single segment at any
+point in its term, against a filed move of 330. A book of the filed size would have shown 3.5%,
+10.5%, 27% and 50% of the guarantee's equity move across the four year-ends where the filings show
+0.1%, 0.2%, 0.5% and 79%.
 
 So the two bases are not two views of one thing. **The combined-basis figures are not comparable
 across 2024 and 2025**, the apparent flatness of that series is an artefact of a presentation

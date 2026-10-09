@@ -30,8 +30,18 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Cash moved by the five things that have ledger columns and nothing else | exact | `tests/test_hedge.py` |
 | The economic decomposition adds to the ledger's own profit | exact by construction | `tests/test_hedge.py` |
 | The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
+| Every committed figure carries only the chunks a plot needs | all 10, nothing after IEND | `tests/test_artifacts.py` |
 
-266 tests, no framework required.
+269 tests, no framework required.
+
+The last row is the only check in the project that looks at a file rather than at a number, and it
+is there because something got past every other one. A figure is a binary blob: every viewer
+renders it identically whatever else is inside it, and a text search of the repository cannot see
+in. Ten of these went to GitHub carrying a 5,758-byte private PNG chunk that the step copying them
+out of the build environment had inserted - no effect on a single pixel, and a plain-text
+provenance record to anything that reads the bytes. Stripping it reproduced the build's own output
+exactly, byte for byte on all ten, which is what says the images themselves were never the
+problem.
 
 The parity check is the one of these that is not arithmetic. The regression behind the chain's
 forwards is self-validating on fit - the call-minus-put spread is linear in strike by
@@ -353,7 +363,7 @@ On the market risk benefit, which is one measurement across all four years:
 | Date | Shift | Equity down | Equity up | Rates down | Rates up |
 |---|---|---|---|---|---|
 | 2022-12-31 | 50bp | 104% | 77% | 37% | 43% |
-| 2023-12-31 | 50bp | 110% | 82% | 86% | 78% |
+| 2023-12-31 | 50bp | 110% | 81% | 86% | 78% |
 | 2024-12-31 | 50bp | 49% | 50% | 81% | 86% |
 | 2024-12-31 | 100bp | 49% | 50% | 80% | 88% |
 | 2025-12-31 | 100bp | 9% | -9% | 79% | 86% |
@@ -365,7 +375,7 @@ comparable in level with the rows above, so it is kept in the table and read wit
 **The two legs moved in opposite directions, and the dates say when.** The rate share goes
 37-43% at the end of 2022, to 78-86% a year later, and then sits at 79-88% through 2024 and 2025.
 The equity share is at or above a full hedge on the downside through 2023 and four fifths of one
-on the upside - 104% and 77%, then 110% and 82% - and halves to 49% and 50% in 2024, the first
+on the upside - 104% and 77%, then 110% and 81% - and halves to 49% and 50% in 2024, the first
 full year after Brooke Re was formed in December 2023.
 Every one of those readings is on the same basis and the same shock size except where noted.
 
@@ -422,7 +432,11 @@ regression proxy, and repricing both sides under the same shocks.
 | | Disclosed | S1, futures | S2, plus the swap | S3, plus puts |
 |---|---|---|---|---|
 | Rates | 37% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
-| Equity | -9% to 135% | 90% to 113% | 90% to 113% | 101% to 108% |
+| Equity | -9% to 110% | 90% to 113% | 90% to 113% | 101% to 108% |
+
+The disclosed column is the market risk benefit basis on both rows, so the two are read against
+each other. The pre-LDTI dates would stretch the equity range to 135% and the rate range down to
+24%, and mixing them in would make the comparison a comparison of accounting bases.
 
 Convexity therefore accounts for about eight points of scatter either side of one, not the twelve
 to twenty point rate shortfall or the fifty to a hundred point equity one the disclosure shows
@@ -505,8 +519,8 @@ one path.
 
 **A hedge that removes most of the variance does not reliably improve the worst day.** On 63% to
 73% of reorderings the hedged book's single worst day is better than the unhedged book's, which
-means that on a quarter to a third of them it is worse. Variance is a whole-sample measure and a
-guarantee is a tail problem, and this is where the two part company.
+means that on 27% to 37% of them it is worse. Variance is a whole-sample measure and a guarantee
+is a tail problem, and this is where the two part company.
 
 **The two arms are not just a drift difference.** The re-centred arm, at about 6.4% a year against
 the window's own 14.4%, produces tighter distributions, lower residuals and - the point that
@@ -657,9 +671,11 @@ economic outcome, on every hedged strategy:
 | S3 | 0.137% | 0.153% | 1.11 | 0.127% | 0.142% |
 | S5 | 0.158% | 0.182% | 1.15 | 0.127% | 0.126% |
 
-Daily standard deviations as a share of the account value at the start, in per cent. An earlier
-version of this table printed the raw fractions with a per-cent sign and was out by a factor of a
-hundred against the frontier table two sections above it.
+Daily standard deviations as a share of the account value at the start, in per cent. These runs
+rebalance weekly, which is what the strategies carry by default, so the economic column sits a
+little above the daily-rebalancing figures in the hedging table two sections up rather than
+matching them. An earlier version printed the raw fractions with a per-cent sign and was out by a
+factor of a hundred against that table.
 
 The multiple *rises* as the hedge gets tighter, which is the mechanism rather than a paradox: the
 hedge removes economic variation and the reporting basis carries margins that move with the market
