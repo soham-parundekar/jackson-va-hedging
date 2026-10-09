@@ -126,6 +126,9 @@ class BookValuation:
     benefit_base: float
     by_cohort: pd.DataFrame
     projection: gmwb.GmwbProjection
+    # The paths this was valued on, carried so a caller differencing two valuations can ask
+    # them how their draws pair rather than assuming a pairing. See MarketPaths.
+    paths: MarketPaths
 
     @property
     def mrb_pct_of_account(self) -> float:
@@ -264,7 +267,7 @@ class Valuer:
         path_level = np.einsum(
             "c,cp->p", weight, projection.claim_paths
         ) - np.einsum("c,cp->p", weight * attribution, projection.fee_paths)
-        std_error = _standard_error(path_level, paths.antithetic)
+        std_error = _standard_error(path_level, paths)
 
         by_cohort = book.to_frame()
         by_cohort["pv_claims"] = projection.pv_claims
@@ -290,6 +293,7 @@ class Valuer:
             benefit_base=float(np.sum(weight * book.benefit_base)),
             by_cohort=by_cohort,
             projection=projection,
+            paths=paths,
         )
 
     def calibrate_attribution(self, book, state: MarketState, with_death_benefit: bool = True):
@@ -371,10 +375,13 @@ def _apply_credit_spread(paths: MarketPaths, spread: float) -> MarketPaths:
     return replace(paths, discount=paths.discount * np.exp(-spread * years)[None, :])
 
 
-def _standard_error(sample: np.ndarray, antithetic: bool) -> float:
-    n = sample.size
-    if antithetic and n % 2 == 0:
-        half = n // 2
-        pairs = 0.5 * (sample[:half] + sample[half:])
-        return float(pairs.std(ddof=1) / np.sqrt(half))
-    return float(sample.std(ddof=1) / np.sqrt(n))
+def _standard_error(sample: np.ndarray, paths) -> float:
+    """Monte Carlo error, off the antithetic pairs where the paths carry them.
+
+    The pairing comes from the paths rather than from a halving rule here, because which rows
+    mirror which is a fact about how they were simulated; see ``MarketPaths.antithetic_pairs``.
+    """
+    pairs = paths.antithetic_pairs(sample)
+    if pairs is None:
+        return float(sample.std(ddof=1) / np.sqrt(sample.size))
+    return float(pairs.std(ddof=1) / np.sqrt(pairs.size))

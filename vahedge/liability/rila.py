@@ -225,13 +225,16 @@ def project(
                 else np.ones(paths.index_growth.shape[0]))
 
     payoff = discount * credited
-    half = payoff.size // 2
-    if paths.antithetic and payoff.size % 2 == 0:
-        pairs = 0.5 * (payoff[:half] + payoff[half:])
-        value, std_error = float(pairs.mean()), float(pairs.std(ddof=1) / np.sqrt(half))
-    else:
+    # The pairing comes from the paths rather than from halving this array: they are simulated
+    # in independently seeded blocks and each one mirrors within itself, so at the hundred
+    # thousand paths E5 runs there are five blocks and the halves of the whole array are not
+    # pairs at all. The mean is the same either way; the standard error is not.
+    pairs = paths.antithetic_pairs(payoff)
+    if pairs is None:
         value = float(payoff.mean())
         std_error = float(payoff.std(ddof=1) / np.sqrt(payoff.size))
+    else:
+        value, std_error = float(pairs.mean()), float(pairs.std(ddof=1) / np.sqrt(pairs.size))
 
     return {
         "embedded_derivative": account_value * value,

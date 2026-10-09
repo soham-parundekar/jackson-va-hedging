@@ -168,10 +168,38 @@ class MarketPaths:
     realised_variance: np.ndarray  # (n_paths, n_years), average variance across each year
     seed: int
     antithetic: bool
+    # Paths per independently seeded block. Mirroring happens inside a block, so this is what
+    # says which rows pair with which; zero means the whole array is one block, which is the
+    # right default for paths assembled by hand. ``simulate`` sets it.
+    antithetic_block: int = 0
 
     @property
     def n_paths(self) -> int:
         return self.fund_growth.shape[0]
+
+    def antithetic_pairs(self, sample: np.ndarray) -> np.ndarray | None:
+        """Pair-averaged ``sample``, or None when the paths carry no usable pairing.
+
+        The pairing is not first-half-against-second-half of the whole array, and assuming it
+        was is a quiet way to lose the variance reduction the antithetic draw bought. Paths are
+        simulated in independently seeded blocks of 20,000 and each block mirrors its own first
+        half into its own second half, so row i pairs with row i + block/2 *within its block*.
+        Pairing across the whole array instead pairs a path with an unrelated one from another
+        block: the mean is unaffected, because averaging pairs and averaging rows are the same
+        sum, but the standard error comes out as though there were no pairing at all. On the
+        forty-thousand-path row of the convergence table that read 106 against the 96 a
+        correctly paired run reports, which is a Monte Carlo error overstated by a tenth and
+        off the trend the three rows below it set.
+        """
+        sample = np.asarray(sample, dtype=float).ravel()
+        if not self.antithetic or sample.size % 2:
+            return None
+        block = self.antithetic_block or sample.size
+        if block % 2 or sample.size % block:
+            return None
+        blocks = sample.reshape(-1, block)
+        half = block // 2
+        return (0.5 * (blocks[:, :half] + blocks[:, half:])).ravel()
 
     @property
     def n_years(self) -> int:
@@ -248,7 +276,8 @@ def simulate(
         for name in names:
             out[name][start:stop] = piece[name]
 
-    return MarketPaths(seed=seed, antithetic=antithetic, **out)
+    return MarketPaths(seed=seed, antithetic=antithetic,
+                       antithetic_block=min(block, n_paths), **out)
 
 
 def _simulate_chunk(

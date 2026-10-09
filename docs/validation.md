@@ -24,6 +24,8 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
 | The contract recursion against a scalar reading of the documented anniversary order | agree to 1e-13 on a path that exhausts, steps up and reaches the adjustment | `tests/test_liability.py` |
 | The rate leg's annuity rho against repricing the swap under a parallel shift | 0.45% apart at the ten-year tenor held | `tests/test_hedge.py` |
+| The hedge solve against an explicitly formed penalised least-squares system | agree to 1e-9 across three instrument sets and two hedge ratios | `tests/test_hedge.py` |
+| Antithetic pairs are found inside their own simulation block | the mean is pairing-invariant, the error is not | `tests/test_market_models.py` |
 | Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
 | Overlapping filings agree | 12 liability figures and 3 derivative dates in two filings each, all agree | `build_dataset.py`, `tests/test_disclosures.py` |
@@ -37,7 +39,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
 | Every committed figure carries only the chunks a plot needs | all 10, nothing after IEND | `tests/test_artifacts.py` |
 
-274 tests, no framework required.
+277 tests, no framework required.
 
 Three of these rows exist because an earlier version of this table was weaker than it looked, and
 the pattern is worth stating once. A put-call parity check was already here, at the money, at one
@@ -79,10 +81,21 @@ like, and nothing in the calibration was told to make it so.
 ### Monte Carlo error and truncation
 
 At twenty thousand paths the standard error on the market risk benefit is $136 on a $100,000
-policy, and it halves as paths quadruple. Greeks are taken on common random numbers and each
-carries the standard error of its own paired difference: the equity exposure's is 164 on 14,501,
-rho's is 19 on 5,887 per 100bp, vega's is 40 on 893. A Greek whose error is a third of its value
-is not a risk number, and printing the error is the only way to know.
+policy, and it halves as paths quadruple - 2.01, 1.96 and 1.99 across the three quadruplings in
+`monte_carlo_convergence.csv`. Greeks are taken on common random numbers and each carries the
+standard error of its own paired difference: the equity exposure's is 164 on 14,501, rho's is 19
+on 5,887 per 100bp, vega's is 40 on 893. A Greek whose error is a third of its value is not a
+risk number, and printing the error is the only way to know.
+
+The forty-thousand-path row of that table used to read 106 rather than 96, which is the one
+figure in the project an audit found by reading a trend rather than by checking a formula: a
+doubling of the paths should divide the error by 1.41 and that row divided it by 1.27. Paths are
+simulated in independently seeded blocks of twenty thousand and each block mirrors its own first
+half into its own second half, so above one block the halves of the whole array are not
+antithetic pairs. Pairing them anyway leaves every value untouched - averaging pairs and
+averaging rows are the same sum - and throws away the variance reduction, so the error came out a
+tenth too large. The pairing now comes from the paths rather than from a halving rule, and the
+row sits on the trend at 1.415.
 
 Truncation is measured on common draws, which is the only way the comparison means anything: the
 simulator draws its normals in one array whose width follows the horizon, so a forty-year run and

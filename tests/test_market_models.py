@@ -11,6 +11,7 @@ in the characteristic function, which is the error this module exists to catch.
 from __future__ import annotations
 
 import itertools
+from dataclasses import replace
 
 import numpy as np
 
@@ -27,6 +28,7 @@ from vahedge.market.heston_cos import (
 from vahedge.market.hull_white import HullWhite, calibrate_historical
 from vahedge.market.simulate import (
     Correlations,
+    MarketPaths,
     SubAccountMix,
     martingale_report,
     simulate,
@@ -416,6 +418,46 @@ def test_variance_never_goes_negative():
     paths = simulate(_heston(), model, Correlations(-0.588, 0.106), SubAccountMix.all_equity(),
                      n_years=20, n_paths=20000, seed=9)
     assert float(paths.variance.min()) >= 0.0
+
+
+def test_antithetic_pairs_are_found_inside_their_own_simulation_block():
+    """A path pairs with its mirror, which is not the row half an array away.
+
+    Paths are simulated in independently seeded blocks and each block mirrors its own first
+    half into its own second half, so above one block the halves of the whole array are not
+    pairs at all. Pairing them anyway leaves the mean untouched - averaging pairs and averaging
+    rows are the same sum - and throws away the variance reduction, which is the one thing the
+    antithetic draw was for. It read as a Monte Carlo error a tenth too large on the
+    forty-thousand-path row of the convergence table, and off the trend the rows below it set.
+    """
+    curve, heston = _curve(), _heston()
+    model = HullWhite(a=0.27, sigma=0.0114, curve=curve)
+    block = 1_000
+    for n_paths in (block, 2 * block, 5 * block):
+        paths = simulate(heston, model, Correlations(-0.5, 0.0), SubAccountMix.all_equity(),
+                         n_years=3, n_paths=n_paths, seed=3, steps_per_year=4,
+                         chunk_paths=block)
+        assert paths.antithetic_block == min(block, n_paths)
+        sample = paths.fund_growth.prod(axis=1)
+        paired = paths.antithetic_pairs(sample)
+        assert paired.size == n_paths // 2
+        # Whichever way they are paired the mean is the same, which is why this went unnoticed.
+        halves = 0.5 * (sample[:n_paths // 2] + sample[n_paths // 2:])
+        assert paired.mean() == approx(halves.mean(), rel=1e-12)
+        # And the real pairing is the tighter one as soon as there is more than one block.
+        if n_paths > block:
+            assert paired.std(ddof=1) < 0.95 * halves.std(ddof=1)
+        else:
+            assert approx(halves, rel=1e-12) == paired
+
+    # Hand-built paths carry no block, so the whole array is one and the old behaviour stands.
+    ones = np.ones((4, 2))
+    bare = MarketPaths(fund_growth=ones, index_growth=ones, discount=ones, short_rate=ones,
+                       variance=ones, zero_10y=ones, realised_variance=ones, seed=0,
+                       antithetic=True)
+    assert bare.antithetic_block == 0
+    assert bare.antithetic_pairs(np.array([1.0, 2.0, 3.0, 4.0])).tolist() == [2.0, 3.0]
+    assert replace(bare, antithetic=False).antithetic_pairs(np.arange(4.0)) is None
 
 
 def test_antithetic_sampling_needs_an_even_path_count():

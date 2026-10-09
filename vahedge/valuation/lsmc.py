@@ -638,16 +638,6 @@ def _replicate_weights(moneyness: np.ndarray) -> np.ndarray:
     return scale[inverse]
 
 
-def _ridge_solve(design: np.ndarray, target: np.ndarray, ridge: float,
-                 weights: np.ndarray | None = None) -> np.ndarray:
-    if weights is not None:
-        design = design * weights[:, None]
-        target = target * weights
-    gram = design.T @ design
-    penalty = ridge * np.trace(gram) / gram.shape[0] * np.eye(gram.shape[0])
-    return np.linalg.solve(gram + penalty, design.T @ target)
-
-
 def fit(
     projection,
     order: int = 3,

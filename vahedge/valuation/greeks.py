@@ -179,12 +179,10 @@ def _paired_error(up, down, book, attribution) -> float:
             up.projection.fee_paths - down.projection.fee_paths,
         )
     )
-    n = difference.size
-    if n % 2 == 0:
-        half = n // 2
-        pairs = 0.5 * (difference[:half] + difference[half:])
-        return float(pairs.std(ddof=1) / np.sqrt(half))
-    return float(difference.std(ddof=1) / np.sqrt(n))
+    pairs = up.paths.antithetic_pairs(difference)
+    if pairs is None:
+        return float(difference.std(ddof=1) / np.sqrt(difference.size))
+    return float(pairs.std(ddof=1) / np.sqrt(pairs.size))
 
 
 def disclosed_shocks(

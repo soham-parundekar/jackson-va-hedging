@@ -317,6 +317,68 @@ def test_the_unhedged_baseline_keeps_the_whole_exposure():
     assert positions.notional(market) == 0.0
 
 
+def test_the_solve_is_the_penalised_least_squares_system_it_claims_to_be():
+    """The solved units against an explicitly formed design, target and penalty.
+
+    `_weighted_ridge` normalises, solves a Gram system and un-normalises, which is three
+    opportunities to be solving something other than the stated objective. This builds the
+    stacked system the objective describes - the weighted design above the penalty rows - and
+    hands it to lstsq, so the two routes share nothing but the exposures.
+
+    The penalty rows are what fix the units: each position is penalised by the weighted
+    exposure it produces rather than by its unit count, so the row for instrument j carries
+    sqrt(mu) times the norm of its own weighted column.
+    """
+    market, exposure = _market(), sizing.insurer_exposures(_guarantee_greeks())
+    ladder = (
+        strategies.equity_only(),
+        strategies.equity_only() + strategies.rate_instruments(),
+        strategies.equity_only() + strategies.rate_instruments() + strategies.put_leg(),
+    )
+    weights = sizing.DEFAULT_WEIGHTS
+    for instruments in ladder:
+        for hedge_ratio in (1.0, 0.90):
+            solved = sizing.solve(instruments, market, exposure, hedge_ratio=hedge_ratio)
+            design = inst.exposure_matrix(instruments, market)
+            target = -(exposure * hedge_ratio).as_array()
+            norms = np.linalg.norm(design * weights[:, None], axis=0)
+            norms = np.where(norms > 1e-12, norms, 1.0)
+            stacked = np.vstack([
+                design * weights[:, None],
+                np.sqrt(sizing.DEFAULT_RIDGE) * np.diag(norms),
+            ])
+            rhs = np.concatenate([target * weights, np.zeros(design.shape[1])])
+            independent = np.linalg.lstsq(stacked, rhs, rcond=None)[0]
+            assert approx(independent, rel=1e-9) == solved.units
+            # Short index against a written put, whatever the ratio or the instrument set.
+            assert solved.achieved.delta < 0.0
+
+
+def test_the_residual_is_what_is_left_open_rather_than_the_solves_own_error():
+    """At a partial hedge the two part company, and the field is named for the first.
+
+    The solve hits a scaled-down target, so its own error stays negligible while the exposure
+    it deliberately leaves open does not: at ninety per cent the error is a millionth of the
+    delta and the open position is a tenth of it, five orders of magnitude apart. Reading the
+    one as the other would report a partial hedge as a complete one.
+    """
+    market, exposure = _market(), sizing.insurer_exposures(_guarantee_greeks())
+    instruments = strategies.equity_only() + strategies.rate_instruments()
+    for hedge_ratio in (1.0, 0.90):
+        solved = sizing.solve(instruments, market, exposure, hedge_ratio=hedge_ratio)
+        left = sizing.effectiveness(exposure, solved)
+        assert approx(left["delta_after"], rel=1e-12) == solved.residual.delta
+        assert approx(left["rho_after"], rel=1e-12) == solved.residual.rho
+    partial = sizing.solve(instruments, market, exposure, hedge_ratio=0.90)
+    solve_error = partial.achieved.delta - partial.target.delta
+    assert abs(solve_error) < 1e-5 * abs(exposure.delta)
+    assert approx(0.10 * exposure.delta, rel=1e-4) == partial.residual.delta
+    # And the unhedged baseline keeps the whole exposure at any ratio, not a scaled share of it.
+    for hedge_ratio in (1.0, 0.90):
+        bare = sizing.solve((), market, exposure, hedge_ratio=hedge_ratio)
+        assert approx(exposure.as_array(), rel=1e-12) == bare.residual.as_array()
+
+
 def test_a_put_leg_removes_convexity_that_futures_cannot_touch():
     market, exposure = _market(), sizing.insurer_exposures(_guarantee_greeks())
     linear = strategies.equity_only() + strategies.rate_instruments()

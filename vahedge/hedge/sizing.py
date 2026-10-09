@@ -5,15 +5,21 @@ between one and six instruments, and three of the instruments carry only one of 
 it is a weighted least-squares solve rather than an inversion, and the weights are what decides
 which residual the hedge is willing to live with.
 
-    minimise  || W (g + G n) ||^2 + mu || n / scale ||^2
+    minimise  || W (g + G n) ||^2 + mu sum_j ( n_j || W G_j || )^2
 
 with g the exposure the insurer carries, G the instruments' exposures by column, and n the
 number of units. The ridge term is there for the degenerate cases - two rate instruments with
 nearly proportional exposures, or a strategy with no gamma instrument at all - where the
 unregularised solve is free to take enormous offsetting positions that net to the same hedge
-and cost a fortune in spread. Scaling by each instrument's own notional before penalising is
-what stops the penalty from quietly preferring whichever instrument happens to be quoted in
-bigger units.
+and cost a fortune in spread.
+
+What the penalty is measured in matters more than its size. Each position is penalised by the
+weighted exposure it produces, || W G_j || per unit, not by its unit count and not by its
+notional. Notional would be the obvious choice and it is wrong here: a dollar of notional in the
+receive-fixed swap carries eight basis points of rho against an equity future's hundred dollars
+of delta, so penalising per dollar of notional is three orders of magnitude apart from
+penalising per dollar of risk, and it crushes the rate leg. See ``_weighted_ridge``, which is
+where a version of exactly that mistake was found.
 
 The sign convention is the part worth reading twice, because getting it wrong produces a result
 that looks like a hedge and doubles the risk.
@@ -61,7 +67,13 @@ class HedgePositions:
     units: np.ndarray
     target: Exposures          # what the hedge had to produce
     achieved: Exposures        # what it does produce
-    residual: Exposures        # achieved less target, the exposure left unhedged
+    # The exposure still open: the insurer's own plus whatever the hedge produces. Not the
+    # solve's own error, which is ``achieved`` less ``target`` and is a different number as soon
+    # as the hedge ratio is below one - at a ninety per cent hedge of this book the solve lands
+    # within four thousandths of a dollar of its target while fourteen hundred and fifty dollars
+    # of delta is deliberately left open. The two coincide exactly at a full hedge, which is
+    # every strategy that reads this field.
+    residual: Exposures
 
     @property
     def labels(self) -> tuple:
@@ -166,7 +178,7 @@ def solve(
         return HedgePositions(
             instruments=(), units=np.zeros(0),
             target=(exposure * hedge_ratio) * -1.0,
-            achieved=Exposures(), residual=exposure * hedge_ratio,
+            achieved=Exposures(), residual=exposure,
         )
 
     design = exposure_matrix(instruments, market)
@@ -190,7 +202,7 @@ def solve(
         units=units,
         target=Exposures.from_array(target),
         achieved=achieved,
-        residual=Exposures.from_array(design @ units - target),
+        residual=Exposures.from_array(exposure.as_array() + achieved.as_array()),
     )
 
 
