@@ -10,7 +10,8 @@ help:
 	@echo "clone has to build them before anything downstream will run."
 	@echo ""
 	@echo "data        validate the committed inputs and bootstrap the curve history"
-	@echo "calibrate   fit the market state: curve, Heston surface, short rate, correlations"
+	@echo "calibrate   fit the market state: curve, Heston surface, short rate, correlations,"
+	@echo "            with the two out-of-sample checks that need the fitted surface"
 	@echo "valuation   at-issue valuation, cash flows, robustness, convergence"
 	@echo "greeks      Greeks on paired paths, and the moneyness profile"
 	@echo "validate    disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep"
@@ -28,7 +29,9 @@ help:
 	@echo "figures     redraw every figure from the tables, which takes seconds"
 	@echo "test        the test suite"
 	@echo "all         everything, in dependency order"
-	@echo "clean       remove generated outputs, leaving data/raw alone"
+	@echo "clean       remove generated outputs, leaving data/raw alone. reports/ is committed,"
+	@echo "            so this deletes tracked files on purpose: clean, all, then git diff is"
+	@echo "            the reproduction check, and git checkout reports puts them back"
 
 all: data calibrate valuation greeks validate proxy convexity hedge macro statutory \
      reporting replica offset netting real-world economics figures test
@@ -108,6 +111,9 @@ figures:
 test:
 	$(PY) -m tests.run_tests
 
+# reports/tables and reports/figures are committed, so this removes tracked files. That is what
+# makes `make clean && make all && git diff --stat reports` the reproduction check: anything that
+# comes back different is a result that does not reproduce from the committed inputs.
 clean:
 	rm -rf data/processed/* reports/tables/* reports/figures/*
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

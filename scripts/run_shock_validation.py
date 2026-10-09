@@ -167,8 +167,9 @@ def market_at(panel: pd.DataFrame, history, calibration, date) -> MarketState:
     No free historical option data exists to recalibrate the surface, so what moves with the date
     is the curve and the observable instantaneous variance, and what is held is the speed of mean
     reversion, the long-run level and the skew. That is stated rather than hidden: it means the
-    in-force comparison is run with the volatility surface of December 2025 attached to the rate
-    environment of each disclosed year.
+    in-force comparison is run with the surface of one afternoon's chain, 28 September 2026,
+    attached to the rate environment of each disclosed year - including the three that ended
+    before that chain was quoted.
     """
     stamp = pd.Timestamp(date)
     position = int(np.searchsorted(history.dates, stamp, side="right")) - 1

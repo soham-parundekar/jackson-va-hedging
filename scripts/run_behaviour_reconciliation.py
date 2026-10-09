@@ -16,7 +16,7 @@ portfolio into line. The point is not to fit the disclosure - that would be reve
 number rather than modelling a liability - but to establish whether the gap closes inside the
 range the literature and the filings support, or whether something else has to be wrong.
 
-Two things are handled here that the earlier version of this comparison could only flag:
+Two things the sweep handles outright rather than listing as caveats on a static comparison:
 
 *Lapse is dynamic.* A static rate surrenders contracts at the same pace whatever the guarantee is
 worth, which is wrong in exactly the states that matter: real lapse collapses when a guarantee is

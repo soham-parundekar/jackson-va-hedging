@@ -100,9 +100,18 @@ def two_sided_p(correlation: float, periods: int) -> float:
     correlation of minus eight tenths from nothing in particular, and a bare coefficient invites
     the reader to treat that as established. The survival function of the t distribution is a
     regularised incomplete beta, which is a continued fraction and more machinery than this
-    needs, so the p-value comes from the normal approximation to Fisher's z instead. It is
-    slightly optimistic at these sample sizes, which is the wrong direction to be wrong in, so
-    treat anything near the threshold as not shown.
+    needs, so the p-value comes from the normal approximation to Fisher's z instead.
+
+    Which direction that errs in depends on the coefficient, not only on the sample, and the
+    four rows this reports happen to split evenly. Against the exact t survival function:
+    0.9803 against 0.9799 on the eighteen filed quarters, and 0.246 against 0.179 on the four
+    filed years, so on both rows where the question is open the approximation reports *less*
+    significance than the exact test and the finding that nothing is visible in the filed series
+    survives either. On the model's own two rows it is optimistic by orders of magnitude -
+    2e-52 against 7e-32 at forty-one periods - and both are zero to any reading. The crossover
+    sits near r = 0.5 at eighteen periods and near 0.3 at forty-one, so anything weak is
+    reported conservatively and anything strong is already past the point where the exponent
+    matters. Treat a coefficient near the threshold as not shown regardless.
     """
     if periods < 4 or not np.isfinite(correlation) or abs(correlation) >= 1.0:
         return float("nan")

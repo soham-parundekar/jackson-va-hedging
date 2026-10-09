@@ -76,11 +76,13 @@ index instruments would carry more.
 **A constant 1.5% dividend yield.** FRED carries the S&P 500 price index, so the dividend yield
 enters as an assumption in both the sub-account's total return and the futures excess return.
 
-**The volatility surface is held at its December 2025 shape along the whole replay.** No free
-historical option data exists, so what moves with the date in the in-force comparison and the
-backtest is the curve and the observable instantaneous variance; the skew, the speed of mean
-reversion and the long-run level are held. The in-force comparison is therefore run with the
-surface of December 2025 attached to the rate environment of each disclosed year.
+**The volatility surface is one afternoon's chain, held along the whole replay.** It is the SPX
+chain of 28 September 2026, which is the only snapshot free data gives, and there is no free
+historical option data to move it with. So what moves with the date in the in-force comparison
+and the backtest is the curve and the observable instantaneous variance; the skew, the speed of
+mean reversion and the long-run level are held. The in-force comparison is run with that chain's
+surface attached to the rate environment of each disclosed year, including years that ended
+before the chain was quoted.
 
 **The term structure is too flat, by a measured amount, in the direction the puts need.** Mean
 reversion at 4.80 has a half-life of seven weeks, so the model is almost fully reverted to its
@@ -106,8 +108,12 @@ thirty days is the horizon furthest from a forty-five-year guarantee.
 The hedge cannot run a full valuation at every rebalance date, so it runs a least-squares proxy,
 and everything in the hedging workstream inherits the proxy's errors.
 
-Its value is accurate - R-squared above 0.995 in range and a root mean square error of a few
-thousandths of a per cent of account value. Its **delta is 36% off in the first policy year** and
+Its value is accurate - R-squared above 0.995 in range and a root mean square error of two to
+seven tenths of a per cent of premium against nested simulation. That figure read as thousandths
+of a per cent here and in the notebook until an audit divided the committed column by itself: the
+column is a share of premium, as every `_pct_of_account` column in this project is a share rather
+than a percentage, and the denominator is premium rather than each node's own account value.
+Its **delta is 36% off in the first policy year** and
 21% in the second, 10% by year 5 and 5% by year 14, and then deteriorates again to 23% by year 25
 as the delta itself shrinks and the same absolute error becomes a larger share of it. The backtest
 covers policy years 3 to 13, which is the best part of that range, but nothing in the project
@@ -136,6 +142,39 @@ itself. On a forty-five-year guarantee these are the larger risks.
 
 **The equity hedge is a frictionless futures overlay.** No contract granularity, no roll basis, no
 margin funding.
+
+**Four model inputs are dated after the decisions they drive, and the list is the whole of it.**
+A desk rebalancing in September 2016 could not have had any of them:
+
+| Input | Dated | Reaches back to |
+|---|---|---|
+| Heston parameters and the proxy surface fitted on them | the SPX chain of 28 Sep 2026 | the whole replay, from Sep 2016 |
+| Hull-White mean reversion and volatility | fitted on the 3-month bill, Sep 1981 to Sep 2026 | the whole replay |
+| Mortality improvement under Scale G2 | projected to 2026 and held | the whole replay |
+| Sub-account mix at 0.83 equity, cash surrender value at 98.0% of account value | the FY2025 10-K | the whole replay |
+
+What is contemporaneous: the index level, the zero curve bootstrapped from that day's own par
+quotes, the instantaneous variance read off the three-month volatility index, the financing rate,
+and the position being rebalanced, which comes from the prior day's ledger and nothing else.
+`tests/test_hedge.py` pins that last one rather than asserting it.
+
+Three of the four are unavoidable on free data and the fourth is a choice. Nothing free carries a
+historical option surface, the mean reversion is not identified by a decade, and a 2016 fund mix
+is not disclosed; holding the mortality basis at 2026 is a decision, worth 0.92 years of expected
+lifetime at age 70 across the 2012-to-2025 improvement, which is the smallest of the four.
+
+The size of the first one is measured rather than argued, in **Model risk** in
+`docs/validation.md`: re-sizing the same hedge from deliberately wrong Greeks - no skew at all, a
+long-run level at 17% and at 26% against the calibrated 21.7% - moves the residual standard
+deviation by a fifth of the calibrated residual at the median cell and nine tenths at the worst.
+That brackets what a desk holding a different surface would have suffered, and it is the reason
+the hedging results are reported as a ranking of instrument sets rather than as a profit a desk
+could have earned. Read as a ranking they are not a forecast and the dating does not flatter them;
+read as a P&L they would be, and the project does not read them that way anywhere.
+
+What none of this is: there is no survivorship or selection question to answer here. One issuer,
+named in advance, every disclosed shock it published used rather than a subset, and the replay
+window set by where the free index history starts rather than by where the hedge looks good.
 
 **One realised decade, widened but not escaped.** The bootstrap experiment resamples the decade's
 equity days into other orderings, which gives the hedging result a distribution rather than a

@@ -57,10 +57,21 @@ gap has a single structural explanation.
 
 ## What is being modelled
 
-One contract, stated as such throughout: Jackson's Perspective II with the Flex GMWB
-(Single) rider on the Core benefit option, elected at issue, single premium of $100,000,
-issue age 70. Not Jackson's in-force block, which would need policyholder-level data that
-is never disclosed.
+Two objects, and which one a result rests on is stated wherever a result is quoted.
+
+The reference contract is Jackson's Perspective II with the Flex GMWB (Single) rider on the
+Core benefit option, elected at issue, single premium of $100,000, issue age 70. Every
+mechanic below is specified on it, the robustness table moves it one assumption at a time,
+and the hedging backtest rolls it along realised history. It is one policy and is labelled
+as one.
+
+The vintage book is five of those, issued at two-year intervals from September 2016 to
+June 2024 at equal premium shares, each rolled to a
+disclosure date along the index history that happened and then valued as a single book. It
+is what the filing's aggregate is compared against, because an aggregate has properties -
+a weighted attained age, a blend of withdrawal bands, a mix of deferring and drawing
+contracts - that one policy cannot have. It is still not Jackson's in-force block, which
+would need policyholder-level data that is never disclosed.
 
 Every choice in that specification comes from a filing rather than from convenience.
 
@@ -118,9 +129,11 @@ adopted for individual annuity valuation; the Basic table carries the economic v
 Period table, which is the Basic table with the Life Actuarial Task Force's margins, carries the
 reporting basis.
 
-The book is a set of cohorts rather than one policy wherever the comparison is to a book: issue
-age, duration and moneyness on a grid, each cohort carrying the attribution percentage its own
-issue date calibrates to.
+Wherever the comparison is to a book, the valuation runs on the five vintages rather than on one
+policy, each cohort carrying the attribution percentage its own issue date calibrates to.
+Moneyness is not a free dial in that construction: each vintage's account value and benefit base
+come from rolling it forward along realised index history, so its duration and its moneyness
+arrive together and are a fact about the decade it lived through rather than a weight.
 
 Greeks by bump and revalue on common random numbers, each reported with the standard error of its
 own paired difference. Disclosed shocks by full repricing rather than by delta approximation,

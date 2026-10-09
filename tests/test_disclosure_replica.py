@@ -6,6 +6,8 @@ to get subtly wrong in a way that produces a plausible table.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pandas as pd
 
@@ -23,6 +25,41 @@ def test_the_p_value_rises_as_the_sample_shrinks():
     """The same coefficient on four observations says nothing, which is the point of reporting it."""
     assert replica.two_sided_p(-0.821, 4) > 0.2
     assert replica.two_sided_p(-0.821, 40) < 0.001
+
+
+def test_the_approximation_errs_conservatively_on_the_rows_the_finding_rests_on():
+    """Fisher's z stands in for the exact t survival function, and its direction is not uniform.
+
+    The filed series is the only part of this comparison that is evidence rather than
+    arithmetic, so what matters is that the approximation does not manufacture significance
+    there. It does the opposite on both filed rows. The exact two-sided values are computed here
+    from the t statistic by Simpson's rule on the t density, which needs nothing the repository
+    does not already import.
+    """
+    def exact(r: float, n: int) -> float:
+        t = abs(r) * np.sqrt((n - 2) / (1.0 - r * r))
+        df = n - 2
+        log_norm = (math.lgamma((df + 1) / 2) - math.lgamma(df / 2)
+                    - 0.5 * math.log(df * math.pi))
+        # The tail beyond t, out to where the density is dead, on an even grid.
+        upper = t + 60.0
+        steps = 200_001
+        x = np.linspace(t, upper, steps)
+        density = np.exp(log_norm - (df + 1) / 2 * np.log1p(x * x / df))
+        weights = np.ones(steps)
+        weights[1:-1:2], weights[2:-1:2] = 4.0, 2.0
+        return float(2 * (upper - t) / (3 * (steps - 1)) * np.sum(weights * density))
+
+    # Sanity on the quadrature before it is used to judge anything: a correlation of 0.5 on 30
+    # observations is a textbook case, two-sided p just under five per cent.
+    assert exact(0.5, 30) == approx(0.0049, abs=5e-4)
+
+    for correlation, periods in ((0.006387, 18), (-0.821236, 4)):
+        assert replica.two_sided_p(correlation, periods) > exact(correlation, periods)
+
+    # And it is optimistic where the coefficient is strong, which is the half of the split the
+    # docstring has to keep stating, since both of those rows are zero to any reading.
+    assert replica.two_sided_p(-0.985827, 41) < exact(-0.985827, 41)
 
 
 def test_the_p_value_refuses_a_sample_too_small_to_speak():

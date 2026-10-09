@@ -41,7 +41,7 @@ Terms come from the product filings rather than the annual report, because the 1
 not publish charge levels.
 
 - **Perspective II statutory prospectus**, Form 485BPOS filed 2026-04-21 by Jackson
-  National Separate Account - I (CIK 927730), accession 0000927730-26-000193, document
+  National Separate Account - I (CIK 927730), accession 0000927730-26-000195, document
   `ck0000927730-20260421.htm`. Fee table, step-up mechanics, the GWB adjustment provision,
   what happens when the contract value reaches zero, and the For Life Guarantee.
 - **Rate Sheet Prospectus Supplement dated 27 April 2026**, Form 497 filed 2026-04-09,
@@ -86,7 +86,8 @@ annuities dominate the balance, so it is small, but it is not zero.
 ## Market data, FRED
 
 One daily panel, `data/raw/fred_daily_panel.csv`, 2 January 2015 to 25 September 2026,
-2,986 rows after dropping days on which no equity, rate or volatility observation exists.
+2,987 rows after dropping days on which no equity, rate or volatility observation exists, which
+is the count `build_dataset.py` prints on its first line.
 
 | Series | What it is | Used for |
 |---|---|---|
@@ -108,9 +109,10 @@ Three more files sit beside it because the panel's ten-year window cannot carry 
 | `cboe_spx_option_chain.csv`, `cboe_spx_parity_quotes.csv` | SPX chain and the quotes used for put-call parity | The Heston calibration, and the forward and discount factor per expiry |
 | `cboe_vix6m_skew.csv` | VIX6M and SKEW | The six-month tenor check and the skew check, neither of which the panel can run |
 
-**SOFR was retrieved and then dropped, which is worth recording.** The backtest funds its
-cash balance and its total return swap at `DFF`, and SOFR is the secured rate a dealer would
-actually quote, so a file of SOFR and DGS3MO was pulled to replace it. Two things killed it.
+**SOFR was retrieved and then dropped, which is worth recording.** The backtest funds its cash
+balance at `DFF` - positive or negative, which is a limitation of its own - and SOFR is the
+secured rate a dealer would actually quote, so a file of SOFR and DGS3MO was pulled to replace
+it. Two things killed it.
 SOFR begins on 3 April 2018 and the replay starts in September 2016, so it cannot cover the
 sample it would be the financing rate for. And over the 2,118 days where both exist SOFR runs
 0.21bp below DFF on average, which compounds to 1.7bp of a unit cash balance across eight and
@@ -181,9 +183,12 @@ Actuaries Payout Annuity Table Team (2011), Exhibit I.
 The Basic tables are best estimate and carry the economic valuation. The Period tables are
 the Basic tables with the margins the NAIC's Life Actuarial Task Force set, and they stand
 in for the reporting basis, since Note 6 says the fair value uses best estimate assumptions
-plus risk margins. The export leaves a few young female ages blank; everything above age 40
-is complete, which is all this project uses, and the loader refuses to proceed if a gap
-appears above 40.
+plus risk margins. The export leaves a few young female ages blank - 9 to 11 on the Basic
+table, 8 to 12 on the Period - and the loader carries those forward, since no cohort in this
+book is a child. From age 40 up it reads the published column instead and refuses a blank
+rather than filling it. A carry-forward there would substitute a lighter rate while still
+looking like data: drop age 97 from the male Basic column and the fill hands back 0.2192
+against the published 0.2386.
 
 ## Reproducibility
 

@@ -26,11 +26,13 @@ not pretend otherwise: it provides the shape and a grid of plausible values, and
 are reported as ranges over that grid rather than as a point estimate with a decoration of
 uncertainty around it.
 
-The size of the effect is the reason this is not a footnote. The earlier version of this
-project found the model's sensitivities running 2.1 to 2.9 times Jackson's disclosed figures
-with a near-constant multiple, and the gap closed at 90% utilisation and 4% lapse - assumptions
-that are unremarkable in isolation and that move the answer by more than the choice between
-Black-Scholes and Heston does.
+The size of the effect is why this is not a footnote, and the result in `docs/validation.md` is
+sharper than "it matters". Sweeping utilisation and lapse closes the rate half of the gap to the
+disclosure and leaves the equity half about where it started: drawing less takes duration out of
+the guarantee, so fewer paths exhaust and the rate sensitivity collapses with them, while the
+benefit base is there whatever the owner draws and the equity sensitivity barely moves. Behaviour
+inside the ranges the literature supports therefore does not reconcile the model to the filing,
+which is why the sweep is reported as a grid and why no point on it is called the answer.
 """
 
 from __future__ import annotations

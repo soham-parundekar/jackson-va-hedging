@@ -161,7 +161,7 @@ before reading anyone's offset ratio.
 
 ```
 make data        # validate the committed inputs, bootstrap the curve history
-make calibrate   # fit the market state: curve, Heston surface, short rate, correlations
+make calibrate   # fit the market state, and check the surface against the volatility indices
 make valuation   # at-issue valuation, cash flows, robustness, convergence
 make greeks      # Greeks on paired paths, and the moneyness profile
 make validate    # disclosed shocks, in-force comparison, vintage portfolio, behaviour sweep
@@ -190,6 +190,11 @@ filings disagree on.
 
 `make calibrate` and `make convexity` write files that are gitignored, so a fresh clone has to
 build them before anything downstream will run.
+
+`reports/` is committed, which is what makes the reproduction checkable rather than promised:
+`make clean && make all && git diff --stat reports` regenerates every table and figure from the
+committed inputs and shows anything that came back different. `make clean` deletes tracked files
+to do it, and `git checkout reports` puts them back.
 
 ## Where the assumptions live
 

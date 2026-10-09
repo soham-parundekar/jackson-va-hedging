@@ -5,12 +5,18 @@ builds it, and it is slow enough - a couple of minutes, almost all of it in the 
 that running it from every script would be the difference between a project that can be
 explored and one that cannot.
 
-Three tables come out alongside it, and each answers a question the calibration alone does not.
+Five tables come out alongside it, and each answers a question the calibration alone does not.
 The surface fit says whether the five Heston parameters actually reproduce the quotes they were
 fitted to, by expiry, in volatility points rather than in price. The curve check reprices the
 Treasuries the curve was fitted to and shows what the fitted curve does past thirty years,
 which is where an unconstrained Svensson fit goes wrong and where a forty-year liability lives.
 The rate table records the AR(1) estimate and whether the mean-reversion floor bound.
+
+The last two are out-of-sample and belong here because they need the fitted surface: the term
+structure carried between the volatility indices, and the skewness the parameters generate
+against the SKEW index. They were written in build_dataset for a while, behind a test for the
+saved calibration, which meant a fresh clone never produced them - make runs the dataset step
+first and does not come back to it.
 
 Usage:  python -m scripts.run_calibration
 """
@@ -20,6 +26,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from scripts.build_dataset import skew_check, volatility_check, volatility_indices
 from vahedge import paths
 from vahedge.market import state as market_state
 from vahedge.market.chain import fit_report
@@ -113,6 +120,14 @@ def main() -> None:
     curve.to_csv(paths.TABLES / "curve_fit.csv", index=False)
     rates.to_csv(paths.TABLES / "rate_model_fit.csv", index=False)
 
+    panel = pd.read_csv(paths.FRED_PANEL, parse_dates=["date"]).set_index("date")
+    indices = volatility_indices(panel)
+    volatility = volatility_check(indices, calibration.heston)
+    volatility.to_csv(paths.TABLES / "volatility_curve_check.csv", index=False,
+                      float_format="%.4f")
+    skew = skew_check(indices, calibration.heston)
+    skew.to_csv(paths.TABLES / "skew_check.csv", index=False, float_format="%.4f")
+
     heston = calibration.heston
     print(f"wrote {written}")
     print(f"  Heston   v0={heston.v0:.4f} kappa={heston.kappa:.3f} theta={heston.theta:.4f} "
@@ -125,6 +140,19 @@ def main() -> None:
           f"50y zero {float(calibration.curve.zero(50.0)):.4f}")
     print(f"  rates    a={calibration.mean_reversion:.4f} sigma={calibration.rate_vol:.5f}")
     print(f"  equity-rate correlation {calibration.correlations.equity_rate:+.3f}")
+    for _, row in volatility.iterrows():
+        print(f"  {row['target'].replace('_', '-')} volatility carried {row['direction']} "
+              f"from the {row['quoted'].replace('_', '-')} index is "
+              f"{row['mean_error_vol_points']:+.2f} points off on average, within two points "
+              f"on {row['share_within_two_points']:.0%} of "
+              f"{int(row['observations']):,} days")
+    row = skew.iloc[0]
+    print(f"  the calibrated parameters generate a SKEW index of "
+          f"{row['mean_model_index']:.1f} on average against {row['mean_observed_index']:.1f} "
+          f"observed, so a thirty-day skewness of "
+          f"{row['model_skewness_at_mean_index']:.2f} against "
+          f"{row['observed_skewness_at_mean_index']:.2f}, too shallow on "
+          f"{1 - row['share_model_above_observed']:.0%} of days")
 
 
 if __name__ == "__main__":

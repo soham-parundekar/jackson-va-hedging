@@ -1,4 +1,4 @@
-"""Integrity of the committed output artefacts, which no other test looks at.
+"""Integrity of the committed artefacts, which no other test looks at.
 
 Everything else in the suite checks code, or checks a number typed out of a filing. These check
 the files the repository publishes. A figure is a binary blob that nobody reads and every viewer
@@ -6,10 +6,18 @@ renders identically whatever else is hiding in it, so a byte that should not be 
 every other check in the project - including a text search of the repository, which is what let
 one through here: ten figures reached GitHub carrying a 5,758-byte private chunk inserted by the
 tool that copied them, invisible on screen and plainly visible to ``strings``.
+
+The reference register gets the same treatment and for the same reason. Nothing executes it, so
+nothing notices when a row goes missing or an identifier drifts from the document it names. Both
+happened: six papers that justify the behaviour assumptions sat in `docs/literature.md` and in no
+row, and an accession number for the prospectus was carried one digit out through two documents
+while the stored extract and the register had it right.
 """
 
 from __future__ import annotations
 
+import csv
+import re
 import struct
 
 from tests.checks import raises
@@ -70,3 +78,116 @@ def test_the_chunk_reader_refuses_a_file_with_something_appended():
         chunks(original + b"anything at all")
     with raises(ValueError):
         chunks(original[:-4])
+
+
+def _register() -> list[dict]:
+    """The source register's rows, past its comment header."""
+    lines = (paths.REFERENCES / "source_register.csv").read_text().splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("ref_id,"))
+    return list(csv.DictReader(lines[start:]))
+
+
+def test_every_register_row_points_at_something_that_exists():
+    rows = _register()
+    assert len(rows) > 20
+    for row in rows:
+        stored = row["stored"]
+        local = [part.strip() for part in row["local_path"].split(";") if part.strip()]
+        where = f"{row['ref_id']} ({stored})"
+        for name in local:
+            assert (paths.ROOT / name).exists(), f"{where} names {name}, which is not there"
+        if stored == "cited":
+            assert not local, f"{where} is not redistributed and should carry no path"
+        if stored in ("extract", "in_full", "data"):
+            assert local, f"{where} claims to be stored and names no file"
+        assert row["used_by"].strip(), f"{where} names no component that depends on it"
+        assert row["identifier"].strip(), f"{where} carries no identifier"
+
+
+def test_every_source_the_literature_cites_has_a_register_row():
+    """A paper in `docs/literature.md` and in no row is a source nothing can trace.
+
+    The register was complete for the model's own machinery and empty of the product
+    literature, which is the worse half to lose: the full-utilisation base case is a modelling
+    decision taken on one of those papers, and `docs/limitations.md` states the direction the
+    assumption errs in on the strength of two more.
+    """
+    registered = set()
+    for row in _register():
+        registered |= set(re.findall(r"10\.\d{4,9}/\S+?(?=[\s;,)\]]|$)",
+                                     f"{row['identifier']} {row['locator']}"))
+    literature = (paths.ROOT / "docs" / "literature.md").read_text()
+    cited = {doi.rstrip(".,)") for doi in re.findall(r"10\.\d{4,9}/[^\s)\]]+", literature)}
+    missing = sorted(doi for doi in cited
+                     if not any(doi in known or known in doi for known in registered))
+    assert not missing, f"cited in literature.md and in no register row: {missing}"
+
+
+def test_the_filing_identifiers_in_the_docs_match_the_register():
+    """One accession number, one spelling of it, wherever it appears.
+
+    The prospectus was carried as ...-000193 in two documents against the ...-000195 that the
+    stored extract read off the filing and the register's own URL resolves to. A digit in an
+    accession number is not a typo a reader can catch, because every candidate looks equally
+    plausible; it has to be checked against the thing it identifies.
+    """
+    pattern = re.compile(r"\d{10}-\d{2}-\d{6}")
+    registered = set()
+    for row in _register():
+        registered |= set(pattern.findall(f"{row['identifier']} {row['locator']}"))
+    assert registered, "the register carries no accession numbers to check against"
+
+    for name in ("docs/literature.md", "docs/data_sources.md", "docs/methodology.md",
+                 "docs/validation.md", "docs/limitations.md", "README.md",
+                 "references/README.md", "references/references.md"):
+        path = paths.ROOT / name
+        if not path.exists():
+            continue
+        for accession in pattern.findall(path.read_text()):
+            assert accession in registered, f"{name} cites {accession}, which no row carries"
+
+
+def test_every_stored_extract_is_the_filing_its_row_names():
+    """A path that exists is not the same claim as a path that holds the right document.
+
+    The register says which filing each extract came from and every extract repeats it in its own
+    header, read off the filing at the time it was saved. Checking one against the other is the
+    only way the repository can tell a correct citation from a file that was replaced, renamed or
+    pasted from the wrong accession - a reader comparing an extract to the original would catch
+    it, and nothing here would.
+    """
+    pattern = re.compile(r"\d{10}-\d{2}-\d{6}")
+    checked = 0
+    for row in _register():
+        claimed = set(pattern.findall(f"{row['identifier']} {row['locator']}"))
+        if not claimed:
+            continue
+        for name in [part.strip() for part in row["local_path"].split(";") if part.strip()]:
+            path = paths.ROOT / name
+            if path.suffix != ".txt":
+                continue
+            header = path.read_text()[:1500]
+            assert claimed & set(pattern.findall(header)), (
+                f"{row['ref_id']} names {name}, whose header carries "
+                f"{sorted(set(pattern.findall(header)))} against the row's {sorted(claimed)}"
+            )
+            checked += 1
+    assert checked >= 8, f"only {checked} stored extracts checked; the register lists more"
+
+
+def test_the_register_and_the_annotated_bibliography_name_the_same_sources():
+    """Both directions, because the two drift apart in both.
+
+    `source_register.csv` is the index and `references.md` is where each source's role is
+    argued; a row with no entry is a source nobody explained, and an entry citing an id no row
+    carries is a pointer into nothing. Six rows were added with no entries, which is how this
+    check came to exist.
+    """
+    rows = _register()
+    bibliography = (paths.REFERENCES / "references.md").read_text()
+    unexplained = [row["ref_id"] for row in rows if row["ref_id"] not in bibliography]
+    assert not unexplained, f"register rows with no entry in references.md: {unexplained}"
+
+    identifiers = {row["ref_id"] for row in rows}
+    cited = set(re.findall(r"REF-\d{3}", bibliography))
+    assert not cited - identifiers, f"references.md cites ids no row carries: {cited - identifiers}"

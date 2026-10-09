@@ -14,6 +14,18 @@
 ###               submissions record for CIK 0001822993 rather than off a memory of it. That
 ###               record is also what corrected REF-002, whose filing date was a day out.
 ###
+### REF-026 to REF-031 are the product literature, and they were added later than the rest. The
+### register was complete for the model's own machinery - every paper behind the Heston, curve,
+### regression and bootstrap machinery had a row - and empty of the six papers that justify the
+### behaviour assumptions, which is a worse gap than it looks: the base case is a modelling
+### decision and docs/limitations.md states the direction it errs in on the strength of two of
+### them. Their retrieved date is the date of that reconciliation rather than of the original
+### reading, which is why it sits later than every other row's.
+###
+### Hardy (2003) is in docs/literature.md and deliberately not here. It is the standard text for
+### the product class and it is background: no number, formula or decision in the project turns
+### on it, which is the test the first line of this file sets.
+###
 ### REF-009 is absent on purpose. It held a SOFR series that was retrieved, measured against the
 ### rate already in the panel, and then dropped; docs/data_sources.md carries the measurement.
 ### The gap is left rather than closed by renumbering, which would invalidate every ID already
@@ -43,3 +55,9 @@ REF-022,working_paper,Estimating and Interpreting Forward Interest Rates: Sweden
 REF-023,journal_article,The Stationary Bootstrap,Dimitris N. Politis and Joseph P. Romano,1994,10.1080/01621459.1994.10476870,https://doi.org/10.1080/01621459.1994.10476870,2026-10-01,cited,,crossref,"the geometric-block resampling of the realised history in vahedge/market/scenarios.py, and the block length read off the persistence of squared returns"
 REF-024,sec_filing,"Form 10-K for the fiscal year ended 31 December 2023, Item 7A",Jackson Financial Inc. (CIK 0001822993),2024-02-28,accession 0001822993-24-000009,https://www.sec.gov/Archives/edgar/data/1822993/000182299324000009/jxn-20231231.htm,2026-10-03,extract,references/sec_filings/2024_JXN_10K_FY2023_Item7A_extract.txt,edgar,"the rows tagged source_filing_fy 2023 in data/raw/jackson_disclosed_sensitivities.csv and data/raw/jackson_derivative_sensitivities.csv; the disclosed offset ratios in scripts/run_hedge_disclosure.py, where this filing supplies the 2022-12-31 and 2023-12-31 derivative blocks at a 50bp shift and is one of two filings covering each"
 REF-025,sec_filing,"Form 10-K for the fiscal year ended 31 December 2024, Item 7A",Jackson Financial Inc. (CIK 0001822993),2025-02-26,accession 0001822993-25-000011,https://www.sec.gov/Archives/edgar/data/1822993/000182299325000011/jxn-20241231.htm,2026-10-03,extract,references/sec_filings/2025_JXN_10K_FY2024_Item7A_extract.txt,edgar,"the rows tagged source_filing_fy 2024 in data/raw/jackson_disclosed_sensitivities.csv and data/raw/jackson_derivative_sensitivities.csv; the disclosed offset ratios in scripts/run_hedge_disclosure.py, where this filing supplies the 2023-12-31 and 2024-12-31 blocks at a 50bp shift - the only reading of 2024-12-31 at that size, which is what makes the offset ratio's stability in the shock size measurable"
+REF-026,journal_article,A universal pricing framework for guaranteed minimum benefits in variable annuities,"Daniel Bauer, Alexander Kling and Jochen Russ",2008,10.2143/ast.38.2.2033356,https://doi.org/10.2143/ast.38.2.2033356,2026-10-09,cited,,crossref,"the full-utilisation base case in vahedge/liability/cohorts.py and the benchmark the behaviour sweep in scripts/run_behaviour_reconciliation.py is swept away from; it is the assumption that makes the guarantee most expensive, so the base case is a bound"
+REF-027,journal_article,The effect of modelling parameters on the value of GMWB guarantees,"Zhuliang Chen, Kenneth Vetzal and Peter A. Forsyth",2008,10.1016/j.insmatheco.2008.04.003,https://doi.org/10.1016/j.insmatheco.2008.04.003,2026-10-09,cited,,crossref,the decision to report reports/tables/valuation_robustness.csv beside the headline valuation rather than after it
+REF-028,journal_article,"The impact of policyholder behavior on pricing, hedging, and hedge efficiency of withdrawal benefit guarantees in variable annuities","Alexander Kling, Frederik Ruez and Jochen Russ",2014,10.1007/s13385-014-0093-0,https://doi.org/10.1007/s13385-014-0093-0,2026-10-09,cited,,crossref,the framing of the behaviour result in docs/validation.md - that behaviour moves hedge efficiency and not only the level of the guarantee
+REF-029,journal_article,Guaranteed minimum withdrawal benefit in variable annuities,"Min Dai, Yue Kuen Kwok and Jianping Zong",2008,10.1111/j.1467-9965.2008.00349.x,https://doi.org/10.1111/j.1467-9965.2008.00349.x,2026-10-09,cited,,crossref,"the stated direction in which a fixed withdrawal schedule errs, in docs/limitations.md"
+REF-030,journal_article,Revisiting the risk-neutral approach to optimal policyholder behavior: a study of withdrawal guarantees in variable annuities,Thorsten Moenig and Daniel Bauer,2016,10.1093/rof/rfv018,https://doi.org/10.1093/rof/rfv018,2026-10-09,cited,,crossref,the claim in docs/limitations.md that a static withdrawal assumption overstates the guarantee in practice and not only in theory
+REF-031,journal_article,Financial valuation of guaranteed minimum withdrawal benefits,Moshe A. Milevsky and Thomas S. Salisbury,2006,10.1016/j.insmatheco.2005.06.012,https://doi.org/10.1016/j.insmatheco.2005.06.012,2026-10-09,cited,,crossref,"the result that market guarantee fees have sat below the risk-neutral cost, which the at-issue fee-over-claims ratio in reports/tables/valuation_headline.csv is read against"

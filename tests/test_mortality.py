@@ -8,9 +8,14 @@ forty-five-year guarantee is the difference between a margin and a loss.
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 
 from tests.checks import approx, raises
+from vahedge import paths
 from vahedge.liability import mortality
 
 AGE = np.array([70])
@@ -108,6 +113,48 @@ def test_the_table_runs_out_rather_than_wrapping_round():
     alive, _ = mortality.load("basic").rates(np.array([110]), 2025, 30, 0.5)
     assert np.all(np.diff(alive[0]) <= 0)
     assert alive[0][-1] < 1e-6
+
+
+def _export_with(**edits) -> str:
+    """The committed SOA export with individual cells blanked, written to a scratch file."""
+    frame = pd.read_csv(paths.MORTALITY_TABLE).set_index("age")
+    for column, ages in edits.items():
+        frame.loc[list(ages), column] = np.nan
+    folder = tempfile.mkdtemp()
+    target = Path(folder) / "soa_edited.csv"
+    frame.reset_index().to_csv(target, index=False)
+    return str(target)
+
+
+def test_a_missing_rate_in_the_range_the_valuation_uses_stops_the_loader():
+    """The guard has to read the export, not a repaired copy of it.
+
+    Written because it did the second thing. An unlimited carry-forward ran first and the check
+    for gaps ran on its output, so a blank at age 97 arrived at the check already wearing age
+    96's rate and the loader proceeded, four per cent light on mortality at an age where the
+    life annuity is the whole of the liability. The only column that could still fail the check
+    was one blank from age zero, which is not a failure mode a CSV export has.
+    """
+    for column in ("iam_basic_male", "iam_period_female"):
+        with raises(ValueError, match="age 97"):
+            mortality.load("basic" if "basic" in column else "period",
+                           path=_export_with(**{column: [97]}))
+
+    # Several blanks report the count, so a reader can tell one bad row from a truncated file.
+    with raises(ValueError, match="(3 blank"):
+        mortality.load("basic", path=_export_with(iam_basic_male=[80, 97, 104]))
+
+
+def test_the_young_ages_the_export_leaves_blank_are_still_filled():
+    """The fill is kept, narrowed, not removed. Those ages are real holes in the SOA export and
+    no cohort in this book is ever nine years old, so refusing them would reject the only
+    mortality file the repository has."""
+    table = mortality.load("period")
+    assert np.all(np.isfinite(table.qx_female[8:13]))
+    assert float(table.qx_female[8]) == approx(float(table.qx_female[7]), abs=0.0)
+    # And the committed export loads on both bases, which is the regression this pairs with.
+    for basis in ("basic", "period"):
+        assert np.all(np.isfinite(mortality.load(basis).qx_female[40:]))
 
 
 def test_rejects_bad_arguments():

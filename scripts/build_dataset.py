@@ -393,41 +393,16 @@ def main() -> None:
     mortality_table.to_csv(paths.TABLES / "mortality_check.csv", index=False,
                            float_format="%.4f")
 
-    # The surface's own parameters are not available until the calibration step has run, so
-    # this check uses the saved calibration when there is one and says so when there is not.
-    if paths.MARKET_CALIBRATION.exists():
-        from vahedge.market import state as market_state
-        heston = market_state.load().heston
-        indices = volatility_indices(panel)
-
-        volatility = volatility_check(indices, heston)
-        volatility.to_csv(paths.TABLES / "volatility_curve_check.csv", index=False,
-                          float_format="%.4f")
-        for _, row in volatility.iterrows():
-            print(f"  {row['target'].replace('_', '-')} volatility carried {row['direction']} "
-                  f"from the {row['quoted'].replace('_', '-')} index is "
-                  f"{row['mean_error_vol_points']:+.2f} points off on average, within two points "
-                  f"on {row['share_within_two_points']:.0%} of "
-                  f"{int(row['observations']):,} days")
-
-        skew = skew_check(indices, heston)
-        skew.to_csv(paths.TABLES / "skew_check.csv", index=False, float_format="%.4f")
-        row = skew.iloc[0]
-        print(f"  the calibrated parameters generate a SKEW index of "
-              f"{row['mean_model_index']:.1f} on average against {row['mean_observed_index']:.1f} "
-              f"observed, so a thirty-day skewness of "
-              f"{row['model_skewness_at_mean_index']:.2f} against "
-              f"{row['observed_skewness_at_mean_index']:.2f}, too shallow on "
-              f"{1 - row['share_model_above_observed']:.0%} of days")
-    else:
-        print("  volatility and skew checks skipped: run scripts/run_calibration.py first")
+    # The two checks that need the fitted surface are run by scripts/run_calibration.py, which
+    # has it. They used to sit here behind a test for the saved calibration and were skipped on
+    # every fresh clone, because make runs this step first and never comes back.
 
     scaled = scaled_disclosure()
     scaled.to_csv(paths.DISCLOSED_SCALED, index=False)
     mrb = scaled.query("line_item == 'market_risk_benefits'")
     print(f"  scaled {len(mrb)} market risk benefit sensitivities across "
           f"{mrb['as_of'].nunique()} balance-sheet dates")
-    print(f"\nwrote the curve history, the scaled disclosure and six checks to "
+    print(f"\nwrote the curve history, the scaled disclosure and four checks to "
           f"{paths.DATA_PROCESSED} and {paths.TABLES}")
 
 

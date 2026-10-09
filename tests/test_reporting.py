@@ -152,11 +152,30 @@ def test_a_widening_spread_goes_to_oci_and_not_to_net_income():
     assert marked["comprehensive_income"].iloc[1] == approx(1.0)
 
 
-def test_comprehensive_income_is_the_two_lines_added():
+def test_comprehensive_income_is_the_movement_in_net_worth_the_own_credit_is_inside():
+    """The arbiter for the whole split, and the only check here that owes nothing to it.
+
+    Net income is taken on the basis that holds own credit out and OCI carries the rest, so the
+    two added back together have to be the movement in net worth measured on the liability
+    *including* own credit. That number is formed here from the three marked columns and never
+    passes through the split, so a sign flip or a missed level on the OCI line shows up in it.
+
+    What this replaces asserted that ``comprehensive_income`` equals ``net_income + oci``, which
+    is the line of code that computes it: true whatever either line contains.
+    """
     rng = np.random.default_rng(3)
     marked = reporting.mark(ledger(6), spread_path(rng.uniform(0.0, 0.04, 6)), basis())
-    assert np.allclose(marked["comprehensive_income"],
-                       marked["net_income"] + marked["oci"])
+
+    inclusive = marked["cash"] + marked["hedge_mark"] - marked["reporting"]
+    # The book existed before the hedge did, so day zero opens at minus the liability and the
+    # first day's profit is the cost of putting the position on.
+    movement = np.diff(np.concatenate(
+        [[-float(marked["reporting"].iloc[0])], inclusive.to_numpy()]
+    ))
+    assert approx(movement, abs=1e-12) == marked["comprehensive_income"].to_numpy()
+    assert float(marked["comprehensive_income"].sum()) == approx(
+        float(inclusive.iloc[-1]) + float(marked["reporting"].iloc[0]), abs=1e-12
+    )
 
 
 def test_the_mark_refuses_a_path_with_no_spread():

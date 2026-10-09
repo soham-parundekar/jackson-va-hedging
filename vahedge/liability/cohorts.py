@@ -1,36 +1,42 @@
-"""The book as a grid of model points rather than one illustrative policy.
+"""Model points, one or many, as the parallel arrays the projection steps through.
 
-One contract is an illustration. Jackson's variable annuity book is $236bn of account value
-spread across issue ages, durations and moneyness, and the disclosed sensitivity is an
-aggregate over all of it. A single policy at a single moneyness cannot reproduce that, and the
-earlier version of this project showed why: its sensitivities came out two to three times the
-disclosed figures with a near-constant multiple, which is the signature of a structural
-mismatch rather than a pile of errors.
+A `CohortBook` is a set of model points with one array per contract field, so one contract and
+a hundred cost the same code path and the projection never learns which it is holding.
+`single_contract` makes one; `combine` concatenates several into a book whose cohorts are valued
+on one simulation, with each carrying its own attribution percentage.
 
-The grid here is five issue ages, four durations, five moneyness levels and both phases of the
-contract, weighted to what Jackson actually discloses about the book. What each dimension is
-for:
+Two objects get built out of this, and they answer different questions.
 
-*Issue age* sets the withdrawal percentage, through the age band at the first withdrawal, and
-sets the horizon through mortality. A 55-year-old on the Core option withdraws 4.00% of the
-benefit base for life; a 75-year-old withdraws 5.95%. That is not a detail: it is a 50% higher
-draw on a shorter life.
+The *reference contract* is one model point: Perspective II with the Flex GMWB Single rider on
+the Core option, $100,000 single premium, issue age 70. Every mechanic in the contract is stated
+on it, the robustness table varies it one assumption at a time, and the hedging backtest rolls
+it along realised history. It is an illustration and says so.
 
-*Duration* decides where the contract sits relative to the bonus period, the GWB adjustment
-date, and the point at which the owner starts taking income.
+The *vintage book* is five of those, issued at two-year intervals from 2016 to 2024, each rolled
+to a disclosure date along the index history that actually happened and then added up with
+`combine`. That is
+what the filing's aggregate gets compared against, because the comparison needs properties a
+single policy cannot have: it reaches a weighted attained age of 70.85 against the disclosed 70,
+a blended withdrawal rate of 5.73%, and a deferring share that falls from 0.75 to 0.40 across
+the four dates.
 
-*Moneyness*, the benefit base over the contract value, is what decides whether the guarantee is
-worth anything. A contract whose account value is well above its benefit base is a fee stream;
-one whose account value has fallen below it is a claim.
+Rolling rather than assuming is the point of doing it that way. Issue age, duration and
+moneyness are not three dials to be weighted independently - what a 2016 contract is worth today
+is a fact about the decade it lived through, and the roll produces its account value, its benefit
+base and therefore its moneyness together. `scripts/run_portfolio_validation.py` carries the
+construction and the issuance weights.
 
-*Phase* separates a contract that has started taking income from one still deferring. The
-difference is not cosmetic. A deferring contract is still earning a bonus, still eligible for
-the GWB adjustment that floors its benefit base at 105% of the original, and has not yet begun
-to draw its account down. The earlier version of this project excluded deferral-phase contracts
-entirely and flagged that as the most valuable thing to add.
+What the vintage book does not do is close the gap to the filing, and claiming otherwise would be
+easy and wrong. On the four 2025 shocks it runs 2.3 to 2.8 times the disclosed figure where the
+reference contract runs 1.7 to 2.1, so representativeness moves the multiple *up*.
+`docs/validation.md` takes that apart: behaviour accounts for the rate half and moneyness for
+most of the equity half, and neither is a property of how many model points there are.
 
-Weights come from the FY2025 10-K where it discloses them and are stated as assumptions where
-it does not. Nothing here is tuned to make a validation target land.
+Phase matters enough to call out, since it is the one dimension that is not a market variable. A
+deferring contract is still earning a bonus, still eligible for the GWB adjustment that floors
+its benefit base at 105% of premium, and has not begun drawing its account down. Three-quarters
+of the vintage book is still deferring at the 2022 date, so this is not a simplification at the
+margin.
 """
 
 from __future__ import annotations
@@ -179,153 +185,6 @@ def combine(books, weights=None) -> CohortBook:
         else:
             values[field.name] = np.concatenate([np.atleast_1d(part) for part in parts])
     return CohortBook(**values)
-
-
-@dataclass(frozen=True)
-class GridSpec:
-    """What the grid spans, and the behaviour assumptions attached to it."""
-
-    issue_ages: tuple = (55, 60, 65, 70, 75)
-    durations: tuple = (0, 3, 6, 10)
-    gwb_over_av: tuple = (0.6, 0.8, 1.0, 1.25, 1.5)
-    income_start_age: int = 70
-    utilisation: float = 1.0
-    lapse_rate: float = 0.0
-    lapse_beta: float = 0.0
-    lapse_floor: float = 0.0
-    max_age: int = 115
-    premium: float = 100.0
-
-    # How much of the account value sits at each moneyness level. A book that has seen a
-    # decade of rising equity markets is concentrated where the contract value is well above
-    # the benefit base, which is where Jackson's disclosed sensitivity per dollar of account
-    # value says it sits. These are an assumption and the robustness sweep moves them.
-    moneyness_weights: tuple = (0.06, 0.14, 0.25, 0.30, 0.25)
-    duration_weights: tuple = (0.15, 0.25, 0.30, 0.30)
-    age_weights: tuple = (0.12, 0.20, 0.26, 0.24, 0.18)
-
-
-def build(
-    spec: GridSpec,
-    terms: RiderTerms,
-    base_contract_charge: float,
-    fund_expense: float,
-    death_benefit: DeathBenefitTerms | None = None,
-) -> CohortBook:
-    """Expand the grid into model points.
-
-    A cohort is in the income phase when the owner has already reached the income start age,
-    and deferring otherwise. That is what decides whether the bonus is still accruing and
-    whether the GWB adjustment is still alive, so it is derived rather than specified.
-    """
-    if not 0.0 <= spec.utilisation <= 1.0:
-        raise ValueError("utilisation must be in [0, 1]")
-    if not 0.0 <= spec.lapse_rate < 1.0:
-        raise ValueError("lapse_rate must be in [0, 1)")
-    for name, weights, values in (
-        ("age", spec.age_weights, spec.issue_ages),
-        ("duration", spec.duration_weights, spec.durations),
-        ("moneyness", spec.moneyness_weights, spec.gwb_over_av),
-    ):
-        if len(weights) != len(values):
-            raise ValueError(f"{name} weights do not match the {name} grid")
-        if abs(sum(weights) - 1.0) > 1e-9:
-            raise ValueError(f"{name} weights must sum to 1, got {sum(weights)}")
-
-    death_benefit = death_benefit or DEATH_BENEFITS["basic"]
-    drag = base_contract_charge + fund_expense
-    rows = []
-    for age, age_weight in zip(spec.issue_ages, spec.age_weights):
-        for duration, duration_weight in zip(spec.durations, spec.duration_weights):
-            attained = age + duration
-            if attained >= spec.max_age:
-                continue
-            deferral = max(0, spec.income_start_age - attained)
-            first_withdrawal_age = max(attained, spec.income_start_age)
-
-            # The GWB adjustment date, in contract years from issue. The prospectus makes it
-            # the later of the anniversary on or following the seventieth birthday and the
-            # twelfth anniversary; an owner already past seventy at issue gets the first
-            # anniversary, because the effective date is not an anniversary.
-            anniversary_at_70 = max(1, GWB_ADJUSTMENT_AGE - age)
-            adjustment_contract_year = max(anniversary_at_70, GWB_ADJUSTMENT_MIN_YEARS)
-            adjustment_year = adjustment_contract_year - duration
-            # It only survives if the owner has taken no withdrawal by that date, in the past
-            # or in the projection.
-            alive = adjustment_year >= 0 and deferral > adjustment_year
-            if not alive:
-                adjustment_year = -1
-
-            # The benefit base has only ever ratcheted up. For a contract still deferring, the
-            # floor on that ratchet is the bonus it has already collected; a contract taking
-            # income is assumed to have stepped up no further than its premium. Both are
-            # assumptions, they set the GWB adjustment's reference point, and only the 200%
-            # adjustment on the Plus option is materially sensitive to them.
-            if deferral > 0:
-                gwb_multiple = 1.0 + terms.bonus_pct * min(duration, BONUS_PERIOD_YEARS)
-            else:
-                gwb_multiple = 1.0
-
-            for ratio, money_weight in zip(spec.gwb_over_av, spec.moneyness_weights):
-                benefit_base = spec.premium * gwb_multiple
-                account_value = benefit_base / ratio
-                rows.append(
-                    {
-                        "issue_age": age,
-                        "years_since_issue": duration,
-                        "attained_age": attained,
-                        "account_value": account_value,
-                        "benefit_base": benefit_base,
-                        "bonus_base": benefit_base,
-                        "premium_at_issue": spec.premium,
-                        "weight": age_weight * duration_weight * money_weight,
-                        "deferral_years": deferral,
-                        "bonus_years_remaining": max(0, BONUS_PERIOD_YEARS - duration),
-                        "adjustment_year": adjustment_year,
-                        "adjustment_amount": terms.gwb_adjustment_pct * spec.premium,
-                        "gawa_pct": float(terms.withdrawal_rate(np.array([first_withdrawal_age]))[0]),
-                        "rider_charge_pct": terms.charge_pct,
-                        "bonus_pct": terms.bonus_pct,
-                        "annual_step_up": terms.annual_step_up,
-                        "utilisation": spec.utilisation,
-                        "lapse_rate": spec.lapse_rate,
-                        "lapse_beta": spec.lapse_beta,
-                        "lapse_floor": spec.lapse_floor,
-                        "account_drag": drag,
-                        "insurer_drag_share": base_contract_charge / drag if drag > 0 else 0.0,
-                        "projection_years": spec.max_age - attained,
-                        "option": terms.option,
-                        "death_benefit": death_benefit.name,
-                        # The basic benefit base is premium; an add-on base is premium
-                        # rolled or ratcheted to today. The grid states it at premium and
-                        # lets the projection take it forward, which understates an
-                        # in-force add-on base by the roll-up already accrued.
-                        "death_benefit_base": spec.premium,
-                        "db_rollup_pct": float(death_benefit.rollup_rate(age)),
-                        "db_ratchet": death_benefit.highest_anniversary,
-                        "db_charge_pct": death_benefit.charge_pct,
-                        "db_free_withdrawal_pct": death_benefit.free_withdrawal_pct,
-                    }
-                )
-
-    if not rows:
-        raise ValueError("the grid produced no cohorts; check the ages against max_age")
-
-    frame = pd.DataFrame(rows)
-    frame["weight"] = frame["weight"] / frame["weight"].sum()
-    boolean = {"annual_step_up", "db_ratchet"}
-    text = {"option", "death_benefit"}
-    return CohortBook(
-        **{
-            column: frame[column].to_numpy(
-                dtype=bool if column in boolean
-                else object if column in text
-                else float if frame[column].dtype.kind == "f"
-                else int
-            )
-            for column in frame.columns
-        }
-    )
 
 
 def single_contract(

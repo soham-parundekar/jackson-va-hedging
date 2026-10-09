@@ -23,8 +23,8 @@ is stored as a property of the filing rather than inferred from the date.
 Two details from the 2025 filing shaped decisions rather than just supplying numbers. The
 separate-account fund split sets the equity weight that converts the liability's delta into an
 index position, which is an 18 per cent error in the hedge ratio if ignored. And the equity
-option book's average remaining term of 0.24 years is what prompted the sweep that moved the
-hedge's put leg off a one-year tenor.
+option book's average remaining term of 0.24 years is why the tenor sweep was run at all, and
+the sweep is what moved the hedge's put leg off a one-year expiry.
 
 **REF-003** The 8-K announcing Brooke Re. It is the one place Jackson states in its own words
 that the cash surrender value floor imposes a cost that is not economic, and that moving the
@@ -123,6 +123,47 @@ a long-run level of minus twenty-six per cent.
 are not drawn from the calibrated model. Geometric blocks rather than fixed ones, which is what
 keeps the resampled series stationary, and the one parameter is the mean block length, read off
 the persistence of squared returns at 11.1 days.
+
+## The product literature
+
+Added to the register later than the rest, and the gap is worth naming rather than quietly
+closing. Every paper behind the model's own machinery had a row from the beginning. The six
+papers behind the *behaviour* assumptions had none, which is the worse half to lose: a modelling
+decision rests on one of them and two stated limitations rest on two more, so a reviewer asking
+§52's question about the base case had nowhere to look.
+
+**REF-026** Bauer, Kling and Russ (2008). Why the base case draws the full guaranteed amount
+every year. It is the most expensive assumption for the insurer, so the base case is a bound and
+not a central estimate, and the behaviour sweep is the move away from it rather than a
+sensitivity around it. That framing is load-bearing for how the scale result is read.
+
+**REF-027** Chen, Vetzal and Forsyth (2008). On how much a GMWB valuation moves with its inputs,
+which is why `reports/tables/valuation_robustness.csv` is reported beside the headline number
+instead of after it.
+
+**REF-028** Kling, Ruez and Russ (2014). The closest paper to the behaviour result here, and the
+one that frames it correctly: behaviour moves the *efficiency* of a hedge and not only the level
+of the guarantee. It is also the citation the verification note in `docs/literature.md` is about
+- a 2011 ASTIN Bulletin paper by the same authors on stochastic volatility does not exist, and
+the plausible-looking version of it was caught by resolving the DOI rather than by rereading.
+
+**REF-029** Dai, Kwok and Zong (2008). The withdrawal decision as a control problem. This project
+assumes a fixed schedule, so that paper is where the direction of the error comes from, and
+`docs/limitations.md` states it on that basis.
+
+**REF-030** Moenig and Bauer (2016). Why observed behaviour departs from the risk-neutral
+optimum, tax effects included. It supports the claim that a static assumption overstates the
+guarantee in practice and not only in theory.
+
+**REF-031** Milevsky and Salisbury (2006). The early treatment of the GMWB specifically, and the
+source of the result that guarantee fees charged in the market have often sat below the
+risk-neutral cost. The at-issue ratio of attributable fees to projected claims, 1.27, is read
+against it.
+
+Hardy (2003) stays in `docs/literature.md` and out of the register. It is the standard text for
+the product class and it is background: no number, formula or decision here turns on it, which is
+the test the register's first line sets. Listing it would make the register longer and the
+traceability weaker.
 
 ## What is cited and what is not
 

@@ -209,7 +209,8 @@ def test_characteristic_function_is_one_at_zero():
 
 
 def test_skewness_from_the_characteristic_function_matches_a_simulated_sample():
-    """The skew check in the data step reads a third moment off the characteristic function,
+    """The skew check run beside the calibration reads a third moment off the characteristic
+    function,
     and the simulator reaches the same number by a completely different route. Across ten seeds
     at this path count the sample skewness scatters with a standard deviation of 0.046 and sits
     no further than 0.085 from the closed form, so the tolerance here is wide enough to be

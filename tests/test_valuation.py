@@ -40,14 +40,26 @@ def _state(**overrides):
 
 
 def _small_book():
-    """A three-by-two grid. Enough to exercise the aggregation, small enough to run in tests."""
-    spec = cohorts.GridSpec(
-        issue_ages=(60, 70), durations=(0, 6), gwb_over_av=(0.8, 1.2),
-        age_weights=(0.5, 0.5), duration_weights=(0.5, 0.5), moneyness_weights=(0.5, 0.5),
-        max_age=100,
-    )
+    """Eight model points, combined the way the vintage book is.
+
+    Two issue ages, two durations and two moneyness levels is enough to exercise the aggregation
+    and small enough to run in tests. Each point is a `single_contract` with its account value
+    stated, which is the path the reported figures take; the horizon is cut at 100 so the
+    projection stays short.
+    """
     core = terms_module.load()[("flex_gmwb", "single", "core")]
-    return cohorts.build(spec, core, 0.0131, 0.0095, terms_module.DEATH_BENEFITS["basic"])
+    books = [
+        cohorts.single_contract(
+            core, issue_age, 0.0131, 0.0095,
+            premium=100.0, account_value=100.0 / ratio, benefit_base=100.0,
+            deferral_years=max(0, 70 - (issue_age + duration)), years_since_issue=duration,
+            max_age=100, death_benefit=terms_module.DEATH_BENEFITS["basic"],
+        )
+        for issue_age in (60, 70)
+        for duration in (0, 6)
+        for ratio in (0.8, 1.2)
+    ]
+    return cohorts.combine(books, weights=[1.0 / len(books)] * len(books))
 
 
 def _valuer():

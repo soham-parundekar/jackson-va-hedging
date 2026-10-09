@@ -32,7 +32,7 @@ benefit balances, the roll-forward and the attained age.
 Central Index Key 927730.
 
 - Perspective II statutory prospectus, Form 485BPOS filed 21 April 2026, accession
-  0000927730-26-000193, document `ck0000927730-20260421.htm`. Contract mechanics and the fee
+  0000927730-26-000195, document `ck0000927730-20260421.htm`. Contract mechanics and the fee
   table.
 - Rate Sheet Prospectus Supplement dated 27 April 2026, Form 497 filed 9 April 2026,
   accession 0000927730-26-000157, document `jnlpiiafter6-24x19rateshee.htm`. Current charges
@@ -86,7 +86,7 @@ value of GMWB guarantees. *Insurance: Mathematics and Economics* 43(1), 165-173.
 [10.1016/j.insmatheco.2008.04.003](https://doi.org/10.1016/j.insmatheco.2008.04.003)
 
 > On how sensitive a GMWB valuation is to its inputs, which is the reason the robustness
-> table in `reports/tables/valuation_robustness` exists and is reported alongside the
+> table in `reports/tables/valuation_robustness.csv` exists and is reported alongside the
 > headline number rather than after it.
 
 Kling, A., Ruez, F., and Ruß, J. (2014). The impact of policyholder behavior on pricing,

@@ -384,30 +384,39 @@ def test_the_combination_benefit_is_worth_at_least_each_component():
     assert values["combination"] >= values["highest_anniversary"] - 1e-9
 
 
-# ---------------------------------------------------------------- the cohort grid
+# ------------------------------------------------- book-level totals over several model points
 
 
-def test_the_grid_weights_sum_to_one_and_span_both_phases():
-    book = cohorts.build(cohorts.GridSpec(), _core(), 0.0131, 0.0095)
+def _mixed_book():
+    """Four vintages spanning both phases and both sides of the money.
+
+    Assembled the way `run_portfolio_validation.py` assembles the vintage book, so these totals
+    are exercised on the construction the reported figures come from.
+    """
+    return cohorts.combine(
+        [_vintage(60, 9, 130.0, 100.0),    # deep out of the money, already drawing
+         _vintage(66, 3, 105.0, 100.0),    # out of the money, still deferring
+         _vintage(72, 1, 92.0, 100.0),     # in the money, drawing
+         _vintage(58, 2, 80.0, 100.0)],    # in the money, deferring
+        weights=[0.4, 0.3, 0.2, 0.1],
+    )
+
+
+def test_the_book_spans_both_phases_and_its_weights_sum_to_one():
+    book = _mixed_book()
     assert float(book.weight.sum()) == approx(1.0)
     assert np.any(book.deferral_years > 0) and np.any(book.deferral_years == 0)
 
 
-def test_grid_weights_that_do_not_sum_to_one_are_refused():
-    spec = cohorts.GridSpec(age_weights=(0.5, 0.2, 0.1, 0.1, 0.05))
-    with raises(ValueError, match="weights must sum to 1"):
-        cohorts.build(spec, _core(), 0.0131, 0.0095)
-
-
 def test_rescaling_the_book_preserves_its_shape():
-    book = cohorts.build(cohorts.GridSpec(), _core(), 0.0131, 0.0095)
+    book = _mixed_book()
     scaled = book.rescale_to(236_406.0)
     assert float(scaled.total_account_value) == approx(236_406.0, rel=1e-9)
     assert scaled.weighted_attained_age == approx(book.weighted_attained_age, rel=1e-12)
 
 
 def test_net_amount_at_risk_counts_only_contracts_in_the_money():
-    book = cohorts.build(cohorts.GridSpec(), _core(), 0.0131, 0.0095)
+    book = _mixed_book()
     in_the_money = book.benefit_base > book.account_value
     assert np.any(in_the_money) and np.any(~in_the_money)
     assert book.net_amount_at_risk > 0

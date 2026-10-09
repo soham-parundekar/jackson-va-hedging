@@ -26,7 +26,13 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The rate leg's annuity rho against repricing the swap under a parallel shift | 0.45% apart at the ten-year tenor held | `tests/test_hedge.py` |
 | The hedge solve against an explicitly formed penalised least-squares system | agree to 1e-9 across three instrument sets and two hedge ratios | `tests/test_hedge.py` |
 | Antithetic pairs are found inside their own simulation block | the mean is pairing-invariant, the error is not | `tests/test_market_models.py` |
+| Every register row points at a file that exists, and names a component | 30 rows | `tests/test_artifacts.py` |
+| Every source `docs/literature.md` cites has a register row | all 14 DOIs | `tests/test_artifacts.py` |
+| Accession numbers in the docs match the register's | one spelling each | `tests/test_artifacts.py` |
+| The register and the annotated bibliography name the same sources | both directions | `tests/test_artifacts.py` |
 | Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
+| The replica's p-value approximation against the exact t survival function | conservative on both filed rows; optimistic only where the coefficient is strong enough that p is zero either way | `tests/test_disclosure_replica.py` |
+| A mortality rate missing where the valuation reads the table stops the loader | the check reads the export rather than a filled copy of it | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
 | Overlapping filings agree | 12 liability figures and 3 derivative dates in two filings each, all agree | `build_dataset.py`, `tests/test_disclosures.py` |
 | Profit attribution and residual add to the total | exact by construction | `tests/test_hedge.py` |
@@ -39,7 +45,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
 | Every committed figure carries only the chunks a plot needs | all 10, nothing after IEND | `tests/test_artifacts.py` |
 
-277 tests, no framework required.
+281 tests, no framework required.
 
 Three of these rows exist because an earlier version of this table was weaker than it looked, and
 the pattern is worth stating once. A put-call parity check was already here, at the money, at one
@@ -326,7 +332,7 @@ which is why it closes part of the gap that the single policy does not.
 Everything in the next section runs on a regression proxy rather than on full valuations, so the
 proxy's own error is measured first.
 
-| Policy year | R² in range | value RMSE, % of account | delta RMSE | mean abs nested delta | relative |
+| Policy year | R² in range | value RMSE, share of premium | delta RMSE, share of premium | mean abs nested delta, $ | relative |
 |---|---|---|---|---|---|
 | 1 | 0.9952 | 0.0059 | 0.126 | 35.0 | 36% |
 | 2 | 0.9978 | 0.0053 | 0.081 | 38.6 | 21% |
@@ -337,10 +343,16 @@ proxy's own error is measured first.
 | 25 | 0.9985 | 0.0049 | 0.025 | 10.5 | 23% |
 | 30 | 0.9992 | 0.0020 | 0.006 | 5.7 | 11% |
 
-The last column is the delta RMSE over the mean absolute nested delta, which is the quantity that
-decides whether a hedge sized off the proxy is sized off anything.
+Both RMSE columns are shares of a premium of 100, not percentages, which is why the last column
+is the one worth reading: 0.126 of a premium of 100 is 12.6 dollars against a mean absolute
+nested delta of 35, so 36%. That ratio is the quantity that decides whether a hedge sized off the
+proxy is sized off anything. The header used to say "% of account" over the value column, and the
+same misreading reached `docs/limitations.md` as "a few thousandths of a per cent" for an error
+that is two to seven tenths of one. The denominator is premium rather than each node's own
+account value, which also matters at the later years, where the account has moved a long way from
+it.
 
-The value is accurate everywhere. The delta is not usable in the first two policy years, where the
+The value is accurate everywhere, at two to seven tenths of a per cent of premium. The delta is not usable in the first two policy years, where the
 fitting paths have barely dispersed and the whole design piles into a narrow band. It is best from
 year 9 to year 14 and then deteriorates again, not because the fit gets worse - the value RMSE
 barely moves - but because the delta itself shrinks as the book runs off, so the same absolute
@@ -590,6 +602,11 @@ happened to go, and a wrong model that happened to be wrong in the direction the
 looks better than a right one. The honest reading is that this experiment bounds the magnitude -
 the median cell is a fifth of the calibrated residual and the worst is nine tenths of it - and
 says nothing reliable about its sign.
+
+That bound does a second job. The surface the hedge is sized from is one afternoon's chain, 28
+September 2026, so a rebalance in 2016 is taken on parameters nobody had then; these three arms
+are what says how much that is worth. `docs/limitations.md` lists every input dated after the
+decisions it drives, and what is contemporaneous, under the hedging backtest.
 
 ### What the rider earned, after paying for the hedge
 

@@ -35,6 +35,9 @@ from .. import paths
 
 BASE_YEAR = 2012
 MAX_TABLE_AGE = 120
+# Below this age the SOA export has holes and no cohort in this book ever reaches them. At or
+# above it a missing rate is a defective download rather than a feature of the table.
+FIRST_USED_AGE = 40
 
 
 @dataclass(frozen=True)
@@ -98,17 +101,14 @@ def load(basis: str = "basic", path=None) -> MortalityTable:
     frame = frame.reindex(range(0, MAX_TABLE_AGE + 1))
 
     prefix = "iam_basic" if basis == "basic" else "iam_period"
-    qx_male = _fill_forward(frame[f"{prefix}_male"].to_numpy(dtype=float))
-    qx_female = _fill_forward(frame[f"{prefix}_female"].to_numpy(dtype=float))
+    qx_male = _published_rates(frame[f"{prefix}_male"], f"{prefix}_male")
+    qx_female = _published_rates(frame[f"{prefix}_female"], f"{prefix}_female")
 
-    # Scale G2 stops at age 105 and has already trended to zero there, so no improvement is
-    # applied above it.
+    # Scale G2 stops at age 105 and has already trended to zero there - 0.000 at 104 and 105
+    # for both sexes - so holding no improvement above it continues the published trend rather
+    # than inventing a flat spot.
     g2_male = _fill_zero(frame["g2_male"].to_numpy(dtype=float))
     g2_female = _fill_zero(frame["g2_female"].to_numpy(dtype=float))
-
-    for name, array in (("qx_male", qx_male), ("qx_female", qx_female)):
-        if np.any(~np.isfinite(array[40:])) or np.any(array[40:] <= 0):
-            raise ValueError(f"{name} has gaps or non-positive rates above age 40")
 
     return MortalityTable(
         qx_male=qx_male, qx_female=qx_female,
@@ -116,16 +116,40 @@ def load(basis: str = "basic", path=None) -> MortalityTable:
     )
 
 
-def _fill_forward(values: np.ndarray) -> np.ndarray:
-    """Carry the last published rate forward. The export leaves a few young female ages
-    blank; everything above age 40 is complete, which is all the valuation touches."""
+def _published_rates(column: pd.Series, name: str) -> np.ndarray:
+    """Rates at and above ``FIRST_USED_AGE`` as published, with nothing carried into a hole.
+
+    The export leaves a handful of young ages blank - 9 to 11 on the Basic female table, 8 to
+    12 on the Period female - and those get the previous age's rate, since no cohort here is
+    ever nine years old. Higher up, a blank is a bad download, and filling one substitutes a
+    materially lighter rate while still looking like data: delete age 97 from the male Basic
+    column and a carry-forward hands back 0.2192 against the published 0.2386, which is four
+    per cent of that cohort's remaining lifetime at the age where the life annuity is paying.
+
+    So the check reads the column the loader was given, before anything touches it. That order
+    is the point. It used to run on the filled copy, against a fill with no limit on how far it
+    would reach, which left it able to fire only on a column that was blank from age zero - a
+    guard that `docs/data_sources.md` advertised and that could not catch the case it named.
+    """
+    values = column.to_numpy(dtype=float)
+    used = values[FIRST_USED_AGE:]
+    if np.any(~np.isfinite(used)):
+        blanks = FIRST_USED_AGE + np.flatnonzero(~np.isfinite(used))
+        raise ValueError(
+            f"{name} has no rate at age {blanks[0]} ({blanks.size} blank at or above "
+            f"{FIRST_USED_AGE}); repair the export rather than filling it"
+        )
+    if np.any(used <= 0):
+        bad = FIRST_USED_AGE + np.flatnonzero(used <= 0)
+        raise ValueError(f"{name} is non-positive at age {bad[0]}")
+
     out = values.copy()
     last = np.nan
-    for i, value in enumerate(out):
-        if np.isfinite(value):
-            last = value
+    for age in range(FIRST_USED_AGE):
+        if np.isfinite(out[age]):
+            last = out[age]
         else:
-            out[i] = last
+            out[age] = last
     return out
 
 
