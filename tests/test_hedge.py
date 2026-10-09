@@ -165,6 +165,42 @@ def test_a_receive_fixed_swap_gains_when_rates_fall():
     assert approx(-swap.annuity(market) * 1e-4, rel=1e-12) == swap.exposures(market).rho
 
 
+def test_the_rate_leg_is_sized_on_the_basis_its_profit_is_realised_on():
+    """The annuity rho against a repricing of the swap under a shifted curve.
+
+    The whole rate leg of the headline result is sized off this one number, and the number is
+    an annuity rather than a reprice: the solve asks for the annuity and the ledger realises
+    whatever the mark actually does. The two agree only to the extent that a parallel shift in
+    the continuously compounded zero curve moves the semi-annual par rate one for one, which it
+    does not exactly. The gap depends on the curve as well as the tenor: at the ten-year tenor
+    the strategies hold it is 0.45% on the committed December 2025 curve and 1.25% on this
+    test's steeper one, and it widens at thirty years either way. So the tolerance is per
+    tenor, and it is set loose enough to pass on a curve this test does not know about while
+    still being an order of magnitude tighter than anything the hedging results turn on.
+    """
+    market = _market()
+
+    def shifted(curve, basis_points):
+        class Parallel:
+            def discount(self, t):
+                t = np.asarray(t, dtype=float)
+                return np.asarray(curve.discount(t)) * np.exp(-basis_points * 1e-4 * t)
+
+            def zero(self, t):
+                return np.asarray(curve.zero(t)) + basis_points * 1e-4
+
+        return Parallel()
+
+    for tenor, tolerance in ((5.0, 0.03), (10.0, 0.025), (30.0, 0.05)):
+        swap = inst.InterestRateSwap(tenor=tenor, receive_fixed=True)
+        struck = swap.par_rate(market)
+        assert swap.value(market, struck) == approx(0.0, abs=1e-12)
+        up = replace(market, curve=shifted(market.curve, +1.0))
+        down = replace(market, curve=shifted(market.curve, -1.0))
+        repriced = (swap.value(up, struck) - swap.value(down, struck)) / 2.0
+        assert repriced == approx(swap.exposures(market).rho, rel=tolerance)
+
+
 def test_a_longer_rate_instrument_carries_more_rate_risk():
     market = _market()
     short = inst.InterestRateSwap(tenor=5.0).exposures(market).rho

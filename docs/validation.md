@@ -22,6 +22,8 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Simulator against the COS pricer with rates switched off | matches | `tests/test_market_models.py` |
 | Discounted index and sub-account are martingales | within Monte Carlo error | `tests/test_market_models.py` |
 | Continuous charge collection against 20,000-step sub-stepping | exact to 1e-12 | `tests/test_liability.py` |
+| The contract recursion against a scalar reading of the documented anniversary order | agree to 1e-13 on a path that exhausts, steps up and reaches the adjustment | `tests/test_liability.py` |
+| The rate leg's annuity rho against repricing the swap under a parallel shift | 0.45% apart at the ten-year tenor held | `tests/test_hedge.py` |
 | Deaths and survivors account for everyone | exact to 1e-12 | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
 | Overlapping filings agree | 12 liability figures and 3 derivative dates in two filings each, all agree | `build_dataset.py`, `tests/test_disclosures.py` |
@@ -35,7 +37,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The chain's own discount factors against Treasury | 38 to 94bp over, across 18 expiries | `build_dataset.py` |
 | Every committed figure carries only the chunks a plot needs | all 10, nothing after IEND | `tests/test_artifacts.py` |
 
-272 tests, no framework required.
+274 tests, no framework required.
 
 Three of these rows exist because an earlier version of this table was weaker than it looked, and
 the pattern is worth stating once. A put-call parity check was already here, at the money, at one

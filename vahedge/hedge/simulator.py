@@ -600,8 +600,6 @@ def _netted(lines) -> dict:
 def _reference(instrument, market):
     if isinstance(instrument, inst.EquityFuture):
         return market.forward(instrument.maturity)
-    if isinstance(instrument, inst.TotalReturnSwap):
-        return market.index
     if isinstance(instrument, inst.InterestRateSwap):
         return instrument.par_rate(market)
     return float(market.curve.zero(instrument.duration))

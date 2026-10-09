@@ -16,8 +16,8 @@ textbook GMWB. Three mechanics in particular are specific enough to be worth sta
 at the end of each contract year with no withdrawal. The Bonus Base is not the GWB: it starts
 equal to it, and afterwards moves only with premiums and step-ups. So a 6% bonus on a
 deferring contract adds 6% of the original benefit base each year, not 6% compounding. Treating
-it as a roll-up on the GWB, which is what most GMWB descriptions assume, overstates a ten-year
-deferral by roughly a third.
+it as a roll-up on the GWB, which is what most GMWB descriptions assume, overstates what ten
+years of deferral accrue by a third - 79 against 60 on a base of 100, so 179 against 160.
 
 *The bonus period restarts on a step-up.* It runs ten contract years from the endorsement, or
 ten years from the most recent step-up that raised the Bonus Base, whichever is later, and

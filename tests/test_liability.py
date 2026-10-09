@@ -57,6 +57,61 @@ def _survival(n_cohorts: int = 1, years: int = YEARS):
     return np.ones((n_cohorts, years))
 
 
+def _scalar_recursion(book, growth, discount, years):
+    """The seven anniversary steps of docs/methodology.md, written out one year at a time.
+
+    A second implementation of the same contract, deliberately. Every other test here fixes one
+    mechanic against the prospectus; none of them can catch the mechanics being right and their
+    *order* being wrong, because reordering the charge, the withdrawal and the step-up leaves
+    each one individually correct. This reads the order off the document rather than off the
+    loop, so a reordering of either has to show up as a disagreement.
+    """
+    account = float(book.account_value[0])
+    base = float(book.benefit_base[0])
+    bonus_base = float(book.bonus_base[0])
+    bonus_end = float(book.bonus_years_remaining[0])
+    adjustment_year = int(book.adjustment_year[0])
+    adjustment_live = adjustment_year >= 0
+    gawa = float(book.gawa_pct[0])
+    charge = float(book.rider_charge_pct[0])
+    bonus_rate = float(book.bonus_pct[0])
+    steps_up = bool(book.annual_step_up[0])
+    utilisation = float(book.utilisation[0])
+    deferral = int(book.deferral_years[0])
+    drag_factor = float(np.exp(-float(book.account_drag[0])))
+    insurer_share = float(book.insurer_drag_share[0])
+    attained = int(book.attained_age[0])
+
+    claims = fees = 0.0
+    for year in range(years):
+        before_drag = account * growth[year]
+        account = before_drag * drag_factor
+        base_charge = insurer_share * before_drag * (1.0 - drag_factor)
+
+        rider = min(charge * base, max(account, 0.0))          # 1
+        account -= rider
+        deferring = year < deferral
+        drawn = 0.0 if deferring else utilisation * gawa * base   # 3
+        from_account = min(drawn, max(account, 0.0))
+        claim = drawn - from_account
+        account -= from_account
+        if steps_up and account > base:                        # 4
+            if account > bonus_base and attained + year <= gmwb.BONUS_RESTART_MAX_AGE:
+                bonus_base = account
+                bonus_end = year + 1 + gmwb.BONUS_PERIOD_YEARS
+            base = account
+        if deferring and year < bonus_end and account > 0.0:   # 5
+            base += bonus_rate * bonus_base
+        if adjustment_live and year == adjustment_year:        # 6
+            base = max(base, float(book.adjustment_amount[0]))
+            adjustment_live = False
+        adjustment_live = adjustment_live and deferring
+
+        claims += discount[year] * claim
+        fees += discount[year] * (rider + base_charge)
+    return claims, fees
+
+
 # ---------------------------------------------------------------- the rate sheet
 
 
@@ -172,6 +227,38 @@ def test_the_adjustment_floors_the_benefit_base_in_a_falling_market():
 
 
 # ---------------------------------------------------------------- withdrawals and claims
+
+
+def test_the_recursion_matches_an_independent_reading_of_the_anniversary_order():
+    """The vectorised projection against the scalar one, on a path that exercises everything.
+
+    The growth path falls far enough to exhaust the account and so reach the claim branch,
+    rises far enough early to trigger a step-up and restart the bonus clock, and runs long
+    enough for the withdrawal base adjustment to land. If it agreed only on a path where
+    nothing happened it would be testing the discounting.
+    """
+    years = 30
+    growth = np.array([1.08, 0.78, 1.21, 1.05, 0.94, 1.11, 1.03, 1.17, 0.88, 1.06,
+                       1.02, 1.09, 0.97, 1.04, 0.71, 0.93, 1.02, 0.88, 0.95, 1.01,
+                       0.84, 0.97, 1.03, 0.91, 0.99, 1.05, 0.93, 1.00, 0.96, 1.02])
+    discount = np.cumprod(np.full(years, 1.0 / 1.035))
+    book = cohorts.single_contract(
+        terms=_core(), issue_age=65, base_contract_charge=0.0131, fund_expense=0.0095,
+        premium=100.0, deferral_years=5, max_age=65 + years,
+    )
+    paths = MarketPaths(
+        fund_growth=growth.reshape(1, -1), index_growth=growth.reshape(1, -1),
+        discount=discount.reshape(1, -1), short_rate=np.full((1, years), 0.035),
+        variance=np.full((1, years), 0.04), zero_10y=np.full((1, years), 0.04),
+        realised_variance=np.full((1, years), 0.04), seed=0, antithetic=False,
+    )
+    projected = gmwb.project(book, paths, np.ones((1, years)))
+    claims, fees = _scalar_recursion(book, growth, discount, years)
+
+    assert projected.pv_claims[0] > 1.0, "the path has to reach the claim branch to test it"
+    assert projected.exhaustion_prob[0][-1] == 1.0
+    assert projected.pv_claims[0] == approx(claims, rel=1e-13)
+    assert projected.pv_attributable_fees[0] == approx(fees, rel=1e-13)
 
 
 def test_a_contract_that_never_withdraws_never_claims():

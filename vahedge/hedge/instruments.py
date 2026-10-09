@@ -56,7 +56,6 @@ from ..valuation.greeks import EQUITY_CURVATURE_STEP
 # Round-trip transaction costs, as a share of traded notional unless noted. These are
 # assumptions, not quotes; scripts/run_hedge_experiments.py sweeps half, one and two times.
 FUTURES_COST = 0.00005          # half a basis point of notional
-TRS_COST = 0.00005              # execution only; the financing spread is the real cost
 RATE_FUTURES_COST = 0.000025    # a quarter of a basis point
 BOND_FORWARD_COST = 0.00005
 SWAP_COST = 0.000025
@@ -200,37 +199,6 @@ class EquityFuture:
 
     def carry(self, units: float, market: HedgeMarket, years: float) -> float:
         return 0.0   # margin is funded from cash, which the simulator accrues separately
-
-
-@dataclass(frozen=True)
-class TotalReturnSwap:
-    """Receive the index total return, pay financing. One unit is one index unit of notional."""
-
-    maturity: float = 1.0
-    spread: float = 0.0035         # over the funding rate; an assumption, swept in E3
-    label: str = "total return swap"
-
-    def notional(self, market: HedgeMarket) -> float:
-        return market.index
-
-    def value(self, market: HedgeMarket, struck_at: float | None = None) -> float:
-        return 0.0 if struck_at is None else market.index - struck_at
-
-    def exposures(self, market: HedgeMarket) -> Exposures:
-        # Full index exposure, and a financing leg whose present value moves with rates over
-        # the remaining life of the swap.
-        return Exposures(delta=market.index, rho=-market.index * self.maturity * 1e-4)
-
-    def trade_cost(self, units_traded: float, market: HedgeMarket) -> float:
-        return abs(units_traded) * self.notional(market) * TRS_COST
-
-    def carry(self, units: float, market: HedgeMarket, years: float) -> float:
-        """The spread, which is what makes this different from a future.
-
-        A short equity hedge pays the spread whichever way the position points, because the
-        dealer charges it on notional rather than on direction.
-        """
-        return abs(units) * market.index * self.spread * years
 
 
 @dataclass(frozen=True)

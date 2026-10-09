@@ -453,11 +453,15 @@ one and gamma and vega at a tenth, because the first two are what a weekly hedge
 the second two are second-order. That ratio is what decides how large the put position comes out,
 so it is a parameter of the result rather than a numerical detail.
 
-The library prices equity futures, total return swaps, listed index puts, rate futures, bond
-forwards and interest rate swaps. The strategies use three of them - an equity future, a listed
-put and a receive-fixed swap - because two instruments with nearly the same rate exposure make the
-design matrix singular, and because the point of the ladder is to add one kind of exposure at a
-time. The instruments are priced off a smaller market object than the liability is valued on: a
+The library prices equity futures, listed index puts, rate futures, bond forwards and interest
+rate swaps. The strategies use three of them - an equity future, a listed put and a receive-fixed
+swap - because two instruments with nearly the same rate exposure make the design matrix
+singular, and because the point of the ladder is to add one kind of exposure at a time. The note
+future and the bond forward are priced only so that the rank-one test can demonstrate that
+singularity; nothing else constructs them. A total return swap was in the library and is not any
+more: Item 7A shows Jackson holding them, but a stateless instrument marked at the index level
+reports a financing rho that its own profit and loss cannot realise, so it would have been sized
+for an exposure that was not there. The instruments are priced off a smaller market object than the liability is valued on: a
 bootstrapped curve rather than the fitted one, and Black-76 against a fixed-shape smile rather
 than Heston. That gap is deliberate - a hedger marks a book off quotes, not off the model that
 produced the target - and the residual it leaves is part of what the backtest measures.

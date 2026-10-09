@@ -128,9 +128,12 @@ because the shocks are large enough for convexity to show, and the convexity is 
 test is made of.
 
 The hedge is daily along the realised path, sized by weighted least squares across delta, gamma,
-vega and rho against a real instrument set - equity futures, total return swaps, listed index
-puts, rate futures, bond forwards and interest rate swaps - with costs charged on the change in
-position and swept at half, one and two times their base level. The liability is revalued through
+vega and rho against a real instrument set - an equity future, a listed index put and a
+receive-fixed swap, which is the three the strategies ended up holding out of the six this was
+written expecting, because under a one-factor rate model the rate instruments differ only by a
+scalar and holding two of them makes the solve singular; `docs/methodology.md` carries the
+narrowing - with costs charged on the change in position and swept at half, one and two times
+their base level. The liability is revalued through
 a regression proxy, because a full valuation at every rebalance date is not affordable, and the
 proxy's own error is measured against nested simulation before any hedging result is read.
 

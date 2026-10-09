@@ -28,9 +28,14 @@ S6 adds a long-dated out-of-the-money put spread on top of S3 - the macro hedge.
 to flatten the Greeks week to week but to cap the statutory and rating-agency damage in a
 severe fall, which is a capital question rather than a hedging one, and W5 is where it is judged.
 
-The total return swap is not in any default strategy and is in the library on purpose: E3
-swaps it in for futures to show that the ranking of the two depends entirely on rebalancing
-frequency, because one costs a round trip and the other costs a running spread.
+The equity leg is a future throughout. Item 7A shows Jackson holding total return swaps beside
+its futures, and the library carried one for a while to swap in against them - one costs a round
+trip and the other a running spread, so which is cheaper turns entirely on rebalancing frequency,
+which E3 sweeps. The instrument is gone because it could not answer that honestly: its mark was
+the index level alone, so it reported a financing rho that its own profit and loss could never
+realise, and a solve would have sized it for an exposure that was not there. Marking the
+accruals properly needs a position that knows how long it has been held, which is a different
+instrument from the stateless ones here, and no result rested on it.
 """
 
 from __future__ import annotations
@@ -114,11 +119,13 @@ def rate_instruments() -> tuple:
     is false precision dressed as optimisation.
 
     So the strategies hold the swap, whose sensitivity is the annuity of its own fixed leg read
-    off the curve rather than a duration assumption, and the other two stay in the library for
-    the derivative-book reproduction in V1, where matching Jackson's disclosed categories by
-    notional is the point. Telling the three apart as risks would need a second curve factor in
-    the proxy's state, and the proxy does not carry one; that is a stated limitation rather than
-    something the hedge quietly papers over.
+    off the curve rather than a duration assumption. The note future and the bond forward stay
+    priced in the library for one reason only, and it is worth being exact about it rather than
+    gesturing at a use: `tests/test_hedge.py` builds the three-instrument exposure matrix and
+    asserts it is rank one, which is the evidence behind holding a single rate instrument. No
+    script constructs either of them. Telling the three apart as risks would need a second curve
+    factor in the proxy's state, and the proxy does not carry one; that is a stated limitation
+    rather than something the hedge quietly papers over.
     """
     return (inst.InterestRateSwap(tenor=10.0, receive_fixed=True),)
 
