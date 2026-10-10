@@ -341,11 +341,25 @@ extending it to 120 moves the market risk benefit by less than a dollar and cutt
 moves it by $36, against a Monte Carlo standard error of $136. Truncation costs an order of
 magnitude less than simulation noise.
 
-Everything that has to fit a regression proxy - the hedging backtest, the proxy validation, the
-convexity surface and the statutory lens - truncates at 105 instead. That is what the $36 figure
-is there to license: a forty-five-year design matrix costs the proxy accuracy in the region the
-hedge actually visits, and the liability it drops is a thirtieth of the Monte Carlo error on the
-number it is dropped from.
+Everything downstream of the hedging setup truncates at 105 instead: the backtest itself, the
+proxy validation that measures its liability and the convexity surface that feeds its option
+leg, and the four results built on it - the bootstrap reorderings, the macro frontier, the
+reporting lens and the rider economics, each of which calls the backtest's own `build()` and
+inherits the horizon with it.
+
+The statutory lens is at 105 for a different reason, since it fits no proxy: its requirement
+is reported strategy by strategy against those same hedged runs, and a reserve measured over a
+longer projection than the hedge it is judging would not be a comparison.
+
+The $36 is what licenses both. A forty-five-year design matrix costs the proxy accuracy in the
+region the hedge actually visits, and the liability dropped by stopping ten years earlier is a
+thirtieth of the Monte Carlo error on the number it is dropped from. That measurement is taken
+on the at-issue market risk benefit rather than on each dependent result, so it bounds the
+truncation at the point the whole chain is anchored and is not a separate claim about the
+reserve or the hedge.
+
+Four stages stay at 115: the at-issue valuation, the Greeks, the disclosed-shock comparison and
+the vintage portfolio.
 
 ## Simulation
 

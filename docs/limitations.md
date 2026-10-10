@@ -110,10 +110,16 @@ and everything in the hedging workstream inherits the proxy's errors.
 
 Its value is accurate - R-squared above 0.995 in range and a root mean square error of two to
 seven tenths of a per cent of premium against nested simulation. That figure read as thousandths
-of a per cent here and in the notebook until an audit divided the committed column by itself: the
-column is a share of premium, as every `_pct_of_account` column in this project is a share rather
-than a percentage, and the denominator is premium rather than each node's own account value.
-Its **delta is 36% off in the first policy year** and
+of a per cent here and in the notebook until an audit divided the committed column by itself. The
+column was then called `rmse_pct_of_account` and held a share of premium; it is now
+`rmse_share_of_premium`, which is the same number under a name that cannot be misread.
+
+Scaled columns in this project are shares rather than percentages, and the name says the
+denominator. The one table that broke that - the index-linked cohort book, where the embedded
+derivative was stored at a hundred times its neighbours under the same suffix - now stores the
+share like the rest, and the per cent is made where the figure is reported against a filed one.
+
+The proxy's **delta is 36% off in the first policy year** and
 21% in the second, 10% by year 5 and 5% by year 14, and then deteriorates again to 23% by year 25
 as the delta itself shrinks and the same absolute error becomes a larger share of it. The backtest
 covers policy years 3 to 13, which is the best part of that range, but nothing in the project

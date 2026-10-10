@@ -23,7 +23,7 @@ assumption rather than a calibration.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -216,7 +216,3 @@ def load(path=None) -> MarketCalibration:
         )
     return MarketCalibration.from_json(path)
 
-
-def with_tracking_error(calibration: MarketCalibration, tracking_error: float):
-    """The same market with a different sub-account basis, for the basis-risk experiment."""
-    return replace(calibration, mix=replace(calibration.mix, tracking_error=tracking_error))

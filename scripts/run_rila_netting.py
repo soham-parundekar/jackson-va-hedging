@@ -143,7 +143,7 @@ def exposure_surface(paths_, cap: float) -> pd.DataFrame:
                 "elapsed_years": elapsed,
                 "remaining_years": TERM_YEARS - elapsed,
                 "index_since_issue": growth,
-                "embedded_derivative_pct_of_account": 100 * point["embedded_derivative"],
+                "embedded_derivative_pct_of_account": point["embedded_derivative"],
                 "equity_exposure_pct_of_account": point["equity_exposure_pct_of_account"],
                 "equity_up_10pct_pct_of_account": point["equity_up_10pct_pct_of_account"],
                 "equity_down_10pct_pct_of_account": point["equity_down_10pct_pct_of_account"],
@@ -213,7 +213,7 @@ def cohort_book(paths_, cap: float, history, as_of: str, book_stats: pd.DataFram
             "elapsed_years": elapsed,
             "weight": weights[elapsed],
             "index_since_issue": growth,
-            "embedded_derivative_pct_of_account": 100 * point["embedded_derivative"],
+            "embedded_derivative_pct_of_account": point["embedded_derivative"],
             "equity_exposure_pct_of_account": point["equity_exposure_pct_of_account"],
             "equity_up_10pct_pct_of_account": point["equity_up_10pct_pct_of_account"],
             "equity_down_10pct_pct_of_account": point["equity_down_10pct_pct_of_account"],
@@ -280,7 +280,11 @@ def level_check(book: pd.DataFrame, book_stats: pd.DataFrame) -> pd.DataFrame:
         funds = float(match["rila_contract_holder_funds_musd"].iloc[0])
         rows.append({
             "as_of": as_of,
-            "model_embedded_derivative_pct": weighted(cohorts, "embedded_derivative_pct_of_account"),
+            # The cohort tables carry shares of account value, the same as every other
+            # _pct_of_account column in the project; the per cent is made here, where the
+            # figure is reported against a filed percentage.
+            "model_embedded_derivative_pct":
+                100 * weighted(cohorts, "embedded_derivative_pct_of_account"),
             "disclosed_embedded_derivative_pct": 100 * filed / funds,
             "disclosed_funds_musd": funds,
             "rila_funds_over_va_account": funds / float(match["va_separate_account_musd"].iloc[0]),

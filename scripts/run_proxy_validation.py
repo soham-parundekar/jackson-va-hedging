@@ -94,7 +94,7 @@ def main() -> None:
         truth = nested.gold_standard(inner, book, state, projection.recorded,
                                      year=year, n_nodes=NODES)
         comparison = nested.compare(proxy, truth)
-        summary = nested.summarise(comparison, account_value=PREMIUM)
+        summary = nested.summarise(comparison, premium=PREMIUM)
         summary["year"] = year
         summary["mean_nested_value"] = float(truth["nested_value"].mean())
         summary["exhausted_share"] = proxy.fits[year].n_exhausted / FIT_PATHS
@@ -105,35 +105,35 @@ def main() -> None:
             n_nodes=DELTA_NODES, equity_bump=EQUITY_BUMP,
         ))
         inside = bumped[~bumped["outside_design_range"]]
-        summary["delta_rmse_pct_of_account_in_range"] = float(
+        summary["delta_rmse_share_of_premium_in_range"] = float(
             np.sqrt((inside["delta_error"] ** 2).mean()) / PREMIUM
         ) if not inside.empty else np.nan
-        summary["gamma_rmse_pct_of_account_in_range"] = float(
+        summary["gamma_rmse_share_of_premium_in_range"] = float(
             np.sqrt((inside["gamma_error"] ** 2).mean()) / PREMIUM
         ) if not inside.empty else np.nan
         summary["mean_abs_nested_delta"] = float(inside["nested_delta"].abs().mean())
         summary["mean_abs_nested_gamma"] = float(inside["nested_gamma"].abs().mean())
         delta_rows.append(bumped.assign(year=year))
         print(
-            f"year {year:2d}  all rmse {100*summary['rmse_pct_of_account']:5.2f}% of premium"
+            f"year {year:2d}  all rmse {100*summary['rmse_share_of_premium']:5.2f}% of premium"
             f"  R2 {summary['r_squared']:.4f}"
             f" | in range {summary['nodes_in_range']:2d} nodes"
-            f"  rmse {100*summary['rmse_pct_of_account_in_range']:5.2f}%"
+            f"  rmse {100*summary['rmse_share_of_premium_in_range']:5.2f}%"
             f"  R2 {summary['r_squared_in_range']:.4f}"
             f" | flagged {100*summary['share_outside_design_range']:3.0f}%"
-            f"  delta rmse {100*summary['delta_rmse_pct_of_account_in_range']:5.2f}%"
+            f"  delta rmse {100*summary['delta_rmse_share_of_premium_in_range']:5.2f}%"
             f" of {summary['mean_abs_nested_delta']:5.1f}"
-            f"  gamma rmse {100*summary['gamma_rmse_pct_of_account_in_range']:6.2f}%"
+            f"  gamma rmse {100*summary['gamma_rmse_share_of_premium_in_range']:6.2f}%"
             f" of {summary['mean_abs_nested_gamma']:6.1f}"
             f"  inner se {summary['mean_nested_std_error']:.3f}",
             flush=True,
         )
 
     table = pd.DataFrame(rows)[[
-        "year", "nodes", "r_squared", "rmse", "rmse_pct_of_account", "worst_pct_of_account",
-        "nodes_in_range", "r_squared_in_range", "rmse_pct_of_account_in_range",
-        "worst_pct_of_account_in_range", "delta_rmse_pct_of_account_in_range",
-        "gamma_rmse_pct_of_account_in_range", "mean_abs_nested_delta",
+        "year", "nodes", "r_squared", "rmse", "rmse_share_of_premium", "worst_share_of_premium",
+        "nodes_in_range", "r_squared_in_range", "rmse_share_of_premium_in_range",
+        "worst_share_of_premium_in_range", "delta_rmse_share_of_premium_in_range",
+        "gamma_rmse_share_of_premium_in_range", "mean_abs_nested_delta",
         "mean_abs_nested_gamma", "share_outside_design_range",
         "mean_nested_std_error", "mean_nested_value", "exhausted_share",
     ]]
@@ -144,7 +144,7 @@ def main() -> None:
         "nested_gamma", "proxy_gamma", "gamma_error", "outside_design_range",
     ]].to_csv(paths.TABLES / "proxy_delta_nodes.csv", index=False)
 
-    usable = table[table["rmse_pct_of_account_in_range"] < 0.03]["year"]
+    usable = table[table["rmse_share_of_premium_in_range"] < 0.03]["year"]
     print(f"\nproxy within 3% of premium inside its design range through year "
           f"{int(usable.max()) if len(usable) else 0}")
     print(f"wrote {paths.TABLES / 'proxy_accuracy.csv'}")

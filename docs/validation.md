@@ -27,6 +27,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The hedge solve against an explicitly formed penalised least-squares system | agree to 1e-9 across three instrument sets and two hedge ratios | `tests/test_hedge.py` |
 | Antithetic pairs are found inside their own simulation block | the mean is pairing-invariant, the error is not | `tests/test_market_models.py` |
 | Every register row points at a file that exists, and names a component | 30 rows | `tests/test_artifacts.py` |
+| Every stored extract's own header carries the accession its register row claims | 8 extracts, read off the filing when each was saved | `tests/test_artifacts.py` |
 | Every source `docs/literature.md` cites has a register row | all 14 DOIs | `tests/test_artifacts.py` |
 | Accession numbers in the docs match the register's | one spelling each | `tests/test_artifacts.py` |
 | The register and the annotated bibliography name the same sources | both directions | `tests/test_artifacts.py` |
@@ -346,14 +347,20 @@ proxy's own error is measured first.
 Both RMSE columns are shares of a premium of 100, not percentages, which is why the last column
 is the one worth reading: 0.126 of a premium of 100 is 12.6 dollars against a mean absolute
 nested delta of 35, so 36%. That ratio is the quantity that decides whether a hedge sized off the
-proxy is sized off anything. The header used to say "% of account" over the value column, and the
-same misreading reached `docs/limitations.md` as "a few thousandths of a per cent" for an error
-that is two to seven tenths of one. The denominator is premium rather than each node's own
-account value, which also matters at the later years, where the account has moved a long way from
-it.
+proxy is sized off anything. The denominator is premium rather than each node's own account
+value, which also matters at the later years, where the account has moved a long way from it.
 
-The value is accurate everywhere, at two to seven tenths of a per cent of premium. The delta is not usable in the first two policy years, where the
-fitting paths have barely dispersed and the whole design piles into a narrow band. It is best from
+Saying so twice is deliberate, because the labelling cost something. These columns were called
+`..._pct_of_account` in `proxy_accuracy.csv`, filled by a helper whose parameter was named
+`account_value` and fed a premium by every caller, and the mislabel reached `docs/limitations.md`
+and this page as "a few thousandths of a per cent" for an error that is two to seven tenths of
+one. The figures were always right; the names were not. They now read `rmse_share_of_premium`
+and `worst_share_of_premium`, which is what they hold, and no value in the table moved when they
+were renamed.
+
+The value is accurate everywhere, at two to seven tenths of a per cent of premium. The delta is
+not usable in the first two policy years, where the fitting paths have barely dispersed and the
+whole design piles into a narrow band. It is best from
 year 9 to year 14 and then deteriorates again, not because the fit gets worse - the value RMSE
 barely moves - but because the delta itself shrinks as the book runs off, so the same absolute
 error is a larger share of it. The backtest covers policy years 3 to 13, which is the best part of

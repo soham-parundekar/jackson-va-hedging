@@ -223,7 +223,7 @@ def compare(proxy, truth: pd.DataFrame, attribution: float = 1.0) -> pd.DataFram
     return out
 
 
-def summarise(comparison: pd.DataFrame, account_value: float) -> dict:
+def summarise(comparison: pd.DataFrame, premium: float) -> dict:
     """The numbers that decide whether the proxy is fit to hedge against.
 
     Reported twice: over every node, and over the nodes the fit has data behind. Both belong in
@@ -231,11 +231,20 @@ def summarise(comparison: pd.DataFrame, account_value: float) -> dict:
     what it will actually suffer, because a state the design distribution never reaches is
     flagged when the proxy is asked for it. Quoting only the first understates the proxy and
     quoting only the second hides the states where it should not be trusted.
+
+    The two scaled columns are shares of premium, not percentages of anything, and are named
+    for it. They used to be ``..._pct_of_account`` against a parameter called ``account_value``
+    that every caller fed a premium, and the mislabel travelled: it reached three documents as
+    an error a hundred times too small before the ratio against the nested delta exposed it.
+    The denominator has to be premium rather than each node's own account value, because the
+    account has moved a long way from premium by the later years and a per-node denominator
+    would make the error look like it shrinks when only the scale did.
     """
     def block(frame: pd.DataFrame, suffix: str) -> dict:
         if frame.empty:
             return {f"nodes{suffix}": 0, f"r_squared{suffix}": np.nan, f"rmse{suffix}": np.nan,
-                    f"rmse_pct_of_account{suffix}": np.nan, f"worst_pct_of_account{suffix}": np.nan}
+                    f"rmse_share_of_premium{suffix}": np.nan,
+                    f"worst_share_of_premium{suffix}": np.nan}
         error = frame["error"].to_numpy()
         truth = frame["nested_value"].to_numpy()
         total = truth - truth.mean()
@@ -245,8 +254,8 @@ def summarise(comparison: pd.DataFrame, account_value: float) -> dict:
             f"r_squared{suffix}": float(1.0 - (error @ error) / (total @ total))
             if total @ total > 0 else np.nan,
             f"rmse{suffix}": rmse,
-            f"rmse_pct_of_account{suffix}": rmse / account_value,
-            f"worst_pct_of_account{suffix}": float(np.abs(error).max() / account_value),
+            f"rmse_share_of_premium{suffix}": rmse / premium,
+            f"worst_share_of_premium{suffix}": float(np.abs(error).max() / premium),
         }
 
     out = block(comparison, "")

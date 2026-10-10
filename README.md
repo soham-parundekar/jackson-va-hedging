@@ -209,7 +209,8 @@ parameter file that would be a second place to keep true.
 | Path counts and seeds | `vahedge/valuation/engine.py` |
 | Hedge instruments, costs, roll rules | `vahedge/hedge/strategies.py` and `vahedge/hedge/instruments.py` |
 | Equity risk premium sweep | `scripts/run_statutory.py` |
-| Own-credit spread proxy | `vahedge/capital/reporting.py` |
+| Own-credit spread proxy, and the grid the reporting liability is fitted at | `vahedge/market/scenarios.py` for the share of the Baa index taken as Jackson's own spread, `vahedge/capital/reporting.py` for the grid |
+| Projection horizon, which is 115 at issue and 105 everywhere downstream of the hedge | `scripts/run_valuation.py` and `scripts/run_hedge_experiments.py`; `docs/methodology.md` says why they differ |
 
 ## What is in here
 

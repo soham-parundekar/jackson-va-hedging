@@ -800,15 +800,3 @@ def _fit_year(moneyness, volatility, rate, claim_target, fee_target, fit_rows, r
         n_exhausted=int((live[fit_rows] == False).sum()),  # noqa: E712 - count, not a filter
     )
 
-
-def accuracy_report(proxy: ProxyFit, account_value: float) -> pd.DataFrame:
-    """Fit quality in the unit that decides whether the proxy is good enough.
-
-    An R-squared against single-path realisations is not that unit and never will be: the
-    residual there is dominated by payoff noise no conditional mean can remove. This is a
-    diagnostic for watching the fit across years, and ``nested.summarise`` is the test.
-    """
-    frame = proxy.diagnostics.copy()
-    frame["rmse_pct_of_account"] = frame["rmse"] / account_value
-    frame["exhausted_share"] = frame["n_exhausted"] / proxy.n_paths
-    return frame

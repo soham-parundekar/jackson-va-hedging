@@ -500,6 +500,6 @@ def test_the_proxy_agrees_with_a_full_nested_valuation():
     inner = Valuer(mortality.load("basic"), n_paths=2_000, seed=77, cache_size=1)
     truth = nested.gold_standard(inner, book, state, projection.recorded, year=8, n_nodes=6)
     comparison = nested.compare(_proxy(), truth)
-    summary = nested.summarise(comparison, account_value=100.0)
+    summary = nested.summarise(comparison, premium=100.0)
     assert summary["nodes_in_range"] >= 4
-    assert summary["rmse_pct_of_account_in_range"] < 0.05
+    assert summary["rmse_share_of_premium_in_range"] < 0.05
