@@ -179,6 +179,22 @@ removed on that basis: a nested-simulation paper that supported the design of th
 standard in spirit but that no formula or parameter choice in the repository actually uses, and
 a SOFR series whose role turned out to be covered by a rate already in the panel.
 
+**Notes 10 to 12, added late and the reason it mattered.** The filings were stored from the
+start as Item 7A extracts, because Item 7A is what the model is validated against. The notes
+that supply the *book* those sensitivities are scaled by were not, so 25 of the 46 figures in
+`data/raw/jackson_book_statistics.csv` had no source in the repository at all: the separate
+account value, the fund split, the surrender value, the net amount at risk. The near-miss is
+what made it urgent rather than tidy. The one surrender value that was stored is Note 10's
+6,330, which is the general-account sleeve; the 98.0% share the statutory floor runs on is Note
+11's 231,711, a different table in the same filing. Checking the constant against the stored
+extract would have made it look wrong by a factor of thirty-seven.
+
+Both filings' notes are now stored, taken from EDGAR's own rendering of each table rather than
+copied from the main document, so every table carries its own URL under the accession folder and
+a later reader can re-fetch exactly what was read. `tests/test_artifacts.py` now refuses a book
+statistic that no stored extract carries, which is the check that would have caught the gap in
+the first place.
+
 **REF-024, REF-025 and a date that was wrong.** The FY2023 and FY2024 10-Ks each supply a
 quarter of the rows the shock validation runs on and were missing from this register entirely
 while their figures sat in the data - a gap the reference audit found by asking §58's question of

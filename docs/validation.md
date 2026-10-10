@@ -28,6 +28,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Antithetic pairs are found inside their own simulation block | the mean is pairing-invariant, the error is not | `tests/test_market_models.py` |
 | Every register row points at a file that exists, and names a component | 30 rows | `tests/test_artifacts.py` |
 | Every stored extract's own header carries the accession its register row claims | 8 extracts, read off the filing when each was saved | `tests/test_artifacts.py` |
+| Every book statistic appears in a stored filing extract | 46 figures across four balance-sheet dates | `tests/test_artifacts.py` |
 | Every source `docs/literature.md` cites has a register row | all 14 DOIs | `tests/test_artifacts.py` |
 | Accession numbers in the docs match the register's | one spelling each | `tests/test_artifacts.py` |
 | The register and the annotated bibliography name the same sources | both directions | `tests/test_artifacts.py` |

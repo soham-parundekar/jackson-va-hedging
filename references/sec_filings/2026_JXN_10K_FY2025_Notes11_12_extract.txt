@@ -1,0 +1,193 @@
+Source        Jackson Financial Inc., Form 10-K for the fiscal year ended 31 December 2025
+Filed         24 February 2026
+CIK           0001822993
+Accession     0001822993-26-000022
+Document      jxn-20251231.htm
+Retrieved     10 October 2026
+Method        From EDGAR's own rendering of the filing's financial statements, one table per
+              URL, rather than copied out of the main document. Each table below carries the
+              report file it came from. The FilingSummary that lists them is at
+              https://www.sec.gov/Archives/edgar/data/1822993/000182299326000022/FilingSummary.xml
+              and every R-file sits beside it under the same accession folder.
+Used by       data/raw/jackson_book_statistics.csv, every column of it, which in turn sets the
+              equity weight of the sub-account, the cash surrender value share in
+              vahedge/capital/statutory.py, and the scaling denominator for every disclosed
+              sensitivity.
+
+Why this exists separately from the Item 7A extract: the sensitivity tables this project
+validates against are Item 7A, and they were preserved from the start. Notes 11 and 12 supply
+the book the sensitivities are scaled by, and were not. An audit found 25 of the 46 figures in
+jackson_book_statistics.csv had no stored source, among them the separate account value and the
+fund split. Worse, the one cash surrender value the repository did store - 6,330 for variable
+annuities, in the notes extract beside this one - is the general-account figure from Note 10,
+and a reader checking the 98.0% surrender share against it would be out by a factor of
+thirty-seven. The number that share is built on is the last row of the Note 11 rollforward
+below.
+
+Every figure in jackson_book_statistics.csv for 31 December 2024 and 31 December 2025 was
+checked against these tables when they were retrieved, and they all agree.
+
+--------------------------------------------------------------------------------------------
+Note 11, Separate Account Assets and Liabilities
+Rollforward of the Separate Account Balance for Variable Annuities
+R125.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                                      12 months ended
+                                                   31 Dec 2025    31 Dec 2024
+
+  All separate accounts
+    Balance, beginning of period                       229,143              -
+    Balance, end of period, gross                      236,496        229,143
+
+  Total variable annuities
+    Balance, beginning of period                       228,851        219,381
+    Deposits                                             9,998          9,839
+    Surrenders, withdrawals and benefits               -27,633        -27,016
+    Net transfer from (to) general account                -372            -94
+    Investment performance                              28,278         29,532
+    Policy charges and other                            -2,716         -2,791
+    Balance, end of period, gross                      236,406        228,851
+    Cash surrender value                               231,711        224,157
+
+The last row is the one the statutory floor uses. 231,711 against an account value of 236,406
+is 98.01%, and 224,157 against 228,851 is 97.95%, which is where SURRENDER_VALUE_SHARE = 0.980
+comes from. This is the separate-account surrender value of the variable annuity block, not the
+general-account figure in Note 10.
+
+--------------------------------------------------------------------------------------------
+Note 11, Separate Account Assets and Liabilities
+Reconciliation of the Separate Account Balance in the Consolidated Balance Sheets
+R126.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                                   31 Dec 2025    31 Dec 2024
+  Separate account assets                              236,496        229,143
+    Variable annuities                                 236,406        228,851
+    Other product lines                                     90            292
+
+--------------------------------------------------------------------------------------------
+Note 11, Separate Account Assets and Liabilities
+Aggregate Fair Value of Assets, by Major Investment Asset Category
+R127.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                                   31 Dec 2025    31 Dec 2024
+  Separate account assets, total                       236,496        229,143
+  Total variable annuities                             236,406        228,851
+    Equity                                             171,046        163,904
+    Bond                                                19,711         19,486
+    Balanced                                            43,317         42,909
+    Money market                                         2,332          2,552
+  Other product lines                                       90            292
+
+The four sleeves sum to the variable annuity total at both dates. Equity over the total is
+0.7236 at 2025 and 0.7162 at 2024, and the balanced sleeve's own equity share is what takes the
+modelled exposure to 0.83.
+
+--------------------------------------------------------------------------------------------
+Note 12, Market Risk Benefits
+Reconciliation of the Market Risk Benefits Balance
+R128.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                      31 Dec 2025    31 Dec 2024    31 Dec 2023
+  All products
+    Market risk benefit - (assets)        -7,867         -8,899              -
+    Market risk benefit - liabilities      3,754          3,774              -
+    Net (asset) liability                 -4,113         -5,125              -
+
+  Variable annuity
+    Market risk benefit - (assets)        -7,863         -8,894              -
+    Market risk benefit - liabilities      3,598          3,718              -
+    Net (asset) liability                 -4,265         -5,176         -2,000
+
+  Other product lines
+    Market risk benefit - (assets)            -4             -5              -
+    Market risk benefit - liabilities        156             56              -
+    Net (asset) liability                    152             51              -
+
+The other-product-lines row is the whole of the gap between the company-wide figure in the SEC's
+XBRL company-facts series and the variable annuity figure this project uses: 152 at 2025 and 51
+at 2024, which is what those two series differ by to the million.
+
+--------------------------------------------------------------------------------------------
+Note 12, Market Risk Benefits
+Rollforward of the Net MRB (Assets) Liabilities for Variable Annuities
+R129.htm   ($ millions, except attained age in years)
+--------------------------------------------------------------------------------------------
+
+                                                      12 months ended
+                                                   31 Dec 2025    31 Dec 2024
+
+  All products
+    Net MRB balance, beginning of period               -5,125              -
+    Net MRB balance, end of period, gross              -4,113         -5,125
+    Reinsurance recoverable at fair value, end           -118           -121
+
+  Variable annuity
+    Net MRB balance, beginning of period               -5,176         -2,000
+    Beginning cumulative effect of non-performance        314            972
+    Beginning balance before non-performance effect    -4,862         -1,028
+    Effect of changes in interest rates                   -72         -3,555
+    Effect of fund performance                         -3,518         -3,545
+    Effect of changes in equity index volatility          509           -196
+    Effect of expected policyholder behavior              758            820
+    Effect of actual behavior different from expected     572            673
+    Effect of time                                      1,957          1,537
+    Effect of changes in assumptions                      374            432
+    Ending balance before non-performance effect       -4,282         -4,862
+    Ending cumulative effect of non-performance            -17            314
+    Net MRB balance, end of period, gross              -4,265         -5,176
+    Reinsurance recoverable at fair value, end            -41            -62
+    Net MRB balance, end of period, net of reinsurance -4,306         -5,238
+    Weighted average attained age (years)                  70             70
+    Net amount at risk                                  5,471          6,360
+
+The attribution rows are the disclosed decomposition the model's own roll-forward is read
+against: interest rates, fund performance, volatility, behaviour and time, each separately.
+
+--------------------------------------------------------------------------------------------
+Note 10, Other Contract Holder Funds
+Weighted Average Crediting Rate, Net Amount at Risk and Cash Surrender Value
+R122.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+Kept here only so the distinction cannot be lost again. These are general-account balances.
+
+                              Crediting rate      Net amount at risk    Cash surrender value
+                            2025      2024         2025      2024        2025        2024
+  Variable annuity         2.87%     3.12%            0         0       6,330       7,153
+  RILA                     0.33%     0.32%            0         0      19,736      11,285
+  Fixed annuity            3.69%     3.32%            0         0       9,277       9,446
+  Fixed index annuities    1.89%     2.06%            0         0       7,711       8,256
+  Payout annuity           3.28%     3.32%            0         0           0           0
+  Closed block life        6.01%     5.70%       14,750    15,713      10,445      10,694
+  Closed block annuity     3.60%     3.92%            0         0       1,057       1,148
+
+--------------------------------------------------------------------------------------------
+Note 6, Fair Value Measurements
+Assets and Liabilities Carried at Fair Value by Hierarchy, embedded derivative rows
+R93.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                                   31 Dec 2025    31 Dec 2024
+  Embedded derivative liabilities, total                 6,906          3,942
+    Registered index-linked annuity embedded derivatives 6,043          3,065
+    Fixed index annuity embedded derivatives               863            877
+
+The two components tie to the total at both dates. The RILA line is the one
+jackson_book_statistics.csv carries, and `docs/data_sources.md` already records that it is the
+embedded derivative rather than the contract account value, which is not disclosed separately.
+
+--------------------------------------------------------------------------------------------
+What is still not preserved
+--------------------------------------------------------------------------------------------
+
+The 2022 and 2023 rows of jackson_book_statistics.csv come from the FY2023 10-K, accession
+0001822993-24-000009, whose equivalent tables are not stored here. Three of those figures are
+covered anyway by the comparative columns above - the 2023 net MRB of -2,000 in R128 and the
+2023 separate account balance of 219,381 as R125's opening balance - and the rest are not. To
+close that, the same five tables from the FY2023 filing's own FilingSummary would need
+retrieving; the report numbers differ by filing, so they have to be read off that summary rather
+than assumed from this one.

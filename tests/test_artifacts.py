@@ -175,6 +175,45 @@ def test_every_stored_extract_is_the_filing_its_row_names():
     assert checked >= 8, f"only {checked} stored extracts checked; the register lists more"
 
 
+def test_every_book_statistic_appears_in_a_stored_filing_extract():
+    """The figures the whole comparison is scaled by, against the filings they were read off.
+
+    `build_dataset.py` checks that a figure appearing in two filings agrees with itself, which
+    catches a transcription error made once and not one made twice, and says nothing at all about
+    a figure that only one filing carries. This checks the other direction: every number in the
+    book statistics has to appear in an extract stored under `references/`.
+
+    It exists because 25 of these 46 figures had no stored source at all. Item 7A was preserved
+    from the start and notes 10 to 12 were not, so the separate account value, the fund split and
+    the surrender value - the denominators under every result - could not be checked against
+    anything. The near-miss is what made it worth a test rather than a note: the one cash
+    surrender value the repository did store is 6,330, the general-account figure from note 10,
+    against the 231,711 separate-account figure in note 11 that SURRENDER_VALUE_SHARE is built
+    on. A reader checking the share against the stored extract would have found it wrong by a
+    factor of thirty-seven.
+    """
+    import pandas as pd
+
+    pool = "".join(path.read_text() for path in
+                   sorted((paths.REFERENCES / "sec_filings").glob("*.txt")))
+    assert pool, "no stored filing extracts to check against"
+    book = pd.read_csv(paths.DATA_RAW / "jackson_book_statistics.csv", comment="#")
+    numeric = [c for c in book.columns
+               if book[c].dtype.kind in "if" and c != "source_filing_fy"]
+
+    missing = []
+    for _, row in book.iterrows():
+        for column in numeric:
+            value = row[column]
+            # Percentages and ages below one are not printed as whole numbers in a filing.
+            if pd.isna(value) or abs(float(value)) < 1:
+                continue
+            whole = abs(int(round(float(value))))
+            if not any(form in pool for form in (str(whole), f"{whole:,}")):
+                missing.append(f"{row['as_of']} {column}={value:g}")
+    assert not missing, f"no stored extract carries: {missing}"
+
+
 def test_the_register_and_the_annotated_bibliography_name_the_same_sources():
     """Both directions, because the two drift apart in both.
 

@@ -1,0 +1,106 @@
+Source        Jackson Financial Inc., Form 10-K for the fiscal year ended 31 December 2023
+Filed         28 February 2024
+CIK           0001822993
+Accession     0001822993-24-000009
+Document      jxn-20231231.htm
+Retrieved     10 October 2026
+Method        From EDGAR's own rendering of the filing's financial statements, one table per
+              URL. The FilingSummary listing them is at
+              https://www.sec.gov/Archives/edgar/data/1822993/000182299324000009/FilingSummary.xml
+              and the R-files sit beside it under the same accession folder. Report numbers are
+              not stable across filings, so they were read off this filing's own summary rather
+              than carried over from the FY2025 one.
+Used by       The 2022-12-31 and 2023-12-31 rows of data/raw/jackson_book_statistics.csv, which
+              are the earliest two of the four balance-sheet dates every disclosed sensitivity
+              is scaled against.
+
+The FY2025 filing's comparatives cover some of these dates and not others, so this is the
+filing that has to be stored for the rest. Every figure below was checked against the committed
+CSV when it was retrieved and they all agree.
+
+--------------------------------------------------------------------------------------------
+Note 11, Separate Account Assets and Liabilities
+Rollforward of the Separate Account Balance for Variable Annuities
+R136.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+                                                      12 months ended
+                                                   31 Dec 2023    31 Dec 2022
+
+  All separate accounts
+    Balance, beginning of year                          195,906              -
+    Balance, end of year, gross                         219,656        195,906
+
+  Total variable annuities
+    Balance, beginning of year                          195,550        248,469
+    Deposits                                              8,545         12,288
+    Surrenders, withdrawals and benefits                -17,029        -14,554
+    Net transfer from (to) general account                1,256           -870
+    Investment performance                               33,807        -47,150
+    Policy charges and other                             -2,748         -2,633
+    Balance, end of year, gross                         219,381        195,550
+    Cash surrender value                                214,395        190,243
+
+The 2022 investment performance of -47,150 on an opening 248,469 is the drawdown that makes
+these two dates worth keeping: the book lost a fifth of its value in one year, which is the move
+the disclosed sensitivities at those dates are measured on.
+
+--------------------------------------------------------------------------------------------
+Note 12, Market Risk Benefits
+Rollforward of the Net (Assets) Liabilities of the Market Risk Benefits for Variable Annuities
+R140.htm   ($ millions, except attained age in years)
+--------------------------------------------------------------------------------------------
+
+                                                      12 months ended
+                                                   31 Dec 2023    31 Dec 2022
+
+  All products
+    Net MRB balance, beginning of year                      797              -
+    Net MRB balance, end of year, gross                  -1,952            797
+    Reinsurance recoverable at fair value, end             -149           -221
+
+  Variable annuity
+    Net MRB balance, beginning of year                      767          6,281
+    Beginning cumulative effect of non-performance        2,185            326
+    Beginning balance before non-performance effect       2,952          6,607
+    Effect of changes in interest rates                    -733        -14,137
+    Effect of fund performance                           -5,401          6,432
+    Effect of changes in equity index volatility         -1,107          1,576
+    Effect of expected policyholder behavior                612            532
+    Effect of actual behavior different from expected       483           -230
+    Effect of time                                        1,829          1,707
+    Effect of changes in assumptions                        337            465
+    Ending balance before non-performance effect         -1,028          2,952
+    Ending cumulative effect of non-performance             972          2,185
+    Net MRB balance, end of year, gross                  -2,000            767
+    Reinsurance recoverable at fair value, end              -90           -183
+    Net MRB balance, end of year, net of reinsurance     -2,090            584
+    Weighted average attained age (years)                    69             69
+    Net amount at risk                                    8,225         15,592
+
+The 2022 rate effect of -14,137 against a fund-performance effect of +6,432 is the clearest
+statement in the disclosures that this liability is more sensitive to rates than to equity at
+that moneyness, which is the shape the model has to reproduce before any of its levels matter.
+
+--------------------------------------------------------------------------------------------
+Note 10, Other Contract Holder Funds
+Rollforward of Other Contract Holder Funds, index-linked rows
+R132.htm   ($ millions)
+--------------------------------------------------------------------------------------------
+
+Only the RILA block is kept; the other six product columns in that table are not used here.
+
+                                                   31 Dec 2023    31 Dec 2022
+  RILA
+    Balance, beginning of year                            1,875            110
+    Deposits                                              2,890          1,811
+    Surrenders, withdrawals and benefits                    -70             -8
+    Change in value of equity option                        509            -37
+    Interest credited                                        14              2
+    Policy charges and other                                 -1             -3
+    Balance, end of year                                  5,219          1,875
+
+110 to 1,875 to 5,219 to 11,685 to 20,282 across five year-ends is the growth that makes the
+index-linked book's disclosed sensitivity worth separating from the guarantee book's, and it is
+why the size denominator for that comparison has to be the balance at each date rather than one
+number held flat.

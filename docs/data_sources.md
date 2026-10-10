@@ -29,11 +29,16 @@ Sections used:
   years, grading to a historical level by year ten, with an explicit risk margin in the
   long-run level. Non-performance risk incorporated by adjusting the risk-free curve for
   the company's own credit spread.
-- **Note 11, Separate Account Assets and Liabilities.** Account value roll-forward and the
-  split by fund type, which gives the sub-account mix.
+- **Note 11, Separate Account Assets and Liabilities.** Account value roll-forward, the
+  cash surrender value of the separate account, and the split by fund type, which gives the
+  sub-account mix.
 - **Note 12, Market Risk Benefits.** Balances, the roll-forward with its attribution to
   interest rates, fund performance, volatility and time, weighted-average attained age, and
   net amount at risk.
+
+Notes 10 to 12 are stored under `references/sec_filings/` as verbatim extracts the same way
+Item 7A is, taken from EDGAR's own per-table renderings of the filing rather than copied out of
+the main document, which gives each table a URL of its own.
 
 ### Contract terms
 
@@ -71,7 +76,26 @@ in `scripts/build_dataset.py`.
   build script fails if any of them disagree.
 - `jackson_book_statistics.csv`: account value, cash surrender value, the fund-type split,
   net market risk benefit balances, weighted-average attained age, net amount at risk, and
-  the benefit mix percentages.
+  the benefit mix percentages. Every figure in it is held against a stored extract by
+  `tests/test_artifacts.py`, column by column and date by date:
+
+  | Column | Note and table |
+  |---|---|
+  | `va_separate_account_musd`, `cash_surrender_value_musd` | Note 11, rollforward of the separate account balance for variable annuities |
+  | `sa_equity_musd` and the other three sleeves | Note 11, aggregate fair value of assets by major investment asset category |
+  | `va_net_mrb_gross_musd`, `va_net_mrb_net_of_reins_musd`, `weighted_avg_attained_age`, `net_amount_at_risk_musd` | Note 12, rollforward of the net market risk benefit for variable annuities |
+  | `rila_contract_holder_funds_musd` | Note 10, rollforward of other contract holder funds |
+  | `rila_embedded_derivative_musd` | Note 6, assets and liabilities carried at fair value by hierarchy |
+  | `pct_av_gmwb_for_life` and the other two mix percentages | Item 1, Business |
+
+  **Two different cash surrender values, and only one of them is the floor.** Note 10 reports
+  6,330 for variable annuities at 31 December 2025; Note 11 reports 231,711 for the same
+  product at the same date. Both are real. Note 10 covers general-account contract holder
+  funds, the fixed-account sleeve inside a variable annuity contract; Note 11 covers the
+  separate account, which is almost all of the money. The 98.0% in
+  `vahedge/capital/statutory.py` is 231,711 over an account value of 236,406, and anyone
+  checking it against the Note 10 figure would conclude it is wrong by a factor of
+  thirty-seven. It is not.
 
 A reconciliation gap worth stating. The market risk benefit figure in the Item 7A
 sensitivity table is not identical to the variable annuity net balance in Note 12: at 31
