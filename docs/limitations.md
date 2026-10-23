@@ -130,6 +130,28 @@ leg is sized from a tabulated nested surface instead.
 state outside its design on 36% of rebalance dates. That is reported with every run rather than
 checked once, because a hedging conclusion built on mostly extrapolated Greeks is not a conclusion.
 
+**The nested standard checks one of the two fits, over part of its range.** The proxy carries two
+families: a post-event fit for the state just after an anniversary's charges, withdrawal and
+step-up, and a pre-event fit for the state just before them - which is also the state any
+Wednesday in the middle of a year resembles, and therefore the one a hedge is sized off. The
+nested comparison runs on recorded post-event states, and because the step-up resets the benefit
+base to the contract value at every anniversary, a post-event contract value can never exceed its
+base: the moneyness at those nodes runs 0.0 to 1.00 and no higher, by construction rather than by
+sampling. So the family the backtest evaluates most of the time, and the whole of the range above
+the money, has no independent check behind it.
+
+What it has instead is an identity: the pre-event value less the post-event value has to equal
+that year's own net cash flow, and `tests/test_lsmc.py` holds both fits to it on their design
+points. That is a real constraint and it is not the same thing. Two fits that are jointly wrong by
+the same amount satisfy it exactly.
+
+Closing the gap is not an addition to the existing experiment. A nested valuation starts a
+projection from an anniversary, and a pre-event state is an instant before one, so pricing from
+there means starting the recursion with that anniversary's events pending - which the projection
+cannot express, since it applies a year of growth before any event. The honest statement is that
+the pre-event fit inherits whatever confidence the post-event comparison earns, through an
+identity that constrains their difference and not their level.
+
 ## The hedging backtest
 
 **The liability is revalued with the same model that produced the hedge ratios.** This is the most

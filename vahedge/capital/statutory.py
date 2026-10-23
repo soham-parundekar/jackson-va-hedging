@@ -28,8 +28,11 @@ are floored at the cash surrender value, so a block whose guarantees are worth n
 out of the money, every account value far above every benefit base - still has to be reserved
 at roughly the account value. Jackson said in December 2023, in its own words, that this floor
 imposes a cost that is not economic and that moving the riders to a captive was meant to remove
-it. ``with_surrender_floor`` measures that cost: the same block, the same scenarios, the reserve
-with and without the floor binding.
+it. ``statutory_capital`` measures that cost, by marking a hedge backtest on both bases - the
+reserve with the floor and the reserve without it - and ``floor_summary`` reduces the two series
+to the headline shares. The name in this sentence used to be ``with_surrender_floor``, a function
+that appears nowhere else in the repository and never existed; a reader tracing the mechanism
+from here found nothing.
 """
 
 from __future__ import annotations
@@ -223,8 +226,9 @@ def statutory_capital(
     it loses, and what used to offset that loss - the guarantee getting cheaper - is no longer in
     the reserve at all. Two per cent of the account rising is all that remains on the other side.
 
-    The gap between the two capital series is reported as ``basis_gap`` and not as a hedging
-    cost, because the hedge mark sits in both expressions and cancels out of the difference. The
+    The gap between the two capital series is reported as ``basis_gap_pnl``, and as a property of
+    the block rather than a hedging cost, because the hedge mark sits in both expressions and
+    cancels out of the difference. The
     gap is ``(1 - share) * account + guarantee`` on floored days and zero elsewhere, so it comes
     out the same for an unhedged book as for a fully hedged one. Calling it the cost of hedging
     would be a mislabelling, and the first version of the experiment did exactly that: it

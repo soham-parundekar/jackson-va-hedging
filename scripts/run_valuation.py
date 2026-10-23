@@ -211,10 +211,10 @@ def robustness(setup) -> pd.DataFrame:
     rows = [price("base case")]
 
     for bump, label in ((0.02, "+2 points"), (-0.02, "-2 points")):
-        long_run = np.sqrt(state.heston.theta) + bump
+        long_run = state.heston.long_run_vol + bump
         rows.append(price(
             f"long-run volatility {label}",
-            f"theta at {long_run:.2%} against the calibrated {np.sqrt(state.heston.theta):.2%}",
+            f"theta at {long_run:.2%} against the calibrated {state.heston.long_run_vol:.2%}",
             where=replace(state, heston=replace(state.heston, theta=long_run ** 2)),
         ))
         current = np.sqrt(state.heston.v0) + bump
@@ -335,7 +335,7 @@ def main() -> None:
     print(f"Representative Flex GMWB (Single), Core option, issued at {ISSUE_AGE} on "
           f"{setup['calibration'].as_of.date()}")
     print(f"  ten-year zero {state.curve.zero(10.0):.2%}, current volatility "
-          f"{np.sqrt(state.heston.v0):.2%}, long-run {np.sqrt(state.heston.theta):.2%}, "
+          f"{np.sqrt(state.heston.v0):.2%}, long-run {state.heston.long_run_vol:.2%}, "
           f"equity exposure of the sub-account {state.mix.equity_weight:.4f}")
 
     head = headline(setup)

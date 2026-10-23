@@ -107,7 +107,7 @@ class MarketState:
         if vol_shock:
             heston = self.heston
             new_v0 = max((np.sqrt(heston.v0) + vol_shock) ** 2, 1e-8)
-            new_theta = max((np.sqrt(heston.theta) + vol_shock) ** 2, 1e-8)
+            new_theta = max((heston.long_run_vol + vol_shock) ** 2, 1e-8)
             state = replace(state, heston=replace(heston, v0=new_v0, theta=new_theta))
         return state
 

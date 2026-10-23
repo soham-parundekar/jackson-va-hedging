@@ -19,6 +19,8 @@ These establish that the arithmetic closes before anything is asked of the econo
 | A guarantee reserve at a year end is in money of that year | exact on a single-year cash flow, and independent of the curve before its own date | `tests/test_statutory.py` |
 | The floor's reach against every disclosed surrender share | 67.9% to 68.8% of paths, adding 9.80% to 10.42% of account | `run_statutory.py` |
 | The sizing weights, over the one ratio the solve can act on | S2 identical on all four objectives, S3's cost 3.98% to 14.90% | `run_hedge_experiments.py` |
+| Every public function the library defines is called from somewhere | the sweep that found four orphans across three passes, now standing | `tests/test_artifacts.py` |
+| Nested comparison coverage | post-event fit only, moneyness 0.0 to 1.00; the pre-event fit is held to a cash-flow identity instead | `reports/tables/proxy_delta_nodes.csv`, `docs/limitations.md` |
 | Hull-White's bond price seen from a future date | martingale identity holds to 1e-9 at a = 0.05 and 0.27 | `tests/test_market_models.py` |
 | COS pricer against Black-Scholes at zero volatility of variance | matches | `tests/test_market_models.py` |
 | COS pricer holds put-call parity | under 1e-5 of the forward across 7 strikes and 5 maturities | `tests/test_market_models.py` |

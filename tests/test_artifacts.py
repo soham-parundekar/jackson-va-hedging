@@ -284,3 +284,51 @@ def test_the_register_and_the_annotated_bibliography_name_the_same_sources():
     identifiers = {row["ref_id"] for row in rows}
     cited = set(re.findall(r"REF-\d{3}", bibliography))
     assert not cited - identifiers, f"references.md cites ids no row carries: {cited - identifiers}"
+
+
+def test_every_public_function_in_the_library_is_called_from_somewhere():
+    """The guard for the one defect three audit passes in a row turned up.
+
+    Each of those passes found a module member with no caller, and in three of the four cases a
+    docstring cited it as the reason for a convention: the par-curve builder the rate shock was
+    said to go through, the effectiveness report that nothing reported, the floor function named
+    as measuring a cost. A reader tracing the mechanism from the prose arrives at code the
+    project does not run, which is worse than no explanation.
+
+    So this is the sweep, standing. Every public function and method the package defines has to
+    be mentioned somewhere other than the line that defines it - a call, a test, a notebook. A
+    use in tests counts: a function exercised only by a test is documented behaviour, while one
+    exercised by nothing is a claim.
+
+    Constants are deliberately out of scope. A number with its reasoning beside the code that
+    uses it is how this project carries its assumptions, and most of them are used in one module
+    by design.
+    """
+    import ast
+
+    library = sorted(paths.ROOT.glob("vahedge/**/*.py"))
+    searchable = (library + sorted(paths.ROOT.glob("scripts/*.py"))
+                  + sorted(paths.ROOT.glob("tests/*.py"))
+                  + sorted(paths.ROOT.glob("notebooks/*.ipynb")))
+    corpus = "\n".join(path.read_text(errors="ignore") for path in searchable)
+
+    def public(node) -> bool:
+        return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
+            not node.name.startswith("_")
+
+    orphans = []
+    for path in library:
+        tree = ast.parse(path.read_text())
+        found = [(node.name, node.lineno) for node in tree.body if public(node)]
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                found += [(sub.name, sub.lineno) for sub in node.body if public(sub)]
+        for name, line in found:
+            # Every mention of the bare name, less the one in its own def line.
+            uses = len(re.findall(rf"\b{re.escape(name)}\b", corpus)) - 1
+            if uses <= 0:
+                orphans.append(f"{path.relative_to(paths.ROOT)}:{line} {name}")
+    assert not orphans, (
+        "public functions with no use anywhere, which is how a docstring comes to cite code "
+        f"the project does not run: {orphans}"
+    )

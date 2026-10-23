@@ -53,25 +53,9 @@ class HestonParameters:
         return 2.0 * self.kappa * self.theta - self.xi**2
 
     @property
-    def feller_satisfied(self) -> bool:
-        return bool(self.feller >= 0.0)
-
-    @property
     def long_run_vol(self) -> float:
         return float(np.sqrt(self.theta))
 
-    def as_dict(self) -> dict:
-        return {
-            "v0": self.v0,
-            "kappa": self.kappa,
-            "theta": self.theta,
-            "xi": self.xi,
-            "rho": self.rho,
-            "feller": self.feller,
-            "feller_satisfied": self.feller_satisfied,
-            "long_run_vol": self.long_run_vol,
-            "initial_vol": float(np.sqrt(self.v0)),
-        }
 
 
 def characteristic_function(u, params: HestonParameters, maturity: float) -> np.ndarray:

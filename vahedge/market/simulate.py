@@ -135,19 +135,6 @@ class SubAccountMix:
     def all_equity(cls) -> "SubAccountMix":
         return cls(equity=1.0, bond=0.0, balanced=0.0, money_market=0.0)
 
-    @classmethod
-    def from_config(cls, cfg: dict) -> "SubAccountMix":
-        m = cfg["subaccount_mix"]
-        return cls(
-            equity=float(m["equity"]),
-            bond=float(m["bond"]),
-            balanced=float(m["balanced"]),
-            money_market=float(m["money_market"]),
-            bond_duration=float(m["bond_duration"]),
-            balanced_equity_share=float(m["balanced_equity_share"]),
-            tracking_error=float(m.get("tracking_error", 0.0)),
-        )
-
 
 @dataclass(frozen=True)
 class MarketPaths:
@@ -204,9 +191,6 @@ class MarketPaths:
     @property
     def n_years(self) -> int:
         return self.fund_growth.shape[1]
-
-    def year_end_times(self) -> np.ndarray:
-        return np.arange(1, self.n_years + 1, dtype=float)
 
 
 def simulate(
