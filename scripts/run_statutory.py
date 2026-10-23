@@ -89,8 +89,9 @@ def build(equity_risk_premium: float):
 
 
 def sweep() -> tuple:
-    """The requirement against the equity risk premium, plus the floor's reach at the base case."""
-    rows, floor, profile = [], None, None
+    """The requirement against the equity risk premium, plus the floor's reach and its
+    sensitivity to the surrender share, both at the base case."""
+    rows, floor, profile, shares = [], None, None, None
     for premium in PREMIUM_SWEEP:
         _, _, market_paths, projection = build(premium)
         table = statutory.requirement(projection.deficiency_pv, levels=LEVELS)
@@ -99,23 +100,27 @@ def sweep() -> tuple:
         if premium == BASE_PREMIUM:
             floor = floor_reach(projection)
             profile = statutory.deficiency_profile(projection.deficiency_pv, level=0.90)
-    return pd.concat(rows, ignore_index=True), floor, profile
+            shares = floor_share_sensitivity(projection)
+    return pd.concat(rows, ignore_index=True), floor, profile, shares
 
 
 def floor_reach(projection) -> pd.DataFrame:
     """Where the surrender value minimum binds, by policy year.
 
-    The guarantee reserve at a year end is taken as the remaining accumulated deficiency on that
-    path, re-expressed in money of that date: the present value of everything still to come,
-    which is what a reserve is. The floor binds where the guarantee is enough of an asset that
-    98 per cent of the account value exceeds the account plus that reserve.
+    The guarantee reserve at a year end is the remaining accumulated deficiency on that path,
+    re-expressed in money of that date: the present value of everything still to come, which is
+    what a reserve is. The floor binds where the guarantee is enough of an asset that 98 per cent
+    of the account value exceeds the account plus that reserve.
+
+    Re-expressing is the step this used to skip, and ``statutory.reserve_at_each_year`` is where
+    the arithmetic and the reason for it now live, beside the floor comparison that needs it.
     """
-    deficiency = projection.deficiency_pv
     account = projection.in_force_account
-    total = deficiency.sum(axis=1, keepdims=True)
-    remaining = total - np.cumsum(deficiency, axis=1) + deficiency
+    remaining = statutory.reserve_at_each_year(
+        projection.deficiency_pv, projection.deficiency_discount
+    )
     rows = []
-    for year in range(deficiency.shape[1]):
+    for year in range(remaining.shape[1]):
         live = account[:, year] > 1e-9
         if not live.any():
             continue
@@ -138,12 +143,59 @@ def floor_reach(projection) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Every share Jackson has disclosed over the four year-ends in data/raw/jackson_book_statistics.csv,
+# plus the 98.0% the model holds. The level moved 0.73 points across those dates, which sounds
+# immaterial and is not: what the floor's bite depends on is one minus the share, and that ran
+# 1.99% to 2.71% - a range of more than a third of itself on the quantity that drives the result.
+DISCLOSED_SHARES = (0.9729, 0.9773, 0.9795, 0.9801)
+
+
+def floor_share_sensitivity(projection) -> pd.DataFrame:
+    """How much of the floor's reach is the surrender share rather than the block.
+
+    The model holds the share at the latest disclosed year end and replays a decade with it. The
+    ratio is not a constant of the business: it rose through the four disclosed dates as the book
+    aged out of its surrender charge period. Reporting the reach at each disclosed level is what
+    turns a stated constant into a bounded one.
+    """
+    account = projection.in_force_account
+    remaining = statutory.reserve_at_each_year(
+        projection.deficiency_pv, projection.deficiency_discount
+    )
+    rows = []
+    for share in sorted({*DISCLOSED_SHARES, statutory.SURRENDER_VALUE_SHARE}):
+        binds, weighted, years = [], [], 0
+        for year in range(remaining.shape[1]):
+            live = account[:, year] > 1e-9
+            if not live.any():
+                continue
+            out = statutory.floored_reserve(remaining[live, year], account[live, year],
+                                            surrender_share=share)
+            binds.append(float(out["floor_binds"].mean()))
+            # What the floor adds over the unfloored reserve, as a share of the account it is
+            # measured against. This is the quantity the basis gap in the hedge ledger is built
+            # from, so its sensitivity to the share is the sensitivity of that gap.
+            added = out["reserve"] - (account[live, year] + remaining[live, year])
+            weighted.append(float(added.sum() / account[live, year].sum()))
+            years += 1
+        rows.append({
+            "surrender_share": share,
+            "policy_years": years,
+            "mean_share_floor_binds": float(np.mean(binds)),
+            "first_year_share_floor_binds": binds[0],
+            "last_year_share_floor_binds": binds[-1],
+            "mean_floor_addition_pct_of_account": float(np.mean(weighted)),
+        })
+    return pd.DataFrame(rows)
+
+
 def main() -> None:
     paths.ensure_output_dirs()
-    requirement, floor, profile = sweep()
+    requirement, floor, profile, shares = sweep()
     requirement.to_csv(paths.TABLES / "statutory_requirement.csv", index=False)
     floor.to_csv(paths.TABLES / "statutory_floor_reach.csv", index=False)
     profile.to_csv(paths.TABLES / "statutory_deficiency_profile.csv", index=False)
+    shares.to_csv(paths.TABLES / "statutory_floor_share_sensitivity.csv", index=False)
 
     print(f"Requirement as a share of premium, {N_PATHS:,} real-world paths")
     for _, row in requirement.iterrows():
@@ -168,12 +220,23 @@ def main() -> None:
               f"worst year {binding.loc[binding['share_floor_binds'].idxmax(), 'policy_year']:.0f} "
               f"at {binding['share_floor_binds'].max():.1%}")
 
+    print("\nThe floor's reach against the surrender share, over every level Jackson has "
+          "disclosed")
+    for _, row in shares.iterrows():
+        flag = "  <- held by the model" if row["surrender_share"] == (
+            statutory.SURRENDER_VALUE_SHARE) else ""
+        print(f"  share {row['surrender_share']:.2%}  binds on "
+              f"{row['mean_share_floor_binds']:5.1%} of in-force paths on average "
+              f"({row['first_year_share_floor_binds']:5.1%} at year one, "
+              f"{row['last_year_share_floor_binds']:5.1%} at the end)   the floor adds "
+              f"{row['mean_floor_addition_pct_of_account']:5.2%} of account{flag}")
+
     peak = profile.loc[profile["share_of_tail_peaking_here"].idxmax()]
     print(f"\nWhere the 10% tail runs out of money: most scenarios peak at policy year "
           f"{peak['policy_year']:.0f} ({peak['share_of_tail_peaking_here']:.1%} of the tail), "
           f"worst mean accumulated deficiency {profile['mean_accumulated_tail'].max():.2f} "
           f"of premium against {profile['mean_accumulated_all'].max():.2f} across all scenarios")
-    print(f"\nwrote three tables under {paths.TABLES}")
+    print(f"\nwrote four tables under {paths.TABLES}")
 
 
 if __name__ == "__main__":

@@ -103,6 +103,15 @@ class Strategy:
     def with_rebalance(self, rebalance: str, band: float = 0.0) -> "Strategy":
         return replace(self, rebalance=rebalance, band=band)
 
+    def with_weights(self, weights) -> "Strategy":
+        """The same strategy sized under a different objective, for the weight sweep.
+
+        The weights decide which residual the hedge is willing to live with, so they are an
+        assumption of the same kind as the rebalancing rule and belong in a sweep rather than in
+        a constant. ``sizing.py`` explains what each one trades off.
+        """
+        return replace(self, weights=np.asarray(weights, dtype=float))
+
 
 def equity_only() -> tuple:
     return (inst.EquityFuture(),)

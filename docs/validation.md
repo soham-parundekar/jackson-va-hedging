@@ -16,6 +16,9 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Par bootstrap reprices its own quotes | worst round trip 2e-16 over 2,495 dates | `build_dataset.py`, `tests/test_market_models.py` |
 | Hull-White reproduces the initial curve | exact | `tests/test_market_models.py` |
 | The rate shock is parallel in the zero rate and in the forward | exact to 1e-15 at seven maturities, and symmetric in the two legs | `tests/test_market_models.py` |
+| A guarantee reserve at a year end is in money of that year | exact on a single-year cash flow, and independent of the curve before its own date | `tests/test_statutory.py` |
+| The floor's reach against every disclosed surrender share | 67.9% to 68.8% of paths, adding 9.80% to 10.42% of account | `run_statutory.py` |
+| The sizing weights, over the one ratio the solve can act on | S2 identical on all four objectives, S3's cost 3.98% to 14.90% | `run_hedge_experiments.py` |
 | Hull-White's bond price seen from a future date | martingale identity holds to 1e-9 at a = 0.05 and 0.27 | `tests/test_market_models.py` |
 | COS pricer against Black-Scholes at zero volatility of variance | matches | `tests/test_market_models.py` |
 | COS pricer holds put-call parity | under 1e-5 of the forward across 7 strikes and 5 maturities | `tests/test_market_models.py` |
@@ -592,6 +595,29 @@ factor of five in how much variance there is to remove. The 91% that the delta-a
 out of the realised decade is the 97th percentile of what reorderings of the same decade produce,
 and the median is 81%. The realised backtest did not measure the hedge; it measured the hedge on a
 favourable ordering of a favourable decade.
+
+**The sizing objective has one operative degree of freedom, and it is worth eleven points of
+trading cost.** The weights on the four factors looked like four assumptions and are not. The
+equity future reaches delta alone and the swap rho alone, so both absorb whatever the put brings
+with them and close exactly at any weights; only gamma and vega compete, because both run through
+the put's single unit count. Over the whole replay:
+
+| Objective | Residual sd | Cost | Gamma closed | Vega |
+|---|---|---|---|---|
+| gamma and vega equal (the default) | 0.137% | 13.73% | 95% | 78x further from zero |
+| gamma ten times vega | 0.137% | 14.89% | 100% | 81x |
+| gamma a hundred times vega | 0.137% | 14.90% | 100% | 81x |
+| vega ten times gamma | 0.153% | 3.98% | 17% | 12x |
+
+S2, which has no put, comes out identical on all four rows, which is the control: with two
+instruments reaching two factors exactly there is no residual for a weight to allocate.
+
+Two things in that table were not visible before it existed. Favouring gamma buys the last five
+points of curvature for a point and a sixth of cost over the decade; favouring vega gives up most
+of the curvature and three quarters of the cost for twelve per cent more residual variation. And
+the hedge's vega is not hedged in any direction that matters - the put takes the book's small
+volatility exposure dozens of times further from zero on every objective, which is the price of
+reaching gamma through an option and is reported here rather than left in the residual.
 
 **The ranking survives, and the put leg's edge is a third smaller than it looked.** S2 beats S1 on
 100% of reorderings in both arms. S3 beats S2 on 100% in the as-drawn arm and 90% in the

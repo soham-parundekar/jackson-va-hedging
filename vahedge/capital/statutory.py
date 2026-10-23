@@ -98,6 +98,33 @@ def greatest_pv_deficiency(deficiency_pv: np.ndarray, floor_at_zero: bool = Fals
     return np.maximum(worst, 0.0) if floor_at_zero else worst
 
 
+def reserve_at_each_year(deficiency_pv: np.ndarray, discount: np.ndarray) -> np.ndarray:
+    """The guarantee reserve at each year end, in money of that date rather than of time zero.
+
+    This exists because the projection records its two deficiency arrays in different money and
+    the floor comparison needs them in the same. ``deficiency_pv`` is each year's net outgo
+    discounted to time zero and weighted by the contract still being there to pay;
+    ``in_force_account`` beside it is undiscounted. A reserve at year t is the present value *at
+    t* of everything from t onward, so the time-zero sum has to be divided by the path's own
+    discount factor to t.
+
+    Skipping that division is not a small error at the long end. At a 4% curve the factor at year
+    thirty-five is about a quarter, so the guarantee - which on this block is an asset - came out
+    four times too small, stopped clearing the two per cent the floor needs, and the floor's reach
+    appeared to fade from 62 per cent of paths at year twenty-five to 15 per cent at thirty-five.
+    It does the opposite: the contracts that survive that long are the ones whose accounts held
+    up, their guarantees are deep out of the money, and the floor binds on essentially all of
+    them.
+
+    The survival weighting needs no correction. It sits on both sides at the same date, and the
+    ratio of a numerator weighted to each future year against a denominator weighted to t is the
+    conditional survival a reserve is supposed to carry.
+    """
+    deficiency = np.asarray(deficiency_pv, dtype=float)
+    remaining = deficiency.sum(axis=1, keepdims=True) - np.cumsum(deficiency, axis=1) + deficiency
+    return remaining / np.maximum(np.asarray(discount, dtype=float), 1e-12)
+
+
 def _tail_count(n: int, level: float) -> int:
     """How many of ``n`` sorted scenarios make up the worst ``1 - level`` of them.
 
@@ -161,24 +188,19 @@ def floored_reserve(
     following the account value, so its derivative with respect to equity changes sign. The hedge
     is short equity against a guarantee that gets cheaper as markets rise; the floored reserve
     rises instead of falling, so the hedge loss is realised against a reserve that does not
-    release. This returns the reserve, whether the floor binds, and the reserve's equity delta on
-    each basis, so the comparison can be run off a ledger rather than asserted.
+    release. This returns the reserve and whether the floor binds, and the sign change is demonstrated on a
+    ledger rather than asserted: two runs differing only in the guarantee give the same statutory
+    capital once the floor is binding and different economic capital, which is the whole of the
+    effect. It used to return two delta columns as well, which nothing outside a test ever read
+    and whose comment claimed the unfloored one carried the guarantee's own delta while the code
+    returned a bare one.
     """
     guarantee = np.asarray(guarantee_reserve, dtype=float)
     account = np.asarray(account_value, dtype=float)
     unfloored = account + guarantee
     floor = surrender_share * account
     binds = floor > unfloored
-    return {
-        "reserve": np.where(binds, floor, unfloored),
-        "floor_binds": binds,
-        # Derivative with respect to a move in the account value. Unfloored, the separate account
-        # moves one for one and the guarantee moves with its own delta. Floored, only the
-        # surrender value moves and the guarantee's delta leaves the reserve entirely, which is
-        # the whole of the effect.
-        "reserve_delta_unfloored": np.ones_like(account),
-        "reserve_delta_floored": np.where(binds, surrender_share, 1.0),
-    }
+    return {"reserve": np.where(binds, floor, unfloored), "floor_binds": binds}
 
 
 def statutory_capital(

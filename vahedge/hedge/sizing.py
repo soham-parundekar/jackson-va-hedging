@@ -37,11 +37,29 @@ In symbols: g = -(market risk benefit Greeks), and the solve drives g + G n to z
 G n = +(market risk benefit Greeks), which is negative in delta. Short index. That is the right
 answer for a written put, and the test that asserts it is the most valuable one in the file.
 
-Weights. Delta and rho dominate, because they are the exposures the instruments can actually
-reach and the ones that move the book week to week. Gamma and vega are weighted down rather
-than out: with only one convexity instrument available, weighting gamma equally with delta lets
-a put position be sized to match curvature and in doing so unbalance the delta it also carries.
-The weights are an assumption and E3 sweeps them.
+Weights, and which of them can do anything. The strategies run here reach delta through the
+equity future, rho through the swap, and gamma and vega through one index put. Written out, the
+exposure matrix is nearly triangular: the future carries delta alone, the swap rho alone, and
+only the put touches all four. So the future and the swap are free to absorb whatever delta and
+rho the put brings with it, and they do - the delta and rho residuals come out at a thousandth of
+a dollar at every weight set that has been tried. No weight on delta or rho has anything to
+allocate.
+
+What is left is one ratio. Gamma and vega both run through the put's single unit count and cannot
+both be satisfied, so the gamma weight against the vega weight is what sizes the put, and scaling
+the two together changes nothing. It is not a small lever: at a hundred to one in gamma's favour
+the put comes out a sixth larger and closes the curvature almost exactly, and reversed, ten to one
+towards vega, the position flips short and leaves more gamma open than the book started with. At
+the one-to-one the default sets, the put closes most of the gamma and carries the vega exposure
+several times further from zero than it began - weighting vega down rather than out is what buys
+that, and the sweep is where the price of it is visible.
+
+This docstring used to say the gamma weight could unbalance the delta the put carries, and that
+E3 swept the weights. Neither was true: the future absorbs that delta exactly, and nothing swept
+these at all - every strategy in the matrix carried the same four numbers. E3's third part now
+runs the whole replay over the gamma-against-vega ratio on the strategy that has a put to act on
+and on the one that has none as a control, reporting what each factor's exposure did;
+`reports/tables/hedge_sizing_weights.csv` is the result and `docs/validation.md` reads it.
 """
 
 from __future__ import annotations

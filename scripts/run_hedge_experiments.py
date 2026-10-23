@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 
 from vahedge import paths
-from vahedge.hedge import attribution, instruments as inst, simulator, strategies
+from vahedge.hedge import attribution, instruments as inst, simulator, sizing, strategies
 from vahedge.liability import cohorts, gmwb, mortality
 from vahedge.liability import terms as terms_module
 from vahedge.market import scenarios
@@ -265,6 +265,94 @@ def frequency_and_cost(setup) -> pd.DataFrame:
                 "total_pnl_pct": run.summary["total_pnl_pct"],
                 "delta_left_pct": run.summary["mean_abs_delta_left_pct"],
                 "outside_design_share": run.summary["outside_design_share"],
+            })
+    return pd.DataFrame(rows)
+
+
+# Sizing objectives for E3's third part, and the four are chosen by what the solve can respond
+# to rather than by what looks like a sweep. With the equity future and the swap free to absorb
+# whatever the put carries, delta and rho are hit exactly at any weights - so scaling gamma and
+# vega together, or moving the rho weight, changes nothing at all. The one operative ratio is
+# gamma against vega, because both run through the single put and its unit count cannot satisfy
+# the two at once. The first version of this table swept the common level and reported four
+# identical rows.
+WEIGHT_SETS = (
+    ("gamma and vega equal, the default", (1.0, 0.1, 0.1, 1.0)),
+    ("gamma ten times vega", (1.0, 1.0, 0.1, 1.0)),
+    ("gamma a hundred times vega", (1.0, 1.0, 0.01, 1.0)),
+    ("vega ten times gamma", (1.0, 0.1, 1.0, 1.0)),
+)
+
+
+def _factors_removed(ledger: pd.DataFrame, equity_weight: float) -> dict:
+    """Share of each exposure the hedge closed on the day it was struck.
+
+    Read off the run's own first ledger row rather than re-solved, so these are the positions the
+    backtest actually carried. The insurer's exposure is the negative of the liability's Greeks,
+    and the liability's delta and gamma are in the contract value while the instruments are in the
+    index, which is the conversion ``sizing.insurer_exposures`` documents.
+    """
+    first = ledger.iloc[0]
+    exposure = inst.Exposures(
+        delta=-float(first["delta"]) * equity_weight,
+        gamma=-float(first["gamma"]) * equity_weight ** 2,
+        vega=-float(first["vega"]),
+        rho=-float(first["rho_per_bp"]),
+    )
+    achieved = inst.Exposures(
+        delta=float(first["hedge_delta"]), gamma=float(first["hedge_gamma"]),
+        vega=float(first["hedge_vega"]), rho=float(first["hedge_rho_per_bp"]),
+    )
+    removed = sizing.effectiveness(
+        exposure, sizing.HedgePositions(
+            instruments=(), units=np.zeros(0), target=exposure * -1.0,
+            achieved=achieved, residual=inst.Exposures.from_array(
+                exposure.as_array() + achieved.as_array()),
+        )
+    )
+    return {name: removed[name] for name in
+            ("delta_removed", "gamma_removed", "vega_removed", "rho_removed")}
+
+
+def sizing_weights(setup) -> pd.DataFrame:
+    """E3, third part. What the sizing weights buy, on the two strategies that can show it.
+
+    S3 carries the only convexity instrument, so it is where a gamma weight has something to act
+    on; S2 has none, so it is the control - every row of it has to come out identical, because
+    with two instruments reaching two factors exactly there is no residual for a weight to
+    allocate.
+
+    The per-factor effectiveness is reported beside the backtest result because the trade the
+    weights make is in the factors rather than in the profit: the default sizes the put to a
+    compromise that closes most of the gamma and takes the vega exposure further from zero than
+    it started, and a table of standard deviations alone does not show that.
+
+    Run on the whole replay for the same reason the frequency frontier is: a weight is a standing
+    choice and a crisis is not the average cost of one.
+    """
+    matrix = strategies.matrix()
+    window = setup["history"]
+    equity_weight = float(setup["state"].mix.equity_weight)
+    rows = []
+    for key in ("S2", "S3"):
+        for label, weights in WEIGHT_SETS:
+            strategy = matrix[key].with_weights(weights)
+            run = _run(setup, window, strategy)
+            removed = _factors_removed(run.ledger, equity_weight)
+            rows.append({
+                "strategy": key,
+                "objective": label,
+                "delta_weight": weights[0],
+                "gamma_weight": weights[1],
+                "vega_weight": weights[2],
+                "rho_weight": weights[3],
+                "rebalances": run.summary["rebalances"],
+                "pnl_sd_pct": run.summary["pnl_sd_pct"],
+                "total_cost_pct": run.summary["total_cost_pct"],
+                "total_pnl_pct": run.summary["total_pnl_pct"],
+                "delta_left_pct": run.summary["mean_abs_delta_left_pct"],
+                "worst_day_pct": run.summary["worst_day_pct"],
+                **removed,
             })
     return pd.DataFrame(rows)
 
@@ -546,6 +634,16 @@ def main() -> None:
                   f"sd {100*row['pnl_sd_pct']:6.3f}%  cost {100*row['total_cost_pct']:6.2f}%  "
                   f"delta left {100*row['delta_left_pct']:5.2f}%  "
                   f"outside design {100*row['outside_design_share']:4.0f}%")
+
+    objectives = sizing_weights(setup)
+    objectives.to_csv(paths.TABLES / "hedge_sizing_weights.csv", index=False)
+    print("\nE3 sizing objective, over the whole replay window")
+    for _, row in objectives.iterrows():
+        print(f"  {row['strategy']} {row['objective']:<42s} "
+              f"{row['rebalances']:4.0f} trades  sd {100*row['pnl_sd_pct']:6.3f}%  "
+              f"cost {100*row['total_cost_pct']:6.2f}%  "
+              f"delta left {100*row['delta_left_pct']:5.2f}%  "
+              f"worst day {100*row['worst_day_pct']:6.2f}%")
 
     design = put_design(setup)
     design.to_csv(paths.TABLES / "hedge_put_design.csv", index=False)

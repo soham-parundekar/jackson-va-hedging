@@ -76,6 +76,10 @@ class GmwbProjection:
     # value at each year end, for the surrender value floor.
     deficiency_pv: np.ndarray | None = None
     in_force_account: np.ndarray | None = None
+    # Discount factor from time zero to each year end, per path. Recorded alongside the two
+    # above because they are in different money: the deficiency is discounted and the account
+    # is not, so anything that puts them on one axis has to divide by this first.
+    deficiency_discount: np.ndarray | None = None
 
     @property
     def pv_attributable_fees(self) -> np.ndarray:
@@ -219,9 +223,11 @@ def project(
     if record_deficiency:
         deficiency_pv = np.zeros((n_paths, n_years))
         in_force_account = np.zeros((n_paths, n_years))
+        deficiency_discount = np.zeros((n_paths, n_years))
     else:
         deficiency_pv = None
         in_force_account = None
+        deficiency_discount = None
 
     claims_by_year = np.zeros((n_cohorts, n_years))
     fees_by_year = np.zeros((n_cohorts, n_years))
@@ -358,10 +364,14 @@ def project(
                 outgo = outgo + death_weight * death_cost - weight * death_charge
             deficiency_pv[:, year] = outgo.sum(axis=0)
             # Undiscounted and in force, because the surrender value floor is a floor on the
-            # reserve at the balance date rather than a cash flow.
+            # reserve at the balance date rather than a cash flow. The deficiency above is in
+            # time-zero money, so the two are not comparable until one is moved to the other's
+            # date; the discount factor that does it is recorded rather than left to the caller
+            # to reconstruct.
             in_force_account[:, year] = (
                 survival[:, year][:, None] * in_force * alive * np.maximum(account, 0.0)
             ).sum(axis=0)
+            deficiency_discount[:, year] = discount[0]
 
         if recorded is not None:
             # State the proxy regresses on, and the two cash-flow legs it combines. Both legs
@@ -441,4 +451,5 @@ def project(
         recorded=recorded,
         deficiency_pv=deficiency_pv,
         in_force_account=in_force_account,
+        deficiency_discount=deficiency_discount,
     )

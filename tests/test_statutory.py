@@ -107,14 +107,46 @@ def test_the_floor_binds_only_when_the_guarantee_is_a_large_enough_asset():
     assert out["reserve"][0] == approx(98.0)
 
 
-def test_the_reserve_delta_loses_the_guarantee_when_the_floor_binds():
-    """Which is the whole of the effect the captive transaction was for."""
-    out = statutory.floored_reserve(guarantee_reserve=np.array([-5.0, 5.0]),
-                                    account_value=np.array([100.0, 100.0]))
-    assert out["reserve_delta_floored"].tolist() == [
-        statutory.SURRENDER_VALUE_SHARE, 1.0
-    ]
-    assert out["reserve_delta_unfloored"].tolist() == [1.0, 1.0]
+def test_the_reserve_at_a_year_end_is_in_money_of_that_year():
+    """The units check the floor comparison needs, and the one it did not have.
+
+    All the outgo sits in year three, so the reserve at year three is that outgo and nothing
+    else - undiscounted, because there is nothing left to discount from year three to year
+    three. The projection hands over the time-zero present value, so the only way to land on 50
+    is to divide by the path's own discount factor. Leaving that out returns 50 times the factor,
+    which at the long end of a thirty-five-year projection is a quarter of the right answer and
+    is what made the surrender floor look as though it stopped binding.
+    """
+    deficiency = np.zeros((1, 5))
+    discount = np.array([[0.96, 0.92, 0.88, 0.84, 0.80]])
+    deficiency[0, 2] = 50.0 * discount[0, 2]
+
+    reserve = statutory.reserve_at_each_year(deficiency, discount)
+    assert reserve[0, 2] == approx(50.0, rel=1e-12)
+    # Nothing is owed after year three, so later years carry no reserve, and the years before it
+    # carry the same 50 discounted back from three to themselves.
+    assert reserve[0, 3] == approx(0.0, abs=1e-12)
+    assert reserve[0, 4] == approx(0.0, abs=1e-12)
+    for year in (0, 1):
+        expected = 50.0 * discount[0, 2] / discount[0, year]
+        assert reserve[0, year] == approx(expected, rel=1e-12)
+
+
+def test_the_dated_reserve_does_not_depend_on_the_curve_before_its_own_date():
+    """Two curves agreeing from year three onward have to give the same year-three reserve.
+
+    A reserve at a date is a present value as of that date, so whatever happened to the discount
+    factor on the way there cannot be in it. This is the property the missing division broke: it
+    left the whole path's accumulated discounting inside a number that is supposed to start from
+    its own date.
+    """
+    outgo = np.array([[0.0, 0.0, 7.0, 11.0, 4.0]])
+    steep = np.array([[0.90, 0.80, 0.70, 0.62, 0.55]])
+    shallow = np.array([[0.99, 0.95, 0.70, 0.62, 0.55]])
+    one = statutory.reserve_at_each_year(outgo * steep, steep)
+    two = statutory.reserve_at_each_year(outgo * shallow, shallow)
+    assert one[0, 2] == approx(two[0, 2], rel=1e-12)
+    assert one[0, 0] != approx(two[0, 0], rel=1e-6)
 
 
 def test_requirement_reports_both_levels_and_the_tail_is_worse_at_ninety():
