@@ -1,7 +1,7 @@
 shock,comparisons,model_over_disclosed_min,model_over_disclosed_max,model_over_disclosed_mean,signs_agree
-equity_up_10pct,4,2.2779,3.1065,2.6470,4
-equity_down_10pct,4,2.5801,3.1943,2.8310,4
-rates_up_50bp,3,2.7906,3.4803,3.1654,3
-rates_down_50bp,3,2.7262,3.4842,3.1502,3
-rates_up_100bp,2,2.8172,2.8267,2.8220,2
-rates_down_100bp,2,2.7242,2.7690,2.7466,2
+equity_up_10pct,4,2.2557,3.0807,2.6268,4
+equity_down_10pct,4,2.5860,3.1804,2.8297,4
+rates_up_50bp,3,2.8624,3.5096,3.2097,3
+rates_down_50bp,3,2.7904,3.5111,3.1913,3
+rates_up_100bp,2,2.9007,2.9028,2.9017,2
+rates_down_100bp,2,2.7879,2.8444,2.8161,2

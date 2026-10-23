@@ -87,10 +87,12 @@ WHOLE_REPLAY = "the whole replay"
 # The fee grid for the curve behind the solve. Dense where riders are actually priced, sparse
 # out at the charges that exist only to locate the turning point.
 FEE_GRID = (0.0005, 0.002, 0.005, 0.0125, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08)
-# The pricing map. One issue age either side of the base case, and income starting at the
-# contract's own landmarks: immediately, at the midpoint of the bonus period, and at its end.
+# The pricing map. One issue age either side of the base case, and the deferral ending at the
+# contract's own landmarks: at once, at the midpoint of the bonus period, and at its end. The
+# first withdrawal falls on the anniversary after the deferral ends, so a deferral ending at 80
+# draws first at 81 and picks up the rate sheet's top band.
 ISSUE_AGES = (65, 70, 75)
-INCOME_START_AGES = (70, 75, 80)
+DEFERRAL_END_AGES = (70, 75, 80)
 TERMS_KEY = ("flex_gmwb", "single", "core")
 
 
@@ -187,16 +189,16 @@ def pricing_map(setup, valuer) -> pd.DataFrame:
     """
     core = terms_module.load()[TERMS_KEY]
 
-    def builder(issue_age: int, income_start_age: int):
+    def builder(issue_age: int, deferral_end_age: int):
         return cohorts.single_contract(
             core, issue_age=issue_age, base_contract_charge=0.0131, fund_expense=0.0095,
-            premium=PREMIUM, deferral_years=income_start_age - issue_age, max_age=MAX_AGE,
+            premium=PREMIUM, deferral_years=deferral_end_age - issue_age, max_age=MAX_AGE,
             lapse_rate=0.04, lapse_beta=1.2, lapse_floor=0.01,
         )
 
     return breakeven.margin_map(
         valuer, builder, setup["state"],
-        issue_ages=ISSUE_AGES, income_start_ages=INCOME_START_AGES,
+        issue_ages=ISSUE_AGES, deferral_end_ages=DEFERRAL_END_AGES,
     )
 
 
@@ -265,17 +267,17 @@ def main() -> None:
     # The map's base cell is the contract the solve above priced, so the two have to agree. They
     # are built by different code paths and this is the only place that notices if they drift.
     base = pricing[(pricing["issue_age"] == ISSUE_AGE)
-                   & (pricing["income_start_age"] == ISSUE_AGE + DEFERRAL_YEARS)]
+                   & (pricing["deferral_end_age"] == ISSUE_AGE + DEFERRAL_YEARS)]
     if base.empty or base["reason"].iloc[0] != solved.reason:
         raise ValueError("the pricing map's base cell disagrees with the solve on the same "
                          f"contract: {base['reason'].tolist()} against {solved.reason}")
     priced = int(pricing["fair_pct"].notna().sum())
-    print(f"  across {len(pricing)} issue-age and income-start cells, {priced} admit a fee that "
+    print(f"  across {len(pricing)} issue-age and deferral cells, {priced} admit a fee that "
           f"prices the guarantee")
     for _, row in pricing.iterrows():
         fair = "-" if np.isnan(row["fair_pct"]) else f"{10000.0 * row['fair_pct']:.0f}bp"
-        print(f"    issued at {int(row['issue_age'])}, income at "
-              f"{int(row['income_start_age'])}: {fair:>8}   {row['reason']}")
+        print(f"    issued at {int(row['issue_age'])}, first withdrawal at "
+              f"{int(row['first_withdrawal_age'])}: {fair:>8}   {row['reason']}")
 
     print(f"\nWhat the crises cost on {HEADLINE}, at an annual rate against the decade's own")
     pivot = (table[table["strategy"] == HEADLINE]

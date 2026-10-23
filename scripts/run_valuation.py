@@ -271,7 +271,11 @@ def robustness(setup) -> pd.DataFrame:
         varied = contract(deferral_years=deferral)
         rows.append(price(
             f"first withdrawal deferred {deferral} years",
-            f"GAWA {float(varied.gawa_pct[0]):.2%} at age {ISSUE_AGE + deferral}, "
+            # The age is the one the owner reaches at the anniversary the withdrawal falls on,
+            # which is the anniversary after the last deferred year rather than the one that
+            # ends it. Ten deferred years from 70 therefore draws first at 81 and picks up the
+            # 81-and-over band, which is the whole reason that row moves.
+            f"GAWA {float(varied.gawa_pct[0]):.2%} at age {ISSUE_AGE + deferral + 1}, "
             f"bonus {6 * min(deferral, 10)}% on the benefit base",
             which=varied, design=True,
         ))

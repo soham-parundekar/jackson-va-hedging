@@ -9,7 +9,7 @@ caveat in order to be dismissed.
 **Five contracts standing in for millions.** Valuing Jackson's actual block needs attained age,
 duration, benefit base and sub-account allocation at policy level, none of which is disclosed.
 The vintage portfolio in `scripts/run_portfolio_validation.py` reaches a weighted attained age of
-70.9 against the disclosed 70 and a blended withdrawal rate of 5.73%, and two of its five vintages
+70.9 against the disclosed 70 and a blended withdrawal rate of 5.82%, and two of its five vintages
 are still in deferral at the last disclosed date. It is still five model points.
 
 **A quarter of the account value has no living benefit at all.** GMWB for Life is 72% of Jackson's
@@ -33,7 +33,7 @@ reconciliation sweeps it rather than defending it.
 
 What that sweep found is itself a limitation and the honest version of a result this project would
 have preferred: **no single behaviour assumption closes the gap to the disclosure.** Across the
-grid the equity multiple falls 2.10 to 1.59 while the rate multiple falls 2.09 to 0.47, because
+grid the equity multiple falls 2.09 to 1.59 while the rate multiple falls 2.16 to 0.49, because
 drawing less takes duration out of the guarantee and the rate sensitivity goes with it while the
 benefit base is still there whatever the owner draws. By the time utilisation is low enough to
 match the rate figure the model is still 2.03 times the disclosed equity figure. The residual is
@@ -243,9 +243,12 @@ rolls, which is why the raw data is committed.
 years while the disclosed dates are year-ends and the inception is in September, so each date is
 valued at the anniversary on or before it with the market and the account value of the disclosed
 date itself. Every date is also valued at the following anniversary and the spread is reported: it
-moves the equity-down figure by 0.18 to 0.23 points of account value against a disclosed figure of
-about 1.11, so it is a fifth of the quantity being compared and a ninth to a thirteenth of the gap
-being explained.
+moves the equity-down figure by 0.07 to 0.23 points of account value, between a quarter and a
+twelfth of the disclosed figure for the same date and between a ninth and a twenty-fifth of the gap
+being explained. The narrow end of that range is 2025, where the two bases fall either side of the
+anniversary at which the contract picks up the rate sheet's top withdrawal band, so the two
+valuations differ in the guaranteed percentage as well as in the duration - the one date where the
+spread is not purely a timing effect.
 
 ## The comparison with the disclosed hedge book
 

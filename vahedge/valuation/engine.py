@@ -335,15 +335,13 @@ def _implied_attribution(projection: gmwb.GmwbProjection) -> np.ndarray:
 
 def _rewind_to_issue(book):
     """The same cohorts as new business: at premium, at full deferral, nothing ratcheted yet."""
-    from ..liability.cohorts import CohortBook, BONUS_PERIOD_YEARS, GWB_ADJUSTMENT_AGE, \
-        GWB_ADJUSTMENT_MIN_YEARS
+    from ..liability.cohorts import CohortBook, gwb_adjustment_index
+    from ..liability.terms import BONUS_PERIOD_YEARS
 
     premium = book.premium_at_issue
     issue_age = book.issue_age
-    anniversary_at_70 = np.maximum(1, GWB_ADJUSTMENT_AGE - issue_age)
-    adjustment_year = np.maximum(anniversary_at_70, GWB_ADJUSTMENT_MIN_YEARS)
     deferral = book.deferral_years + book.years_since_issue
-    adjustment_year = np.where(deferral > adjustment_year, adjustment_year, -1)
+    adjustment_year = gwb_adjustment_index(issue_age, 0, deferral)
 
     fields = dict(book.__dict__)
     fields.update(

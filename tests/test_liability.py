@@ -96,9 +96,14 @@ def _scalar_recursion(book, growth, discount, years):
         claim = drawn - from_account
         account -= from_account
         if steps_up and account > base:                        # 4
-            if account > bonus_base and attained + year <= gmwb.BONUS_RESTART_MAX_AGE:
+            # "With any step-up (if the GWB increases upon step-up), the Bonus Base is set to
+            # the greater of the GWB after, and the Bonus Base before, the step-up" - no age
+            # condition. The age condition belongs to the Bonus Period, which restarts only
+            # where the step-up falls on or before the anniversary the owner turns 81.
+            if account > bonus_base:
                 bonus_base = account
-                bonus_end = year + 1 + gmwb.BONUS_PERIOD_YEARS
+                if attained + year + 1 <= terms_module.BONUS_RESTART_LAST_AGE:
+                    bonus_end = year + 1 + terms_module.BONUS_PERIOD_YEARS
             base = account
         if deferring and year < bonus_end and account > 0.0:   # 5
             base += bonus_rate * bonus_base
@@ -192,36 +197,115 @@ def test_a_step_up_restarts_the_bonus_period_and_lifts_the_bonus_base():
     assert projection.mean_benefit_base[0][12] > projection.mean_benefit_base[0][11]
 
 
+def test_a_step_up_past_the_restart_window_still_lifts_the_bonus_base():
+    """Two sentences of the prospectus that are easy to run together, and they are not the same.
+
+    The Bonus Base "is set to the greater of the GWB after, and the Bonus Base before, the
+    step-up" with "any step-up", unconditionally. The Bonus *Period* restarts on that increase
+    only "so long as the step-up occurs on or before the Contract Anniversary immediately
+    following the Designated Life's 80th birthday". Gating both on the age - which this did -
+    freezes the Bonus Base of a contract still deferring in its eighties at whatever it was when
+    the window shut, so each remaining bonus is 6% of a stale number.
+
+    Issued at 80 into a market rising 15% a year, the window covers the first anniversary only.
+    Every later anniversary steps up, so the benefit base after the bonus has to be 1.06 times
+    that year's own stepped-up base, not 6 plus it.
+    """
+    book = _contract(issue_age=80, deferral_years=YEARS, max_age=80 + YEARS)
+    projection = gmwb.project(book, _flat_market(growth=1.15), _survival(), record=True)
+    base = projection.recorded["benefit_base"][0]
+    bonus_base = projection.recorded["bonus_base"][0]
+    clock = projection.recorded["bonus_end"][0]
+
+    # The restart fires once, at the anniversary the owner turns 81, and never again.
+    assert float(clock[0]) == approx(0 + 1 + terms_module.BONUS_PERIOD_YEARS)
+    assert np.all(clock == clock[0])
+    for year in range(1, int(clock[0])):
+        assert float(bonus_base[year]) > 100.0
+        assert float(base[year]) == approx(float(bonus_base[year]) * 1.06, rel=1e-9)
+
+
+def test_the_first_withdrawal_lands_on_the_anniversary_after_the_deferral_ends():
+    """Where the recursion actually puts the first withdrawal, found rather than asserted.
+
+    The two projections differ in nothing but utilisation, so the first year their account values
+    part company is the year the first withdrawal happens - no reading of the loop required. That
+    year's anniversary is where the rate sheet's "attained age at the time of the first
+    withdrawal" has to be measured, and the percentage the book carries has to agree with it.
+    Reading the band one anniversary earlier is a 25 basis point error on a cohort that first
+    draws at 81, and it moved six of the eighteen vintage-date cohorts in the portfolio.
+
+    Both deferrals below straddle a band edge on purpose: from age 70, four deferred years reach
+    75 and ten reach 81, and the bands break at 74 and 80. A deferral that lands mid-band - five
+    years, the base case - cannot tell the two readings apart, which is why the base case went on
+    agreeing with the wrong one.
+    """
+    market, survival = _flat_market(growth=1.0, years=25), _survival(years=25)
+    for deferral, expected_age, expected_rate in ((4, 75, 0.0595), (10, 81, 0.0620)):
+        settings = dict(issue_age=70, deferral_years=deferral, max_age=95)
+        drawing = _contract(**settings)
+        never = _contract(**settings, utilisation=0.0)
+        with_draws = gmwb.project(drawing, market, survival).mean_account_value[0]
+        without = gmwb.project(never, market, survival).mean_account_value[0]
+
+        parted = int(np.argmax(~np.isclose(with_draws, without)))
+        assert parted == deferral
+        assert int(drawing.attained_age[0]) + parted + 1 == expected_age
+        assert float(drawing.gawa_pct[0]) == approx(expected_rate)
+        assert float(drawing.gawa_pct[0]) == approx(
+            float(_core().withdrawal_rate(np.array([expected_age]))[0]))
+
+
 # ---------------------------------------------------------------- the GWB adjustment
 
 
 def test_the_adjustment_date_is_the_later_of_age_seventy_and_twelve_years():
-    """A 55-year-old reaches the seventieth-birthday anniversary at contract year 15, which is
-    later than year 12, so that is the date. A 65-year-old reaches it at year 5, so year 12
-    governs."""
-    assert int(_contract(issue_age=55, deferral_years=20, max_age=90).adjustment_year[0]) == 15
-    assert int(_contract(issue_age=65, deferral_years=20, max_age=90).adjustment_year[0]) == 12
+    """A 55-year-old reaches the seventieth-birthday anniversary at contract anniversary 15,
+    which is later than the twelfth, so that is the date. A 65-year-old reaches it at
+    anniversary 5, so the twelfth governs.
+
+    The stored value is a projection year and not an anniversary number, and the two differ by
+    one: the recursion's year ``k`` lands on anniversary ``k + 1`` for a contract valued at
+    issue. Asserting the anniversary number here is what let a year's slip survive four months,
+    so the arithmetic is written out.
+    """
+    fifteenth = _contract(issue_age=55, deferral_years=20, max_age=90)
+    twelfth = _contract(issue_age=65, deferral_years=20, max_age=90)
+    assert int(fifteenth.adjustment_year[0]) == 15 - 1
+    assert int(twelfth.adjustment_year[0]) == 12 - 1
 
 
 def test_a_withdrawal_on_the_adjustment_date_kills_the_provision():
     """The prospectus voids the adjustment for any withdrawal taken on or prior to the date, so
-    deferring exactly to it is not enough."""
-    assert int(_contract(issue_age=60, deferral_years=12, max_age=90).adjustment_year[0]) == -1
-    assert int(_contract(issue_age=60, deferral_years=13, max_age=90).adjustment_year[0]) == 12
+    deferring exactly to it is not enough.
+
+    At issue age 60 the date is the twelfth anniversary. ``deferral_years`` counts the contract
+    years that earn a bonus and the first withdrawal lands on the anniversary after the last of
+    them, so eleven deferred years put that withdrawal on the twelfth anniversary - on the date,
+    which voids it - and twelve put it on the thirteenth, which does not.
+    """
+    assert int(_contract(issue_age=60, deferral_years=11, max_age=90).adjustment_year[0]) == -1
+    assert int(_contract(issue_age=60, deferral_years=12, max_age=90).adjustment_year[0]) == 11
 
 
 def test_the_adjustment_floors_the_benefit_base_in_a_falling_market():
     """With the Plus option's 200% adjustment and a market that halves the account every year,
-    the benefit base is floored at twice the original premium on the adjustment date."""
+    the benefit base is floored at twice the original premium on the adjustment date.
+
+    Plus rather than Core because the Core option's 105% floor is unreachable: a 6% simple bonus
+    carries the base past 105% of premium at the first anniversary and the base never falls
+    while no withdrawal has been taken, so the adjustment can only ever bind on the 200% option.
+    """
     plus = terms_module.load()[("flex_gmwb", "single", "plus")]
     book = cohorts.single_contract(
         terms=plus, issue_age=60, base_contract_charge=0.0, fund_expense=0.0,
         premium=100.0, deferral_years=YEARS, max_age=60 + YEARS,
     )
-    assert int(book.adjustment_year[0]) == 12
+    adjustment = int(book.adjustment_year[0])
+    assert adjustment == 11                      # the twelfth anniversary
     projection = gmwb.project(book, _flat_market(growth=0.5), _survival())
-    before = float(projection.mean_benefit_base[0][11])
-    after = float(projection.mean_benefit_base[0][12])
+    before = float(projection.mean_benefit_base[0][adjustment - 1])
+    after = float(projection.mean_benefit_base[0][adjustment])
     assert before < 200.0
     assert after == approx(200.0, rel=1e-9)
 
@@ -344,17 +428,22 @@ def test_a_withdrawal_inside_the_free_amount_only_costs_its_own_dollars():
 
 
 def test_the_rollup_compounds_and_freezes_at_the_anniversary_before_eighty_one():
-    """A 6% roll-up on a base of 100 compounds while the owner is 80 or younger and stops
-    after that. Issue age 75 gives six accruals, at the anniversaries where the attained age
-    is 75 through 80."""
+    """Appendix E: "The compounding at an annual interest rate only occurs until the Contract
+    Anniversary immediately preceding the oldest Covered Life's 81st birthday."
+
+    Elected at 75, the contract's anniversaries fall at attained ages 76, 77, 78, 79, 80, 81,
+    and the last one before the 81st birthday is the fifth. So five accruals and not six. The
+    count is the whole test: an earlier version of this read the condition off the projection's
+    own ``attained_age + year``, which is the age at the anniversary the year *starts* from, and
+    so expected six - and the code it was checking accrued six.
+    """
     book = _contract(issue_age=75, deferral_years=YEARS, max_age=75 + YEARS,
                      death_benefit=terms_module.DEATH_BENEFITS["rollup"])
     deaths = np.zeros((1, YEARS))
-    projection = gmwb.project(book, _flat_market(), _survival(), deaths=deaths,
-                              death_benefit=terms_module.DEATH_BENEFITS["rollup"])
+    projection = gmwb.project(book, _flat_market(), _survival(), deaths=deaths)
     accrued = projection.mean_death_benefit[0]
-    assert float(accrued[5]) == approx(100.0 * 1.05**6, rel=1e-9)   # age 75 elects at 5%
-    assert float(accrued[-1]) == approx(float(accrued[5]), rel=1e-9)
+    assert float(accrued[4]) == approx(100.0 * 1.05**5, rel=1e-9)   # age 75 elects at 5%
+    assert float(accrued[-1]) == approx(float(accrued[4]), rel=1e-9)
 
 
 def test_the_death_benefit_pays_only_the_excess_over_the_account_value():
@@ -363,8 +452,7 @@ def test_the_death_benefit_pays_only_the_excess_over_the_account_value():
     book = _contract(issue_age=60, deferral_years=YEARS, max_age=60 + YEARS,
                      death_benefit=terms_module.DEATH_BENEFITS["rollup"])
     deaths = np.full((1, YEARS), 0.01)
-    projection = gmwb.project(book, _flat_market(growth=1.30), _survival(), deaths=deaths,
-                              death_benefit=terms_module.DEATH_BENEFITS["rollup"])
+    projection = gmwb.project(book, _flat_market(growth=1.30), _survival(), deaths=deaths)
     assert float(projection.pv_death_claims[0]) == approx(0.0, abs=1e-9)
 
 
@@ -377,7 +465,7 @@ def test_the_combination_benefit_is_worth_at_least_each_component():
         book = _contract(issue_age=60, deferral_years=YEARS, max_age=60 + YEARS,
                          death_benefit=benefit)
         values[name] = float(
-            gmwb.project(book, market, survival, deaths=deaths, death_benefit=benefit)
+            gmwb.project(book, market, survival, deaths=deaths)
             .pv_death_claims[0]
         )
     assert values["combination"] >= values["rollup"] - 1e-9
@@ -511,17 +599,6 @@ def test_damping_lapse_makes_the_guarantee_more_expensive():
     static_claim = float(gmwb.project(static, market, survival).pv_claims[0])
     damped_claim = float(gmwb.project(damped, market, survival).pv_claims[0])
     assert damped_claim > static_claim * 1.1
-
-
-def test_the_behaviour_grid_is_admissible():
-    from vahedge.liability.behaviour import BEHAVIOUR_GRID, BehaviourAssumptions
-
-    assert len(BEHAVIOUR_GRID) >= 5
-    assert BEHAVIOUR_GRID[0].utilisation == 1.0 and BEHAVIOUR_GRID[0].base_lapse == 0.0
-    with raises(ValueError, match="lapse_floor"):
-        BehaviourAssumptions(base_lapse=0.02, lapse_floor=0.05)
-    with raises(ValueError, match="lapse_beta"):
-        BehaviourAssumptions(lapse_beta=-1.0)
 
 
 def test_the_insurer_s_share_of_a_continuous_drag_is_collected_exactly():

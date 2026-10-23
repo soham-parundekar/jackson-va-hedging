@@ -1,9 +1,9 @@
-issue_age,income_start_age,gawa_pct,charged_pct,fair_pct,margin_bp,reason
-65,70,0.057500,0.012500,,,no root in the bracket
-65,75,0.059500,0.012500,,,no root in the bracket
-65,80,0.059500,0.012500,,,no root in the bracket
-70,70,0.057500,0.012500,,,no root in the bracket
-70,75,0.059500,0.012500,,,no root in the bracket
-70,80,0.059500,0.012500,,,no root in the bracket
-75,75,0.059500,0.012500,0.021431,-89.312925,solved
-75,80,0.059500,0.012500,0.015083,-25.827036,solved
+issue_age,deferral_end_age,first_withdrawal_age,gawa_pct,charged_pct,fair_pct,margin_bp,reason
+65,70,71,0.057500,0.012500,,,no root in the bracket
+65,75,76,0.059500,0.012500,,,no root in the bracket
+65,80,81,0.062000,0.012500,,,no root in the bracket
+70,70,71,0.057500,0.012500,,,no root in the bracket
+70,75,76,0.059500,0.012500,,,no root in the bracket
+70,80,81,0.062000,0.012500,,,no root in the bracket
+75,75,76,0.059500,0.012500,0.021431,-89.312925,solved
+75,80,81,0.062000,0.012500,0.020358,-78.575129,solved

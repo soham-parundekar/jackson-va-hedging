@@ -45,13 +45,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import behaviour
-
-BONUS_PERIOD_YEARS = 10
-BONUS_RESTART_MAX_AGE = 80
-# Roll-up accrual and the anniversary ratchet both stop at "the Contract Anniversary
-# immediately preceding the oldest Covered Life's 81st birthday", which is the last
-# anniversary at which the owner is 80.
-DEATH_BENEFIT_FREEZE_AGE = 80
+from .terms import (
+    BONUS_PERIOD_YEARS,
+    BONUS_RESTART_LAST_AGE,
+    DEATH_BENEFIT_LAST_ACCRUAL_AGE,
+)
 
 
 @dataclass(frozen=True)
@@ -93,7 +91,6 @@ def project(
     paths,
     survival: np.ndarray,
     deaths: np.ndarray | None = None,
-    death_benefit=None,
     equity_shock: float = 0.0,
     equity_weight: float = 1.0,
     record: bool = False,
@@ -236,6 +233,11 @@ def project(
         alive = year < horizon                       # (n_cohorts, 1), cohort past its horizon
         growth = paths.fund_growth[:, year][None, :]
         discount = paths.discount[:, year][None, :]
+        # The age the owner reaches at the anniversary this iteration lands on. State enters the
+        # iteration at anniversary ``year`` and every event below happens at ``year + 1``, so an
+        # age limit written against ``attained_age + year`` is a year early - which is how the
+        # death benefit came to accrue one anniversary past the date the prospectus freezes it.
+        anniversary_age = attained_age + year + 1
 
         account_before_drag = account * growth
         account = account_before_drag * drag_factor
@@ -292,11 +294,15 @@ def project(
             # base of 100.
             lifted = step_up & (account > benefit_base)
             ratcheted = np.where(lifted, account, benefit_base)
-            # A step-up that raises the Bonus Base restarts the bonus clock, but only while the
-            # owner is 80 or younger.
-            raised = lifted & (ratcheted > bonus_base) & (attained_age + year <= BONUS_RESTART_MAX_AGE)
+            # The Bonus Base follows any step-up that lifts the GWB and carries no age condition
+            # of its own. The prospectus puts the age condition on the bonus *clock*: the period
+            # restarts only where the step-up falls on or before the anniversary at which the
+            # owner turns 81. Gating the base on the age as well - which this did - stops the
+            # bonus growing at all for a contract still deferring in its eighties.
+            raised = lifted & (ratcheted > bonus_base)
             bonus_base = np.where(raised, ratcheted, bonus_base)
-            bonus_end = np.where(raised, year + 1 + BONUS_PERIOD_YEARS, bonus_end)
+            bonus_end = np.where(raised & (anniversary_age <= BONUS_RESTART_LAST_AGE),
+                                 year + 1 + BONUS_PERIOD_YEARS, bonus_end)
             benefit_base = ratcheted
 
         # The bonus is a percentage of the Bonus Base, not of the benefit base, and only in a
@@ -318,7 +324,7 @@ def project(
             # annually, so the ratchet is a floor on the quarterly one and the death benefit
             # here understates the highest-anniversary variant by the amount the contract
             # value peaked and fell back inside a year.
-            accruing = (attained_age + year) <= DEATH_BENEFIT_FREEZE_AGE
+            accruing = anniversary_age <= DEATH_BENEFIT_LAST_ACCRUAL_AGE
             rollup_base = rollup_base * np.where(accruing, 1.0 + rollup_rate, 1.0)
             if np.any(ratchets):
                 ratchet_base = np.where(

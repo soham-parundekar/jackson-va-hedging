@@ -10,6 +10,11 @@ The withdrawal percentage is banded by attained age at the first withdrawal and 
 for life. A cohort grid spanning issue ages 55 to 75 therefore spans four of the six bands,
 and using a single withdrawal rate across it would misprice the young cohorts by more than a
 hundred basis points of benefit base a year.
+
+The contract calendar below is the exception: those five numbers come from the prospectus
+rather than the supplement, and a rate sheet dated a year later does not move them. They live
+here anyway, because the book builder and the projection both need them and keeping two copies
+is how they drift apart.
 """
 
 from __future__ import annotations
@@ -21,7 +26,18 @@ import pandas as pd
 
 from .. import paths
 
-AGE_BANDS = ((35, 59), (60, 64), (65, 69), (70, 74), (75, 80), (81, 120))
+BONUS_PERIOD_YEARS = 10
+# Two age limits that read alike in the prospectus and sit a year apart. The bonus clock
+# restarts on a step-up "so long as the step-up occurs on or before the Contract Anniversary
+# immediately following the Designated Life's 80th birthday" - the anniversary at which the
+# owner turns 81. Roll-up accrual and the death benefit's ratchet instead stop at "the Contract
+# Anniversary immediately preceding the oldest Covered Life's 81st birthday", the anniversary
+# before that one. Both are written as the last anniversary age the rule reaches, because
+# written as a birthday they look like the same number and were once coded as one.
+BONUS_RESTART_LAST_AGE = 81
+DEATH_BENEFIT_LAST_ACCRUAL_AGE = 80
+GWB_ADJUSTMENT_AGE = 70          # the anniversary on or following this birthday...
+GWB_ADJUSTMENT_MIN_YEARS = 12    # ...or the twelfth contract anniversary, whichever is later
 
 
 @dataclass(frozen=True)

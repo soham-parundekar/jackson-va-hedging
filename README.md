@@ -31,7 +31,7 @@ The levels sit about three times the disclosure, which the research design predi
 not predict is that behaviour would not close the gap. Lowering utilisation takes duration out of
 the guarantee and collapses the rate sensitivity with it, while the benefit base is still there
 whatever the owner draws, so the equity sensitivity barely moves: across the sweep the rate
-multiple falls 2.09 to 0.47 and the equity multiple only 2.10 to 1.59. The equity half is
+multiple falls 2.16 to 0.49 and the equity multiple only 2.09 to 1.59. The equity half is
 moneyness instead, and the model says so independently - locating the disclosed figure on the
 model's own curve implies a benefit base over account value of 0.94 falling to 0.82 across the
 four years, with the up and down shocks implying the same ratio without being made to.
@@ -134,7 +134,7 @@ The break-even fee was meant to close the loop and it closes it the other way. O
 premium at 5bp to 6.5% at 500bp, then turns back up to 9.9% at 800bp as the charge starts
 exhausting the account and ending the fee stream before the payments end. Six of eight contracts
 across issue ages 65 to 75 admit no break-even charge at all; the two that do are both sold at 75
-and need 151 to 214 basis points against the 125 charged. The same engine on the December 2025
+and need 204 to 214 basis points against the 125 charged. The same engine on the December 2025
 curve prices the same contract at a market risk benefit of zero. The difference is 264 basis
 points of ten-year rate and nothing else.
 

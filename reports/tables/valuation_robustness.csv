@@ -14,10 +14,10 @@ zero curve -100bp,fixed attribution,6660.57,6660.57,6.66,1.00,0.21,28.98,28978.4
 "fund expenses at the disclosed maximum, 2.38%",own attribution,4788.13,4788.13,4.79,0.97,0.18,25.14,25139.55,125.27,a higher drag starves the account and feeds the guarantee
 no annual step-up,own attribution,-3564.62,-3564.62,-3.56,0.66,-0.13,18.22,18221.04,134.50,the benefit base never ratchets
 sub-account all equity,own attribution,3463.47,3463.47,3.46,0.91,0.12,25.70,25702.52,154.89,against the FY2025 fund mix's 0.83 equity exposure
-first withdrawal deferred 0 years,own attribution,-267.84,-267.84,-0.27,0.77,-0.01,17.18,17183.54,113.26,"GAWA 5.75% at age 70, bonus 0% on the benefit base"
-first withdrawal deferred 10 years,own attribution,-7006.65,-7006.65,-7.01,0.58,-0.21,19.84,19835.27,136.89,"GAWA 5.95% at age 80, bonus 60% on the benefit base"
+first withdrawal deferred 0 years,own attribution,-267.84,-267.84,-0.27,0.77,-0.01,17.18,17183.54,113.26,"GAWA 5.75% at age 71, bonus 0% on the benefit base"
+first withdrawal deferred 10 years,own attribution,-5540.60,-5540.60,-5.54,0.62,-0.16,21.14,21139.94,139.04,"GAWA 6.20% at age 81, bonus 60% on the benefit base"
 "issue age 65, GAWA 5.75%",own attribution,5230.06,5230.06,5.23,0.96,0.17,28.86,28863.76,154.52,rate sheet band
-"issue age 75, GAWA 5.95%",own attribution,-5502.89,-5502.89,-5.50,0.57,-0.21,14.76,14759.83,109.60,rate sheet band
+"issue age 75, GAWA 6.20%",own attribution,-4201.88,-4201.88,-4.20,0.62,-0.16,15.87,15873.43,112.20,rate sheet band
 projection to age 115,fixed attribution,89.11,89.11,0.09,0.79,0.00,22.31,22307.15,136.97,"truncation reference, common draws"
 projection to age 105,fixed attribution,52.69,52.69,0.05,0.79,0.00,22.27,22270.58,136.97,"truncation test, common draws"
 projection to age 110,fixed attribution,86.98,86.98,0.09,0.79,0.00,22.31,22305.01,136.97,"truncation test, common draws"

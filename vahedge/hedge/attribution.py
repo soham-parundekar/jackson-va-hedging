@@ -164,9 +164,6 @@ def attribute(ledger: pd.DataFrame, equity_weight: float) -> pd.DataFrame:
     return out
 
 
-ECONOMIC_TERMS = ("fee_income", "cash_interest", "hedge_cost", "uncovered_cost")
-
-
 def economics(ledger: pd.DataFrame) -> dict:
     """Fee income, funding, trading cost and what the hedge did not recover, in currency.
 

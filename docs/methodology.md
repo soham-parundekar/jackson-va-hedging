@@ -43,6 +43,21 @@ state at each anniversary. The split is deliberate: the expensive object is the 
 simulation and it is shared by every cohort, while the contract recursion is cheap and runs
 once per cohort per year.
 
+### Which anniversary a projection year is, and how old the owner is on it
+
+Three of the contract's rules turn on an age and one on an anniversary number, so the mapping
+between the recursion's year index and the contract's calendar has to be stated rather than
+assumed. Projection year $k$ starts from the state at anniversary $k$ and puts its events on
+anniversary $k+1$, counting from the valuation date. Exactly one birthday falls between
+consecutive anniversaries whatever the day of the year the contract was written, so the owner's
+age on the anniversary year $k$ lands on is the attained age at the valuation date plus $k+1$.
+
+That is one more than the `attained_age + k` the arrays make convenient, and the difference is
+not cosmetic. It sets the age the withdrawal percentage is banded by, the anniversary the death
+benefit's roll-up freezes on, and the year the guaranteed withdrawal base adjustment falls in.
+Three of those four were written a year early until the pricing map's withdrawal percentages were
+traced back to the age they came from.
+
 ### Anniversary mechanics
 
 In order, at each anniversary:
@@ -56,18 +71,25 @@ In order, at each anniversary:
    what it can and the insurer pays the shortfall:
    $$C_t = \max\left(u g B_{t-1} - AV_t^{\text{after charges}},\ 0\right)$$
 4. **Step-up**: $B_t = \max(B_{t-1},\, AV_t)$ on the Contract Anniversary Value method, applied
-   after the withdrawal. A step-up that raises the benefit base also lifts the bonus base and
-   restarts the bonus clock, while the owner is 80 or younger.
+   after the withdrawal. A step-up that raises the benefit base lifts the bonus base with it,
+   unconditionally; the bonus *clock* restarts on that increase only where the anniversary falls
+   on or before the one at which the owner turns 81. Two rules, two sentences of the prospectus,
+   and one age condition between them rather than two.
 5. **Bonus**, while the contract is still deferring and the contract value is above zero: the
    benefit base accrues $6\%$ of the *bonus base* a year on the Core option, simple rather than
    compound, for up to ten contract years. A withdrawal in the year precludes it.
-6. **Guaranteed withdrawal base adjustment**, on the later of the anniversary following age
-   seventy and the twelfth contract anniversary, and only if no withdrawal has been taken by
+6. **Guaranteed withdrawal base adjustment**, on the later of the anniversary on or following
+   age seventy and the twelfth contract anniversary, and only if no withdrawal has been taken by
    then. It floors the benefit base at a multiple of premium, which is what makes it valuable
-   in a market that has fallen.
+   in a market that has fallen. On the Core option that floor is 105% of premium and is
+   unreachable: a 6% simple bonus carries the base past it at the first anniversary and nothing
+   brings the base down while no withdrawal has been taken, so the provision can only bind on
+   the 200% Plus option. It is carried anyway, because the Plus option is priced in the rate
+   sheet the model reads and the floor is not a modelling choice.
 7. **Death benefit**, paid on the probability of dying during the year: the excess of the death
    benefit base over the contract value, floored at zero. The roll-up and the ratchet both stop
-   at the anniversary before the owner's 81st birthday.
+   at the anniversary before the owner's 81st birthday - the anniversary at which the owner is
+   80, one earlier than the last anniversary a bonus clock can restart on.
 
 The order is not a presentational choice and an earlier version of this document had it wrong,
 with the bonus and the adjustment ahead of the charge. Two things fix it. The prospectus sets the
@@ -85,8 +107,16 @@ point. The combination is what makes the guarantee expensive: income and outgo n
 
 The guaranteed percentage comes from the rate sheet's age bands at the age of the **first**
 withdrawal, not at issue, so a contract that defers moves up a band. At issue age 70 with five
-years of deferral the rate is 5.95% rather than 5.75%, and the model reads it from the committed
-rate sheet rather than carrying a hardcoded number.
+years of deferral the first withdrawal falls on the sixth anniversary, at age 76, and the rate is
+5.95% rather than 5.75%. The model reads it from the committed rate sheet rather than carrying a
+hardcoded number.
+
+Where in the band the first withdrawal lands is the part that bites. Five deferred years from 70
+reach 76 and ten reach 81, and the bands break at 74 and at 80, so the base case cannot tell a
+correct reading of the age from one a year early while two robustness cells and six of the
+eighteen vintage-date cohorts in the portfolio can. Reading it a year early is what the model did
+until the percentages in `reports/tables/rider_break_even.csv` were traced back to the anniversary
+they are supposed to come from.
 
 ### Measuring continuous charges exactly
 

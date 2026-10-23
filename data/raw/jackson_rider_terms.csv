@@ -6,6 +6,9 @@
 ### charge_pct and gawa_pct are decimals of the GWB; bonus_pct is a decimal of the GWB.
 ### gwb_adjustment_pct is the multiple of premium the GWB is compared against at the end of
 ### the adjustment period; step_up names the contract-value observation the ratchet uses.
+### Eight of the supplement's ten at-issue combinations are carried: Flex GMWB single and
+### joint in all three options, and Flex Net GMWB single in Value and Core. Flex Net joint is
+### in the supplement and left out here because nothing in the project prices it.
 benefit,life_basis,option,charge_pct,bonus_pct,step_up,gwb_adjustment_pct,age_low,age_high,gawa_pct
 flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,35,59,0.0300
 flex_gmwb,single,value,0.0030,0.05,annual_contract_value,1.05,60,64,0.0300

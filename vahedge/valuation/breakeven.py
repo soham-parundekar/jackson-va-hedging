@@ -130,7 +130,7 @@ def margin_map(
     book_builder,
     state,
     issue_ages=(55, 60, 65, 70, 75),
-    income_start_ages=(65, 70, 75),
+    deferral_end_ages=(65, 70, 75),
 ) -> pd.DataFrame:
     """Fair fee against charged fee across the grid, which is the headline pricing result.
 
@@ -139,19 +139,27 @@ def margin_map(
     expensive; it also shortens the payment stream, which makes it cheaper. Where the two
     balance is not obvious in advance and is the point of drawing the map.
 
+    The second axis is the age at which the deferral ends, which is one year short of the age the
+    first withdrawal is taken at: the recursion puts every withdrawal on an anniversary, so the
+    first one falls on the anniversary after the last deferred year. The axis was called the
+    income start age until the withdrawal percentage was traced back to it and found a band low,
+    so the age the percentage actually comes from is now a column of its own.
+
     Cells the solve cannot resolve carry NaN and their own reason rather than a bound, so the map
     distinguishes a contract priced too cheaply from one no charge can price.
     """
     rows = []
     for issue_age in issue_ages:
-        for income_start in income_start_ages:
-            if income_start < issue_age:
+        for deferral_end in deferral_end_ages:
+            if deferral_end < issue_age:
                 continue
-            book = book_builder(issue_age=issue_age, income_start_age=income_start)
+            book = book_builder(issue_age=issue_age, deferral_end_age=deferral_end)
             result = solve(valuer, book, state)
             rows.append({
                 "issue_age": issue_age,
-                "income_start_age": income_start,
+                "deferral_end_age": deferral_end,
+                "first_withdrawal_age": int(book.attained_age[0])
+                                        + int(book.deferral_years[0]) + 1,
                 "gawa_pct": float(book.gawa_pct[0]),
                 "charged_pct": result.charged,
                 "fair_pct": result.fair,

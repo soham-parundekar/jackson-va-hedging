@@ -214,6 +214,60 @@ def test_every_book_statistic_appears_in_a_stored_filing_extract():
     assert not missing, f"no stored extract carries: {missing}"
 
 
+def test_every_withdrawal_rate_matches_the_cell_the_rate_sheet_puts_it_in():
+    """Each guaranteed withdrawal percentage against the rate sheet's own grid, cell by cell.
+
+    Checking that a number appears somewhere in the extract is weak here, because the rate sheet
+    prints 4.00% in nine different cells. What can go wrong is the pairing: a rate landing under
+    the wrong benefit option or the wrong age band reads as perfectly plausible and changes every
+    cash flow the contract pays. So this parses the three grids out of the stored supplement and
+    compares them against `jackson_rider_terms.csv` by benefit, life basis, option and band.
+
+    The extract keeps its tables as the supplement lays them out, which is what makes the parse
+    possible and is a reason to leave that formatting alone.
+    """
+    import pandas as pd
+
+    sheet = (paths.REFERENCES / "issuer_documents"
+             / "2026_JNL_PerspectiveII_RateSheet_497.txt").read_text()
+    bands = ["35-59", "60-64", "65-69", "70-74", "75-80", "81+"]
+
+    def grid(heading: str, columns: int) -> dict:
+        block = sheet.split(heading, 1)[1]
+        rows = {}
+        for band in bands:
+            line = re.search(rf"^\s*{re.escape(band)}\s+(.+)$", block, re.M)
+            assert line, f"no {band} row under {heading!r}"
+            found = re.findall(r"(\d+\.\d+)%", line.group(1))
+            assert len(found) >= columns, f"{band} under {heading!r} has {len(found)} rates"
+            rows[band] = [float(p) / 100 for p in found[:columns]]
+        return rows
+
+    expected = {}
+    for heading, basis in (("Flex GMWB (Single), benefit options elected at issue", "single"),
+                           ("Flex GMWB (Joint), benefit options elected at issue", "joint")):
+        for band, rates in grid(heading, 3).items():
+            for option, rate in zip(("value", "core", "plus"), rates):
+                expected[("flex_gmwb", basis, option, band)] = rate
+    # The net grid prints single and joint side by side, two options each, in that order.
+    for band, rates in grid("Flex Net GMWB (Single) and (Joint), elected at issue", 4).items():
+        for option, rate in zip(("value", "core"), rates[:2]):
+            expected[("flex_net_gmwb", "single", option, band)] = rate
+        for option, rate in zip(("value", "core"), rates[2:]):
+            expected[("flex_net_gmwb", "joint", option, band)] = rate
+
+    terms = pd.read_csv(paths.RIDER_TERMS, comment="#")
+    checked = 0
+    for _, row in terms.iterrows():
+        band = "81+" if row.age_low == 81 else f"{row.age_low}-{row.age_high}"
+        key = (row.benefit, row.life_basis, row.option, band)
+        assert key in expected, f"{key} is in the committed table and in no cell of the rate sheet"
+        assert abs(expected[key] - float(row.gawa_pct)) < 1e-12, (
+            f"{key}: the table says {row.gawa_pct:.4f}, the rate sheet says {expected[key]:.4f}")
+        checked += 1
+    assert checked == 48, f"checked {checked} cells, expected the eight modelled combinations"
+
+
 def test_the_register_and_the_annotated_bibliography_name_the_same_sources():
     """Both directions, because the two drift apart in both.
 

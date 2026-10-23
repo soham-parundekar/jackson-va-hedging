@@ -46,11 +46,40 @@ from dataclasses import dataclass, fields, replace
 import numpy as np
 import pandas as pd
 
-from .terms import DEATH_BENEFITS, DeathBenefitTerms, RiderTerms
+from .terms import (
+    BONUS_PERIOD_YEARS,
+    DEATH_BENEFITS,
+    GWB_ADJUSTMENT_AGE,
+    GWB_ADJUSTMENT_MIN_YEARS,
+    DeathBenefitTerms,
+    RiderTerms,
+)
 
-GWB_ADJUSTMENT_AGE = 70          # the anniversary on or following this birthday
-GWB_ADJUSTMENT_MIN_YEARS = 12    # ...or the twelfth contract anniversary, whichever is later
-BONUS_PERIOD_YEARS = 10
+
+def gwb_adjustment_index(issue_age, years_since_issue, deferral_years):
+    """Which projection year the GWB adjustment lands in, or -1 where it is already dead.
+
+    The adjustment date is "the later of: The Contract Anniversary on or immediately following
+    the Designated Life's 70th birthday, Or The 12th Contract Anniversary following the
+    effective date of this endorsement". Both are anniversary numbers counted from issue, and
+    the twelfth wins at every issue age above 58, so the age leg only binds on the young end of
+    the grid.
+
+    Converting an anniversary number to a projection year is where this used to go wrong. The
+    projection's year ``k`` lands on anniversary ``years_since_issue + k + 1``, so the index is
+    one short of the anniversary's distance from the valuation date, and the first withdrawal -
+    the thing that kills the provision - lands on anniversary
+    ``years_since_issue + deferral_years + 1``. A withdrawal on or before the adjustment date
+    terminates the provision without value, which leaves it alive only where the deferral
+    outlasts the index.
+
+    Takes scalars or arrays, because the book builder has one cohort and the rewind to issue
+    has a whole book.
+    """
+    anniversary = np.maximum(GWB_ADJUSTMENT_AGE - np.asarray(issue_age),
+                             GWB_ADJUSTMENT_MIN_YEARS)
+    index = anniversary - np.asarray(years_since_issue) - 1
+    return np.where((index >= 0) & (np.asarray(deferral_years) > index), index, -1)
 
 
 @dataclass(frozen=True)
@@ -211,24 +240,26 @@ def single_contract(
     projection machinery the book uses, pointed at a single model point.
 
     ``first_withdrawal_age`` is what the guaranteed withdrawal percentage is read off, and it
-    defaults to the age the contract will reach when its remaining deferral ends. That default is
-    right for a contract that has not started drawing and wrong for one that has: the percentage
-    locks at the first withdrawal and never moves again, so a contract twelve years into a life
-    that began drawing at 75 keeps 5.95% rather than picking up the 81-and-over band's 6.20% by
-    having aged into it. Pass it explicitly whenever the account value says withdrawals have
-    already been happening.
+    defaults to the age the owner reaches at the anniversary the first withdrawal falls on -
+    which is the anniversary after the deferral ends, not the one that ends it. ``deferral_years``
+    counts the contract years that earn a bonus, and the withdrawal in the year that follows is
+    what precludes the next bonus, so a contract deferring five years from age 70 draws first at
+    76. The rate sheet bands the percentage by "attained age at the time of the first
+    withdrawal", so the default has to match where the recursion actually puts that withdrawal.
+
+    The default is right for a contract that has not started drawing and wrong for one that has:
+    the percentage locks at the first withdrawal and never moves again, so a contract twelve
+    years into a life that began drawing at 75 keeps 5.95% rather than picking up the
+    81-and-over band's 6.20% by having aged into it. Pass it explicitly whenever the account
+    value says withdrawals have already been happening.
     """
     death_benefit = death_benefit or DEATH_BENEFITS["basic"]
     attained = issue_age + years_since_issue
-    anniversary_at_70 = max(1, GWB_ADJUSTMENT_AGE - issue_age)
-    adjustment_contract_year = max(anniversary_at_70, GWB_ADJUSTMENT_MIN_YEARS)
-    adjustment_year = adjustment_contract_year - years_since_issue
-    if adjustment_year < 0 or deferral_years <= adjustment_year:
-        adjustment_year = -1
+    adjustment_year = int(gwb_adjustment_index(issue_age, years_since_issue, deferral_years))
 
     drag = base_contract_charge + fund_expense
     if first_withdrawal_age is None:
-        first_withdrawal_age = attained + deferral_years
+        first_withdrawal_age = attained + deferral_years + 1
     array = lambda value, dtype=float: np.array([value], dtype=dtype)
     return CohortBook(
         issue_age=array(issue_age, int),

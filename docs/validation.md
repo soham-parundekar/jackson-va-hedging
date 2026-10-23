@@ -29,6 +29,11 @@ These establish that the arithmetic closes before anything is asked of the econo
 | Every register row points at a file that exists, and names a component | 30 rows | `tests/test_artifacts.py` |
 | Every stored extract's own header carries the accession its register row claims | 8 extracts, read off the filing when each was saved | `tests/test_artifacts.py` |
 | Every book statistic appears in a stored filing extract | 46 figures across four balance-sheet dates | `tests/test_artifacts.py` |
+| Every guaranteed withdrawal rate sits in the cell the rate sheet puts it in | 48 cells by benefit, life basis, option and age band | `tests/test_artifacts.py` |
+| The first withdrawal is where the recursion puts it, and the band is read at that age | located by differencing two projections, at the two deferrals that straddle a band edge | `tests/test_liability.py` |
+| A step-up past the bonus clock's age limit still lifts the Bonus Base | the clock stops, the base does not | `tests/test_liability.py` |
+| The death benefit's roll-up stops at the anniversary before the 81st birthday | five accruals from election at 75, not six | `tests/test_liability.py` |
+| The GWB adjustment lands on the anniversary the prospectus names | asserted as an anniversary number less one, not as a year index | `tests/test_liability.py` |
 | Every source `docs/literature.md` cites has a register row | all 14 DOIs | `tests/test_artifacts.py` |
 | Accession numbers in the docs match the register's | one spelling each | `tests/test_artifacts.py` |
 | The register and the annotated bibliography name the same sources | both directions | `tests/test_artifacts.py` |
@@ -236,16 +241,16 @@ wrong is more informative than the prediction would have been.
 
 The vintage portfolio - five issue years valued as one book, each carrying the attribution
 percentage its own issue date calibrates to - reaches a weighted attained age of 70.9 against the
-disclosed 70 and a blended withdrawal rate of 5.73%. Its multiple over the disclosure:
+disclosed 70 and a blended withdrawal rate of 5.82%. Its multiple over the disclosure:
 
 | Shock | Dates | Model over disclosed, mean | Range |
 |---|---|---|---|
-| equity up 10% | 4 | 2.65 | 2.28 to 3.11 |
-| equity down 10% | 4 | 2.83 | 2.58 to 3.19 |
-| rates up 50bp | 3 | 3.17 | 2.79 to 3.48 |
-| rates down 50bp | 3 | 3.15 | 2.73 to 3.48 |
-| rates up 100bp | 2 | 2.82 | 2.82 to 2.83 |
-| rates down 100bp | 2 | 2.75 | 2.72 to 2.77 |
+| equity up 10% | 4 | 2.63 | 2.26 to 3.08 |
+| equity down 10% | 4 | 2.83 | 2.59 to 3.18 |
+| rates up 50bp | 3 | 3.21 | 2.86 to 3.51 |
+| rates down 50bp | 3 | 3.19 | 2.79 to 3.51 |
+| rates up 100bp | 2 | 2.90 | 2.90 to 2.90 |
+| rates down 100bp | 2 | 2.82 | 2.79 to 2.84 |
 
 A multiple that near-constant across six shocks and four dates points at one structural assumption
 rather than a pile of errors. Net amount at risk comes out at 1.11% of account value against the
@@ -262,15 +267,15 @@ rather than being put in.
 The behaviour sweep moves utilisation from 1.0 to 0.6 and the at-the-money lapse rate from zero to
 4%, after scaling for the 75% of account value that carries a withdrawal guarantee. The best
 combination by widest miss is 0.80 utilisation with 4% lapse, every compared shock within 61% of
-the disclosed figure, against 2.00 times the disclosure on the static benchmark.
+the disclosed figure, against 2.03 times the disclosure on the static benchmark.
 
 But the two shock families do not move together, and that is the result:
 
 | | static benchmark | far corner |
 |---|---|---|
 | Equity multiple | 1.90 | 1.60 |
-| Rate multiple | 2.09 | 0.47 |
-| Equity over rate | 0.91 | 3.42 |
+| Rate multiple | 2.16 | 0.49 |
+| Equity over rate | 0.88 | 3.26 |
 
 Drawing less takes duration out of the guarantee - fewer paths exhaust, so it is less of a
 long-dated annuity - and the rate sensitivity collapses with it. The benefit base is still there
@@ -700,10 +705,12 @@ claim forward and to end the fee stream before the payments do; and it never rea
 is no root, not two roots, and a solve that trusted monotonicity across that bracket would have
 returned one of the bounds as a price.
 
-That failure is not specific to one cell. Across issue ages 65, 70 and 75 and income starting at
+That failure is not specific to one cell. Across issue ages 65, 70 and 75 and deferrals ending at
 70, 75 and 80, six of the eight contracts admit no charge that prices them. The two that do are
-both sold at 75, and both need more than they are paid: 214 basis points with income starting at
-once, 151 deferring five years, against the 125 charged.
+both sold at 75, and both need more than they are paid: 214 basis points drawing first at 76, 204
+drawing first at 81, against the 125 charged. The second of those was 151 basis points until the
+withdrawal percentage it is priced on was traced back to the anniversary the first withdrawal
+actually falls on, which moved it from the 75-to-80 band to the 81-and-over one.
 
 The at-issue valuation, off the December 2025 curve, has the market risk benefit at zero with an
 attribution percentage of 0.786 - fees comfortably covering claims. The difference between the
