@@ -4,11 +4,22 @@ Two curve objects live here and they do different jobs.
 
 ``ZeroCurve`` is the bootstrap. Treasury publishes par yields, so a forty-year cash flow
 discounted straight off the thirty-year par yield is wrong by enough to matter. The
-bootstrap is exact forward substitution on the semi-annual coupon grid and is what every
-discounting in the project runs off. Jackson's Item 7A shock is described as a parallel
-shift in risk-free rates, and that is applied the way a desk applies it: shift the par
-yields, bootstrap again. Shifting the bootstrapped zeros instead gives slightly different
-discount factors, which is why ``ParCurveBuilder.build`` re-runs the whole bootstrap.
+bootstrap is exact forward substitution on the semi-annual coupon grid, and it is the input
+the smooth fit is made from rather than the curve the valuation discounts on.
+
+Where the rate shock is applied, and why not here. Item 7A describes a parallel shift in
+risk-free rates, and the obvious reading - shift the quoted par yields, bootstrap again - is
+the one a desk uses and the one this module does not implement. It cannot be applied to the
+curve the liability actually discounts on without re-fitting, and the re-fit is what spoils
+it: on the 31 December 2025 curve a 100bp par shift delivers 98.2bp of zero-rate shift at
+five years and 104.7bp at thirty, and the two legs of a central difference land on fits of
+different quality - 4.89 against 3.90 basis points of residual, where the unshocked fit sits
+at 4.37 - leaving over a basis point of asymmetry at forty-five years that the difference
+cannot see. A sensitivity measured that way is part market and part fitting algorithm.
+
+So the shock moves the fitted curve's level parameter instead, in
+``engine.MarketState.with_shocks``, which shifts the zero rate and the instantaneous forward
+by exactly the applied amount at every maturity and is exactly symmetric in the two legs.
 
 ``NelsonSiegelSvensson`` is the smooth fit, and it exists for one reason: Hull-White needs
 the instantaneous forward rate f(0,t), which is the derivative of t*R(t). A bootstrapped
@@ -53,37 +64,9 @@ class ZeroCurve:
         t = np.asarray(t, dtype=float)
         return np.exp(-self.zero(t) * t)
 
-    def forward(self, t1, t2):
-        """Continuously compounded forward rate over [t1, t2]."""
-        t1 = np.asarray(t1, dtype=float)
-        t2 = np.asarray(t2, dtype=float)
-        if np.any(t2 <= t1):
-            raise ValueError("t2 must exceed t1")
-        return (self.zero(t2) * t2 - self.zero(t1) * t1) / (t2 - t1)
-
     def par_equivalent(self, tenor: float, frequency: int = 2) -> float:
         """The par coupon this curve implies at a given tenor. Used to check a round trip."""
         return par_equivalent(self, tenor, frequency)
-
-
-class ParCurveBuilder:
-    """Holds the observed par yields so a shocked curve can be re-bootstrapped."""
-
-    def __init__(self, tenors, par_yields, frequency: int = 2):
-        self.tenors = np.asarray(tenors, dtype=float)
-        self.par_yields = np.asarray(par_yields, dtype=float)
-        self.frequency = int(frequency)
-        if np.any(np.isnan(self.par_yields)):
-            raise ValueError("par yields contain NaN; fill the curve before bootstrapping")
-        if np.any(np.diff(self.tenors) <= 0):
-            raise ValueError("par tenors must be strictly increasing")
-
-    def build(self, shift_bp: float = 0.0) -> ZeroCurve:
-        return bootstrap(
-            self.tenors,
-            self.par_yields + shift_bp / 10000.0,
-            frequency=self.frequency,
-        )
 
 
 def bootstrap(tenors, par_yields, frequency: int = 2) -> ZeroCurve:
@@ -174,11 +157,6 @@ class NelsonSiegelSvensson:
             + self.beta2 * x1 * np.exp(-x1)
             + self.beta3 * x2 * np.exp(-x2)
         )
-
-    def as_zero_curve(self, max_tenor: float = 60.0, step: float = 0.25) -> ZeroCurve:
-        """Sample onto a grid, for code that wants the ``ZeroCurve`` interface."""
-        tenors = np.arange(step, max_tenor + step / 2, step)
-        return ZeroCurve(tenors=tenors, zero_rates=np.asarray(self.zero(tenors), dtype=float))
 
     def par_equivalent(self, tenor: float, frequency: int = 2) -> float:
         return par_equivalent(self, tenor, frequency)

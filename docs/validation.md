@@ -15,6 +15,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 |---|---|---|
 | Par bootstrap reprices its own quotes | worst round trip 2e-16 over 2,495 dates | `build_dataset.py`, `tests/test_market_models.py` |
 | Hull-White reproduces the initial curve | exact | `tests/test_market_models.py` |
+| The rate shock is parallel in the zero rate and in the forward | exact to 1e-15 at seven maturities, and symmetric in the two legs | `tests/test_market_models.py` |
 | Hull-White's bond price seen from a future date | martingale identity holds to 1e-9 at a = 0.05 and 0.27 | `tests/test_market_models.py` |
 | COS pricer against Black-Scholes at zero volatility of variance | matches | `tests/test_market_models.py` |
 | COS pricer holds put-call parity | under 1e-5 of the forward across 7 strikes and 5 maturities | `tests/test_market_models.py` |
@@ -42,7 +43,9 @@ These establish that the arithmetic closes before anything is asked of the econo
 | A mortality rate missing where the valuation reads the table stops the loader | the check reads the export rather than a filled copy of it | `tests/test_mortality.py` |
 | Period table implies longer life than Basic | holds at both valuation years | `build_dataset.py` |
 | Overlapping filings agree | 12 liability figures and 3 derivative dates in two filings each, all agree | `build_dataset.py`, `tests/test_disclosures.py` |
-| Profit attribution and residual add to the total | exact by construction | `tests/test_hedge.py` |
+| Profit attribution is exact where a second-order expansion should be exact | residual under 1e-9 on four liabilities quadratic in log contract value, with and without basis drift | `tests/test_hedge.py` |
+| The basis bar holds the part of the move the index did not drive | zero when the contract value is a pure power of the index, non-zero when it is not | `tests/test_hedge.py` |
+| Realised against implied compares the index with the volatility the puts were marked at | the three volatilities separated on a ledger built to make them differ | `tests/test_hedge.py` |
 | The ledger uses nothing from after the rebalance date | rebuilt from the prior position | `tests/test_hedge.py` |
 | Risk-neutral skewness off the characteristic function against a simulated sample | agree to 1% at one year | `tests/test_market_models.py` |
 | Disclosed derivative lines sum to their disclosed totals | all 32 blocks, exactly | `tests/test_disclosures.py` |
@@ -537,6 +540,25 @@ Volmageddon is the opposite case and the one worth dwelling on. An 8.8% index mo
 doubling, and the futures-and-swaps hedge removes only 74.5% of the variance against 94% in covid.
 That episode was a volatility event rather than a level event, and instruments that carry no vega
 were never going to catch it.
+
+What the convexity leg was being paid for, in each window, is realised index variance against the
+implied volatility the puts were actually marked at:
+
+| Episode | Realised, index | Realised, contract value | Implied, as marked | Realised less implied |
+|---|---|---|---|---|
+| volmageddon | 33.8% | 27.9% | 22.1% | +11.7 points |
+| Q4 2018 | 21.3% | 17.5% | 21.3% | 0.0 |
+| covid | 84.6% | 69.2% | 30.6% | +54.0 points |
+| 2022 double | 24.5% | 20.7% | 22.9% | +1.6 points |
+
+Realised met or exceeded implied in every window, which is what a stress window selected on
+realised damage should look like and is the economic case for holding the convexity rather than
+earning the premium. Three columns because the gamma bar is paid on one of them and bought at
+another: the guarantee's convexity is charged on the contract value's variance, which runs a sixth
+below the index's for a book a sixth in bonds and cash, while the puts earn theirs on the index and
+are paid for at their own tenor's implied. An earlier version of this table had the contract
+value's realised volatility against the model's instantaneous variance - neither side the one the
+trade is struck on - and it put two of the four windows on the wrong side of zero.
 
 ### What one decade is worth as evidence
 

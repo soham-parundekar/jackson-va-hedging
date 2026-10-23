@@ -94,6 +94,31 @@ def test_fit_nss_needs_more_points_than_parameters():
         fit_nss(np.array([1.0, 2.0]), np.array([0.03, 0.04]))
 
 
+def test_the_rate_shock_is_parallel_in_both_the_zero_rate_and_the_forward():
+    """What makes shifting the fitted level the right way to apply Item 7A's shock.
+
+    The alternative - shift the quoted par yields and bootstrap again - is what a desk does
+    and it cannot be done to this curve without re-fitting. The re-fit is the problem: on the
+    committed curve a 100bp par shift arrives as 98bp of zero-rate shift at five years and
+    105bp at thirty, and the two legs of a central difference land on fits of different
+    quality, so part of the measured sensitivity is the fitting algorithm. A level shift moves
+    R(t) and f(0,t) by exactly the applied amount at every maturity and is exactly symmetric,
+    and this test is what would notice if it stopped doing either.
+    """
+    from dataclasses import replace
+
+    base = _curve()
+    maturities = np.array([0.5, 1.0, 5.0, 10.0, 30.0, 45.0, 60.0])
+    for bp in (50.0, 100.0):
+        up = replace(base, beta0=base.beta0 + bp / 10000.0)
+        down = replace(base, beta0=base.beta0 - bp / 10000.0)
+        assert approx(base.zero(maturities) + bp / 10000.0, abs=1e-15) == up.zero(maturities)
+        assert approx(base.instantaneous_forward(maturities) + bp / 10000.0,
+                      abs=1e-15) == up.instantaneous_forward(maturities)
+        centred = 0.5 * (up.zero(maturities) - down.zero(maturities))
+        assert approx(np.full(maturities.size, bp / 10000.0), abs=1e-15) == centred
+
+
 # ---------------------------------------------------------------- Heston, COS
 
 

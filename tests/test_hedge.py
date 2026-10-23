@@ -520,14 +520,79 @@ def _synthetic_ledger(n: int = 60, seed: int = 4) -> pd.DataFrame:
     return frame
 
 
-def test_the_attributed_pieces_and_the_residual_add_to_the_total_exactly():
-    """By construction, which is the only way an attribution is worth reading. A decomposition
-    that nearly adds up hides its own errors in the rounding."""
-    pieces = attribution.attribute(_synthetic_ledger(), EQUITY_WEIGHT)
-    names = ["delta", "basis", "gamma", "vega", "rate", "theta", "anniversary", "carry",
-             "cost", "residual"]
-    assert approx(pieces["total"].to_numpy(), abs=1e-12) == pieces[names].sum(axis=1).to_numpy()
-    assert attribution.summarise(pieces, 100.0)["reconciliation_error"] < 1e-12
+def _consistent_ledger(k: float, curvature: float, n: int = 60, seed: int = 7,
+                       basis_drift: float = 0.0) -> pd.DataFrame:
+    """A ledger whose Greeks are the exact derivatives of its own liability.
+
+    This is what makes a reconciliation test worth running. ``_synthetic_ledger`` carries
+    Greeks that have nothing to do with the liability column beside them, so its residual
+    absorbs the inconsistency and the pieces add to the total whatever the decomposition does.
+    Here the liability is
+
+        L(a) = -k * x + curvature / 2 * x^2,   x = ln(a / a_0)
+
+    so dL/dx is -k + curvature * x and d2L/dx2 is curvature exactly, and a second-order
+    expansion of it is not an approximation: for a quadratic the Taylor series terminates. Any
+    sign error, any missing factor of one half, any use of the end-of-period Greek instead of
+    the start-of-period one, and the residual stops being zero.
+
+    ``basis_drift`` moves the contract value by something the index did not drive, which is the
+    only thing that makes the basis bar non-zero and the index/weight substitution testable.
+    """
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2022-01-03", periods=n)
+    index = np.cumprod(1.0 + rng.normal(0.0002, 0.012, n))
+    own = np.cumprod(1.0 + rng.normal(0.0, basis_drift, n)) if basis_drift else np.ones(n)
+    account = 100.0 * index ** EQUITY_WEIGHT * own
+    x = np.log(account / account[0])
+
+    frame = pd.DataFrame(index=dates)
+    frame["index"] = index
+    frame["account_value"] = account
+    frame["pre_account_value"] = account
+    frame["liability"] = -k * x + 0.5 * curvature * x ** 2
+    frame["liability_pre"] = frame["liability"]
+    frame["is_anniversary"] = False
+    frame["delta"] = -k + curvature * x          # dL/dx, state dependent
+    frame["gamma"] = curvature
+    for name in ("vega", "rho_per_bp", "theta", "hedge_delta", "hedge_gamma", "hedge_vega",
+                 "hedge_rho_per_bp", "cash_flow", "interest", "trade_cost", "carry_cost"):
+        frame[name] = 0.0
+    frame["variance"] = 0.04
+    frame["implied_vol"] = 0.2
+    frame["zero_10y"] = 0.04
+    frame["net_worth"] = -frame["liability"]     # the insurer is short the guarantee
+    frame["pnl"] = frame["net_worth"].diff().fillna(0.0)
+    return frame
+
+
+def test_the_expansion_is_exact_on_a_liability_whose_greeks_are_its_own_derivatives():
+    """The arbiter the by-construction identity cannot be.
+
+    ``attribute`` defines the residual as the total less the attributed bars, so "the pieces
+    add to the total" holds for any input whatsoever and the old version of this test could not
+    fail. Give it a liability that a second-order expansion reproduces exactly and the residual
+    becomes a real measurement: it has to vanish, and it only does if the sign convention, the
+    equity-weight substitution, the factor of one half and the lagging are all right.
+    """
+    for k, curvature, drift in ((24.0, 0.0, 0.0), (24.0, 0.0, 0.004),
+                                (24.0, 180.0, 0.0), (10.0, -90.0, 0.003)):
+        pieces = attribution.attribute(
+            _consistent_ledger(k, curvature, basis_drift=drift), EQUITY_WEIGHT)
+        assert approx(0.0, abs=1e-9) == float(pieces["residual"].abs().max())
+        attributed = pieces[["delta", "basis", "gamma"]].sum(axis=1).to_numpy()
+        assert approx(pieces["total"].to_numpy(), abs=1e-9) == attributed
+
+
+def test_the_basis_bar_is_the_part_of_the_move_the_index_did_not_drive():
+    """With the contract value a pure power of the index there is nothing for basis to hold, and
+    with its own drift on top there is. Checked as a pair, because a basis bar that is always
+    zero and one that is always wrong look the same on a single ledger."""
+    clean = attribution.attribute(_consistent_ledger(24.0, 0.0), EQUITY_WEIGHT)
+    drifting = attribution.attribute(
+        _consistent_ledger(24.0, 0.0, basis_drift=0.004), EQUITY_WEIGHT)
+    assert approx(0.0, abs=1e-12) == float(clean["basis"].abs().max())
+    assert float(drifting["basis"].abs().max()) > 1e-3
 
 
 def test_a_short_gamma_book_loses_on_realised_variance_whichever_way_the_market_went():
@@ -553,13 +618,30 @@ def test_the_anniversary_is_its_own_bar_rather_than_residual():
     )
 
 
-def test_the_volatility_comparison_is_the_price_of_the_gamma_bar():
-    frame = _synthetic_ledger()
-    comparison = attribution.volatility_comparison(frame)
-    assert comparison["realised_vol"] > 0
-    assert approx(comparison["realised_less_implied"], rel=1e-12) == (
-        comparison["realised_vol"] - comparison["implied_vol_mean"]
-    )
+def test_the_volatility_comparison_puts_the_index_against_the_vol_the_puts_were_marked_at():
+    """Three quantities that are easy to mix up, and mixing them up changes the sign.
+
+    The puts are bought on the index and paid for at the implied volatility of their own tenor.
+    The contract value is a sixth in bonds and cash, so its realised volatility runs below the
+    index's, and the earlier version of this compared that damped number against the model's
+    instantaneous variance - neither side the right one. The ledger below separates all three:
+    the index moves at a constant daily rate, the fund is the index damped by the equity
+    weight, the marking volatility is 0.20 and the instantaneous variance implies 0.40.
+    """
+    frame = _consistent_ledger(24.0, 0.0)
+    daily = 0.01
+    n = len(frame)
+    frame["index"] = 100.0 * np.exp(daily * np.arange(n))
+    frame["account_value"] = 100.0 * np.exp(EQUITY_WEIGHT * daily * np.arange(n))
+    frame["implied_vol"] = 0.20
+    frame["variance"] = 0.16                      # 0.40 of volatility, deliberately not 0.20
+
+    got = attribution.volatility_comparison(frame)
+    expected_index = daily * np.sqrt((n - 1) / got["years"])
+    assert approx(expected_index, rel=1e-12) == got["realised_index_vol"]
+    assert approx(EQUITY_WEIGHT * expected_index, rel=1e-12) == got["realised_fund_vol"]
+    assert approx(0.20, rel=1e-12) == got["implied_vol_mean"]
+    assert approx(expected_index - 0.20, rel=1e-12) == got["realised_less_implied"]
 
 
 # ---------------------------------------------------------------- the simulator
@@ -678,6 +760,8 @@ def test_the_ledger_reconciles_cash_the_hedge_and_the_liability_into_net_worth()
     run = simulator.run(path, policy, survival, deaths, proxy, strategies.matrix()["S3"],
                         _smile(), years_at_start=2.0, equity_weight=mix.equity_weight)
     ledger = run.ledger
+    # Definitional - the simulator builds the column this way - so it documents the convention
+    # and verifies nothing. The two assertions after it are the ones that can fail.
     assert approx(ledger["net_worth"].to_numpy(), rel=1e-12, abs=1e-12) == (
         ledger["cash"] + ledger["hedge_mark"] - ledger["liability"]
     ).to_numpy()
@@ -721,10 +805,10 @@ def test_the_economic_decomposition_adds_to_the_ledgers_own_profit():
         run = simulator.run(path, policy, survival, deaths, proxy, matrix[key], _smile(),
                             years_at_start=2.0, equity_weight=mix.equity_weight)
         pieces = attribution.economics(run.ledger)
+        # The one that can fail: ``net`` is built from the component sums and ``ledger_pnl``
+        # from the simulator's own daily profit column, so the two reach the same number by
+        # routes that share nothing but the ledger.
         assert approx(pieces["net"], rel=1e-10, abs=1e-10) == pieces["ledger_pnl"]
-        assert approx(pieces["uncovered_cost"], rel=1e-10, abs=1e-10) == (
-            pieces["claims_paid"] + pieces["liability_change"] - pieces["hedge_result"]
-        )
         # Cash moved by the five things that have columns and by nothing else. The decomposition
         # reads the trading flow off the ledger, so this is the check that the column is the
         # whole of it rather than most of it.

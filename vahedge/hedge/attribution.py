@@ -219,6 +219,13 @@ def summarise(pieces: pd.DataFrame, account_value: float) -> dict:
     the period; the standard deviation says how much of the day-to-day noise it was responsible
     for. A hedge can have a small delta total and still be carrying most of its risk in delta,
     and the other way round.
+
+    There is no reconciliation column, and there used to be one. It reported the total less the
+    attributed bars less the residual, which is zero for every input that has ever been or ever
+    could be passed to it, because ``attribute`` defines the residual as that difference. A
+    column of zeros in a committed table reads as evidence and is not. What carries information
+    is ``residual_share_of_sd``: the residual's standard deviation against the total's, which
+    says how much of the day-to-day movement the expansion failed to name.
     """
     names = ["delta", "basis", "gamma", "vega", "rate", "theta", "anniversary", "carry",
              "cost", "residual"]
@@ -228,9 +235,6 @@ def summarise(pieces: pd.DataFrame, account_value: float) -> dict:
         out[f"{name}_total_pct"] = float(series.sum() / account_value)
         out[f"{name}_sd_pct"] = float(series.std(ddof=1) / account_value)
     out["total_pct"] = float(pieces["total"].sum() / account_value)
-    out["reconciliation_error"] = float(np.abs(
-        pieces["total"] - pieces[names[:-1]].sum(axis=1) - pieces["residual"]
-    ).max())
     out["residual_share_of_sd"] = float(
         pieces["residual"].std(ddof=1) / max(pieces["total"].std(ddof=1), 1e-12)
     )
@@ -240,32 +244,36 @@ def summarise(pieces: pd.DataFrame, account_value: float) -> dict:
 def volatility_comparison(ledger: pd.DataFrame) -> dict:
     """Realised against implied, which is what the gamma bar is the price of.
 
-    The gamma term accumulates to about one half gamma times realised variance, and the premium
-    paid for the convexity is the implied variance. A short-gamma book makes money on this
-    comparison when realised comes in below implied and loses when it does not, and reporting
-    the gamma bar without the comparison hides which of those happened.
+    Three volatilities rather than two, because the gamma bar is paid on one variance and
+    bought at another. The liability's convexity is charged on the *contract value's* realised
+    variance - that is the variable its gamma is in - while the puts earn theirs on the
+    *index's* and are paid for at the index implied volatility of their own tenor. The contract
+    value is a sixth in bonds and cash, so its realised volatility runs about a sixth below the
+    index's, and comparing it against an index implied is a mismatch large enough to change the
+    sign of the answer: over the fourth quarter of 2018 the fund came in 2.5 volatility points
+    under implied while the index came in 1.3 points over it.
+
+    So ``realised_less_implied`` is the index against the implied the puts were actually marked
+    at, which is the comparison that decides whether buying the convexity paid, and the fund's
+    own realised volatility is reported beside it rather than in place of it.
+
+    The implied here is the ledger's own marking volatility, not the model's instantaneous
+    variance. The front of the surface moves several times as much as the one-year point the
+    puts sit at, so the instantaneous variance is the wrong number for a premium even though it
+    is the right one for the liability's vega.
     """
-    returns = np.diff(np.log(np.maximum(ledger["account_value"].to_numpy(), 1e-12)))
     years = (ledger.index[-1] - ledger.index[0]).days / 365.0
-    realised = float(np.sqrt(np.sum(returns ** 2) / max(years, 1e-9)))
-    implied = float(np.sqrt(np.mean(ledger["variance"].to_numpy())))
+
+    def annualised(column: str) -> float:
+        returns = np.diff(np.log(np.maximum(ledger[column].to_numpy(), 1e-12)))
+        return float(np.sqrt(np.sum(returns ** 2) / max(years, 1e-9)))
+
+    index_vol = annualised("index")
+    implied = float(np.mean(ledger["implied_vol"].to_numpy()))
     return {
-        "realised_vol": realised,
+        "realised_index_vol": index_vol,
+        "realised_fund_vol": annualised("account_value"),
         "implied_vol_mean": implied,
-        "realised_less_implied": realised - implied,
+        "realised_less_implied": index_vol - implied,
         "years": years,
     }
-
-
-def table(runs, equity_weight: float, account_value: float) -> pd.DataFrame:
-    """One row per strategy per path, for the experiment tables."""
-    rows = []
-    for run in runs:
-        pieces = attribute(run.ledger, equity_weight)
-        rows.append({
-            "path": run.path,
-            "strategy": run.strategy,
-            **summarise(pieces, account_value),
-            **volatility_comparison(run.ledger),
-        })
-    return pd.DataFrame(rows)
