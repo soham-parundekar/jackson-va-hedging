@@ -49,8 +49,9 @@ from ..hedge.simulator import daily_profit
 # 231,711 million of cash surrender value against 236,406 million of variable annuity separate
 # account value, so 98.0 per cent, and the ratio has moved less than a point across the four
 # year-ends in data/raw/jackson_book_statistics.csv. A schedule would be more precise per
-# contract and less accurate for the block, because most of this business is long past its
-# surrender charge period and the few contracts still inside it are a small share of the value.
+# contract and less accurate for the block, because on a weighted attained age of 70 most of this
+# business is long past its surrender charge period - an inference from the disclosed age rather
+# than a disclosed fact, and the reason the block ratio is used instead of a schedule.
 SURRENDER_VALUE_SHARE = 0.980
 
 

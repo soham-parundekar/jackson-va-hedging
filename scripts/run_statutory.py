@@ -154,9 +154,9 @@ def floor_share_sensitivity(projection) -> pd.DataFrame:
     """How much of the floor's reach is the surrender share rather than the block.
 
     The model holds the share at the latest disclosed year end and replays a decade with it. The
-    ratio is not a constant of the business: it rose through the four disclosed dates as the book
-    aged out of its surrender charge period. Reporting the reach at each disclosed level is what
-    turns a stated constant into a bounded one.
+    ratio is not a constant of the business: it rose through the four disclosed dates, by 0.73
+    points, and no filing says why. Reporting the reach at each disclosed level is what turns a
+    stated constant into a bounded one.
     """
     account = projection.in_force_account
     remaining = statutory.reserve_at_each_year(

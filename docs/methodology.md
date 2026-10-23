@@ -674,7 +674,9 @@ the guarantee came out a quarter of its size at the long end and the floor's rea
 to 15% by year thirty-five.
 
 The 98.0% is the latest of four disclosed year ends and the ratio has risen across them, from 97.3%
-at the end of 2022 as the book aged out of its surrender charge period. Running the floor at every
+at the end of 2022. Nothing in the filings says why, and the obvious reading - a block aging out of
+its surrender charge period - is an inference from the weighted attained age rather than something
+disclosed. Running the floor at every
 disclosed level moves its average reach from 67.9% to 68.8% of in-force paths and what it adds to
 the reserve from 9.80% to 10.42% of account value, so the result is the guarantee's own size rather
 than the wedge between the account and its surrender value - which is not obvious in advance, since

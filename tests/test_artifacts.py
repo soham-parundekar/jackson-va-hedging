@@ -17,6 +17,7 @@ while the stored extract and the register had it right.
 from __future__ import annotations
 
 import csv
+import os
 import re
 import struct
 
@@ -332,3 +333,54 @@ def test_every_public_function_in_the_library_is_called_from_somewhere():
         "public functions with no use anywhere, which is how a docstring comes to cite code "
         f"the project does not run: {orphans}"
     )
+
+
+def test_the_notebook_runs_against_the_committed_tables():
+    """The reviewer's first contact, which fifteen audit passes never executed.
+
+    `notebooks/results.ipynb` reads the committed tables and is the document a reader opens
+    before any of the prose. Nothing ran it, and a column rename three passes ago left it
+    broken: the break-even table's second axis became ``deferral_end_age`` when the age it held
+    turned out to be one year short of the first withdrawal, and the notebook kept asking for
+    ``income_start_age``.
+
+    Executing it here costs under a second, because every cell reads a committed CSV rather than
+    computing anything. The two display helpers a Jupyter kernel supplies are stubbed, which is
+    also the check that the notebook does no work in them: if a cell's arithmetic lived inside a
+    ``display`` call it would be skipped and the test would pass over it.
+    """
+    import contextlib
+    import io
+    import json
+
+    source = (paths.ROOT / "notebooks" / "results.ipynb").read_text()
+    cells = json.loads(source)["cells"]
+    code = "\n".join("".join(cell["source"]) for cell in cells
+                     if cell["cell_type"] == "code")
+    code = code.replace("from IPython.display import Image, display", "")
+
+    namespace = {"display": lambda *a, **k: None, "Image": lambda *a, **k: None,
+                 "__name__": "results_notebook"}
+    cwd = os.getcwd()
+    try:
+        os.chdir(paths.ROOT)
+        with contextlib.redirect_stdout(io.StringIO()):
+            exec(compile(code, "results.ipynb", "exec"), namespace)
+    finally:
+        os.chdir(cwd)
+
+
+def test_the_notebook_carries_no_stored_output():
+    """A committed notebook with outputs in it publishes numbers nothing regenerated.
+
+    The tables and figures under `reports/` are the committed results and they are rebuilt by
+    the pipeline; a cell output pasted into the notebook is a second copy that no rerun touches
+    and no diff makes obvious. Execution counts go with them, because a notebook carrying them
+    records the order someone happened to run it in rather than the order it reads in.
+    """
+    import json
+
+    cells = json.loads((paths.ROOT / "notebooks" / "results.ipynb").read_text())["cells"]
+    carrying = [i for i, cell in enumerate(cells)
+                if cell.get("outputs") or cell.get("execution_count")]
+    assert not carrying, f"notebook cells with stored output or an execution count: {carrying}"
