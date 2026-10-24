@@ -529,7 +529,22 @@ def test_discounted_index_and_sub_account_are_martingales():
 def test_simulator_matches_the_cos_pricer_with_rates_switched_off():
     """With the short rate held still, the simulated index is the model the COS pricer prices,
     so a European put has to come out the same both ways. This is the joint test: it fails if
-    the variance scheme, the log-price update or the martingale correction is wrong."""
+    the variance scheme, the log-price update or the martingale correction is wrong.
+
+    It is also the only check on ``steps_per_year``, which every valuation in the project runs
+    at its default of 24. The module docstring used to justify that default with a measured
+    discretisation bias at 12 steps and cite a script this repository does not contain; carried
+    out to three million paths at one, five and ten years, no step count from 12 to 104
+    separates from any other, so the default rests on the variance process's mean-reversion
+    time constant and this test's job is only to show that 24 carries no bias the project can
+    see. At the path count here that means inside about 1.2 standard errors.
+
+    The pairing is ``antithetic_pairs``, not the first half against the second. With ten
+    simulation blocks the two differ by only a few per cent on a put payoff, so this is not a
+    tolerance that was hiding anything - but the inflated error was the looser branch of the
+    tolerance below, and a test should not take its own slack from a bug the module it tests
+    documents.
+    """
     curve = flat_curve(0.04)
     nss = fit_curve(ZeroCurve(tenors=np.arange(0.5, 30.5, 0.5),
                               zero_rates=np.full(60, 0.04)))
@@ -545,11 +560,9 @@ def test_simulator_matches_the_cos_pricer_with_rates_switched_off():
         level = np.cumprod(paths.index_growth[:, :years], axis=1)[:, -1]
         for moneyness in (0.80, 1.00):
             strike = moneyness * forward
-            payoff = np.maximum(strike - level, 0.0)
-            half = payoff.size // 2
-            pairs = 0.5 * (payoff[:half] + payoff[half:])
+            pairs = paths.antithetic_pairs(np.maximum(strike - level, 0.0))
             monte_carlo = discount * float(pairs.mean())
-            std_error = discount * float(pairs.std(ddof=1) / np.sqrt(half))
+            std_error = discount * float(pairs.std(ddof=1) / np.sqrt(pairs.size))
             closed_form = float(cos_price(params, forward, np.array([strike]), float(years),
                                           discount, False, n_terms=512)[0])
             assert abs(monte_carlo - closed_form) < max(3.0 * std_error, 0.006 * closed_form)
@@ -602,6 +615,46 @@ def test_antithetic_pairs_are_found_inside_their_own_simulation_block():
     assert bare.antithetic_block == 0
     assert bare.antithetic_pairs(np.array([1.0, 2.0, 3.0, 4.0])).tolist() == [2.0, 3.0]
     assert replace(bare, antithetic=False).antithetic_pairs(np.arange(4.0)) is None
+
+
+def test_the_martingale_report_takes_its_error_across_the_right_pairs():
+    """The guard everything downstream rests on, measured against the right error bars.
+
+    `martingale_report` fails a simulator at a z-score of three, so its standard error is the
+    threshold and not a decoration. It took the first half of the path array against the second,
+    which pairs a path with an unrelated one from another simulation block - the same defect
+    `MarketPaths.antithetic_pairs` was written for, left in two more places. On the bond
+    identity, where the antithetic pairing is nearly perfect, the wrong pairing left the error
+    almost ten times too wide and every z-score about eight times too small. Nothing was ever
+    reported wrong by it; it simply could not have reported anything wrong.
+
+    So this asserts the direction that matters: on paths drawn in several blocks the reported
+    error is strictly tighter than the across-halves figure. A report that drifts back to the
+    old pairing cannot satisfy it.
+    """
+    curve, heston = _curve(), _heston()
+    model = HullWhite(a=0.27, sigma=0.0114, curve=curve)
+    block = 1_000
+    paths = simulate(heston, model, Correlations(-0.5, 0.0), SubAccountMix.all_equity(),
+                     n_years=3, n_paths=5 * block, seed=4, steps_per_year=4, chunk_paths=block)
+    assert paths.antithetic_block == block
+    report = martingale_report(paths, model, SubAccountMix.all_equity())
+
+    for year in range(paths.n_years):
+        sample = paths.discount[:, year]
+        half = sample.size // 2
+        across = 0.5 * (sample[:half] + sample[half:])
+        loose = float(across.std(ddof=1) / np.sqrt(half))
+        row = report[(report["quantity"] == "bond")
+                     & (report["maturity"] == float(year + 1))].iloc[0]
+        # The mean is pairing-invariant, which is exactly why this went unnoticed for so long.
+        assert float(row["estimate"]) == approx(float(across.mean()), rel=1e-12)
+        assert float(row["std_error"]) < 0.5 * loose, (
+            f"at maturity {year + 1} the report's error is {row['std_error']:.3e} against "
+            f"{loose:.3e} across halves, so the pairing has drifted back"
+        )
+
+    assert report["z_score"].abs().max() < 3.0
 
 
 def test_antithetic_sampling_needs_an_even_path_count():

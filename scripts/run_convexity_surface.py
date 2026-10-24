@@ -24,7 +24,10 @@ to the point at which the guarantee starts to bite. The first build of this surf
 show the far side of that bell, because every node is an anniversary state and the ratchet
 leaves no live anniversary with an account above its benefit base. The hedge sees moneyness
 above one on most days of a rising market, so the nodes near the base are now valued along a
-ladder of equity shifts that carries the curve to about 1.45.
+ladder of equity shifts aimed at a moneyness of 1.45, which is `nested.LADDER_TO`. The surface
+reaches 1.59, not 1.45: the rung count is a ceiling, so each node overshoots the target by part
+of one ten per cent bump. The lowest-starting nodes need the most rungs to get there, which is
+why the top two rungs carry 33 and 18 points against 43 on each of the first four.
 
 Usage:  python -m scripts.run_convexity_surface
 """

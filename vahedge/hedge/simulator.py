@@ -140,8 +140,10 @@ def daily_profit(net_worth: pd.Series, opening: float) -> pd.Series:
     The first row of any of these series is already after the hedge has been struck, so
     differencing it and filling the opening gap with zero asserts that the first day earned
     nothing - and the first day cost whatever the book cost to put on. The cost columns keep that
-    figure, so dropping it leaves the two halves of a frontier table covering different windows;
-    on the strategy holding one-year puts it was 0.11% of account value.
+    figure, so dropping it leaves the two halves of a frontier table covering different windows.
+    It was 0.11% of account value when this was found, on the one-year puts S3 held at the time;
+    the figure is from that configuration and no committed table carries a day-one cost, so it is
+    here as the order of magnitude and not as a number to reconcile.
 
     ``opening`` is the position before any of it: no cash and no book, so minus the liability on
     whichever basis the series is measured. Every basis in the project opens that way, which is

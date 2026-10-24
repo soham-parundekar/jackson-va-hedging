@@ -11,8 +11,8 @@ Where the rate shock is applied, and why not here. Item 7A describes a parallel 
 risk-free rates, and the obvious reading - shift the quoted par yields, bootstrap again - is
 the one a desk uses and the one this module does not implement. It cannot be applied to the
 curve the liability actually discounts on without re-fitting, and the re-fit is what spoils
-it: on the 31 December 2025 curve a 100bp par shift delivers 98.2bp of zero-rate shift at
-five years and 104.7bp at thirty, and the two legs of a central difference land on fits of
+it: on the 31 December 2025 curve a 100bp par shift bootstraps to 98.3bp of zero-rate shift at
+five years and 103.9bp at thirty, and the two legs of a central difference land on fits of
 different quality - 4.89 against 3.90 basis points of residual, where the unshocked fit sits
 at 4.37 - leaving over a basis point of asymmetry at forty-five years that the difference
 cannot see. A sensitivity measured that way is part market and part fitting algorithm.

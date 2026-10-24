@@ -450,3 +450,161 @@ def test_the_source_holds_to_its_own_whitespace_conventions():
                 problems.append(f"{where}:{top} has {blanks} blank lines above `{node.name}`")
 
     assert not problems, "\n".join([f"{len(problems)} whitespace departures:"] + problems)
+
+
+def test_the_prose_figures_still_round_to_what_the_tables_say():
+    """Docstring figures against the committed tables they describe.
+
+    Pass seventeen measured every number stated in one module's prose and found five wrong. Pass
+    eighteen did it across the package - 329 figures - and the great majority reproduce exactly:
+    `scenarios.py`'s seven rate-path figures, `curves.py`'s three fit residuals, `strategies.py`'s
+    six put-design figures, every filed figure taken off a 10-K or the rate sheet. Four did not,
+    and two of them mattered.
+
+    `cohorts.py` carried a blended withdrawal rate of 5.73% where both `docs/validation.md` and
+    `docs/limitations.md` already said 5.82% - a correction that propagated into the documents
+    and stopped at the module docstring. Worse, it said the vintage book's multiple over the
+    disclosure sits above the reference contract's, so "representativeness moves the multiple
+    up". Measured, the direction depends on the shock: the book takes the equity multiple down
+    and the rate multiple up, which is the same split `docs/validation.md` reaches from the other
+    side and the only part of the comparison worth knowing.
+
+    `reporting.py` stated the own-credit adjustment's path across the decade as -7.1 to +1.5 of
+    premium beside the risk margin's +1.7 to -0.5. The risk-margin half was exact and the
+    own-credit half was not, which is the shape of a figure that went stale while its neighbour
+    was updated.
+
+    Each assertion below pins the *rounding* the prose uses, so it fails when the underlying
+    value moves far enough to change the printed digit and stays quiet otherwise.
+    """
+    import pandas as pd
+
+    book = pd.read_csv(paths.TABLES / "portfolio_vs_disclosed.csv")
+    contract = pd.read_csv(paths.TABLES / "in_force_vs_disclosed.csv")
+    latest = book[book["as_of"] == "2025-12-31"].iloc[0]
+
+    assert round(float(latest["weighted_attained_age"]), 2) == 70.85
+    assert round(float(latest["weighted_gawa_pct"]), 2) == 5.82
+    assert [float(v) for v in (book["deferring_share"].iloc[0],
+                               book["deferring_share"].iloc[-1])] == [0.75, 0.40]
+
+    # Only the shocks with a disclosed figure at this date, which is equity both ways and rates
+    # at 100bp; the 50bp pair is disclosed in other years and not in this one.
+    equity = ("equity_up_10pct", "equity_down_10pct")
+    rates = ("rates_up_100bp", "rates_down_100bp")
+
+    def multiples(row, shocks):
+        return [float(row[f"model_{s}"]) / float(row[f"disclosed_{s}"]) for s in shocks]
+
+    reference = contract[(contract["as_of"] == "2025-12-31")
+                         & (contract["duration_basis"] == "anniversary on or before")].iloc[0]
+    book_equity, book_rates = multiples(latest, equity), multiples(latest, rates)
+    ref_equity, ref_rates = multiples(reference, equity), multiples(reference, rates)
+
+    together = book_equity + book_rates
+    assert [round(min(together), 1), round(max(together), 1)] == [2.3, 2.9], (
+        f"the vintage book's 2025 multiple now spans {min(together):.2f} to {max(together):.2f}, "
+        "and cohorts.py says 2.3 to 2.9"
+    )
+    assert [round(min(ref_equity), 1), round(max(ref_equity), 1)] == [3.1, 3.2]
+    assert [round(min(book_equity), 1), round(max(book_equity), 1)] == [2.3, 2.8]
+    assert round(min(ref_rates), 1) == round(max(ref_rates), 1) == 1.4
+    assert [round(min(book_rates), 1), round(max(book_rates), 1)] == [2.8, 2.9]
+
+    assert max(book_equity) < min(ref_equity), (
+        "cohorts.py says representativeness takes the equity multiple down; the book now sits at "
+        f"{min(book_equity):.2f}-{max(book_equity):.2f} against the contract's "
+        f"{min(ref_equity):.2f}-{max(ref_equity):.2f}"
+    )
+    assert min(book_rates) > max(ref_rates), (
+        "cohorts.py says it takes the rate multiple up; the book now sits at "
+        f"{min(book_rates):.2f}-{max(book_rates):.2f} against the contract's "
+        f"{min(ref_rates):.2f}-{max(ref_rates):.2f}"
+    )
+
+    daily = pd.read_csv(paths.TABLES / "reporting_lens_daily_s2.csv", parse_dates=["date"])
+    first, last = daily.iloc[0], daily.iloc[-1]
+    for column, opening, closing in (("risk_margin", 1.7, -0.5),
+                                     ("own_credit_adjustment", -4.8, 0.9)):
+        assert round(float(first[column]), 1) == opening, (
+            f"reporting.py says {column} opens at {opening}; it opens at {first[column]:.2f}")
+        assert round(float(last[column]), 1) == closing, (
+            f"reporting.py says {column} closes at {closing}; it closes at {last[column]:.2f}")
+    assert round(float(daily["own_credit_adjustment"].min()), 1) == -11.1
+
+    # The own-credit spread through the project's own covid episode, which is the window
+    # hedge_episodes.csv defines rather than a month picked by hand.
+    episodes = pd.read_csv(paths.TABLES / "hedge_episodes.csv")
+    covid = episodes[episodes["episode"] == "covid"].iloc[0]
+    window = daily[(daily["date"] >= covid["start"]) & (daily["date"] <= covid["end"])]
+    assert len(window) > 15
+    spread = 100.0 * window["own_credit_spread"]
+    assert [round(float(spread.min()), 1), round(float(spread.max()), 1)] == [1.2, 2.6]
+
+
+def test_every_path_the_prose_names_is_a_path_that_exists():
+    """The prose-name sweep pass fifteen ran for function names, run for file paths.
+
+    Pass fifteen found four docstrings citing a module member the project does not run and made
+    that a standing check. Paths went unchecked, and `vahedge/market/simulate.py` had been
+    telling readers for seventeen audit passes that its step-count comparison was regenerated by
+    a market-validation script under `scripts/`. No such script exists or ever did here, so the
+    three figures it was said to produce had no generator - and when re-measured they turned out
+    not to reproduce either, which is how the missing script and the wrong numbers were the same
+    finding. This test catches its own example, so the path is described rather than spelled.
+
+    Only fully qualified paths are checked, the ones beginning with a directory this repository
+    has. Bare basenames are how the prose refers to a neighbouring module - "sizing.py explains
+    what each one trades off" - and resolving those would mean guessing a directory, which turns
+    a sweep with no false positives into one with forty.
+
+    Generated inputs are exempt because a fresh clone does not have them: `data/processed` is
+    gitignored and built by `make calibrate` and `make convexity`. The tables and figures under
+    `reports/` are not exempt - they are committed, so a figure named in the prose and absent
+    from the repository is a broken reference.
+    """
+    import ast
+    import io
+    import tokenize
+
+    named = re.compile(r"(?<![\w/.])((?:vahedge|scripts|tests|docs|data|reports|notebooks"
+                       r"|references)/[\w./*-]*[\w*])")
+    built = ("data/processed", "data/interim")
+
+    def prose(path):
+        """Every comment and docstring in a module, or the whole of a markdown document."""
+        if path.suffix == ".md":
+            return [(1, path.read_text())]
+        found, text = [], path.read_text()
+        for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            if token.type == tokenize.COMMENT:
+                found.append((token.start[0], token.string))
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.ClassDef)):
+                doc = ast.get_docstring(node, clean=False)
+                if doc:
+                    found.append((getattr(node, "lineno", 1), doc))
+        return found
+
+    documents = (sorted(paths.ROOT.glob("vahedge/**/*.py"))
+                 + sorted(paths.ROOT.glob("scripts/*.py"))
+                 + sorted(paths.ROOT.glob("tests/*.py"))
+                 + sorted(paths.ROOT.glob("docs/*.md"))
+                 + [paths.ROOT / "README.md"])
+    assert len(documents) > 50, f"only {len(documents)} documents, so the sweep is not running"
+
+    checked, broken = set(), []
+    for document in documents:
+        for line, text in prose(document):
+            for match in named.finditer(text):
+                candidate = match.group(1).rstrip(".")
+                # A glob in the prose is a description of a set, not a path to resolve.
+                if "*" in candidate or candidate.startswith(built):
+                    continue
+                checked.add(candidate)
+                if not (paths.ROOT / candidate).exists():
+                    broken.append(f"{document.relative_to(paths.ROOT)}:{line} names {candidate}")
+
+    assert len(checked) > 30, f"only {len(checked)} qualified paths found; the regex has drifted"
+    assert not broken, "prose naming paths that do not exist:\n" + "\n".join(broken)

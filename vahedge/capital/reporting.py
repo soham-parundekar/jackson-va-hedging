@@ -37,15 +37,17 @@ move the equity drift as well and price a different contract. The liability's ca
 discounted at the risk-free rate times ``exp(-spread * t)`` on the same paths, so the dynamics
 stay risk-neutral and only the discounting moves. The spread itself is the Baa index scaled to
 the insurance subsidiaries' own credit, which `vahedge/market/scenarios.py` explains, and it moves
-daily - 0.8 to 2.6 per cent across the replay window, and 1.3 to 2.6 through covid alone - so the
+daily - 0.8 to 2.6 per cent across the replay window, and 1.2 to 2.6 through covid alone - so the
 liability is fitted at a grid of spread levels and read off by interpolation, rather than at one
 level and extrapolated.
 
 **Both differences flip sign when the market risk benefit does.** On this contract the benefit
 starts as a small net liability and ends the replay window as a large net asset, and discounting
 an asset at a higher rate shrinks it in magnitude rather than growing it. So the own-credit
-adjustment runs from -7.1 to +1.5 of premium across the decade and the risk margin from +1.7 to
--0.5. Neither is a bug and neither is a sign convention: the margin makes the living benefit
+adjustment runs from -4.8 of premium at the start of the window to +0.9 at the end, and the risk
+margin from +1.7 to -0.5. Both pass through zero on the way, and the own-credit piece reaches
+-11.1 at the covid trough, where a wide spread is applied to a liability that is still a
+liability. Neither is a bug and neither is a sign convention: the margin makes the living benefit
 dearer and the death benefit cheaper, and which way the net goes depends on whether the net is a
 liability at all.
 """

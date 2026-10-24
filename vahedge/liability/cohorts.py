@@ -17,7 +17,7 @@ to a disclosure date along the index history that actually happened and then add
 `combine`. That is
 what the filing's aggregate gets compared against, because the comparison needs properties a
 single policy cannot have: it reaches a weighted attained age of 70.85 against the disclosed 70,
-a blended withdrawal rate of 5.73%, and a deferring share that falls from 0.75 to 0.40 across
+a blended withdrawal rate of 5.82%, and a deferring share that falls from 0.75 to 0.40 across
 the four dates.
 
 Rolling rather than assuming is the point of doing it that way. Issue age, duration and
@@ -27,10 +27,17 @@ base and therefore its moneyness together. `scripts/run_portfolio_validation.py`
 construction and the issuance weights.
 
 What the vintage book does not do is close the gap to the filing, and claiming otherwise would be
-easy and wrong. On the four 2025 shocks it runs 2.3 to 2.8 times the disclosed figure where the
-reference contract runs 1.7 to 2.1, so representativeness moves the multiple *up*.
-`docs/validation.md` takes that apart: behaviour accounts for the rate half and moneyness for
-most of the equity half, and neither is a property of how many model points there are.
+easy and wrong. On the four 2025 shocks it runs 2.3 to 2.9 times the disclosed figure where the
+reference contract runs 1.4 to 3.2, and the difference does not go one way: on the equity shocks
+the contract runs 3.1 to 3.2 and the book 2.3 to 2.8, so representativeness takes the equity
+multiple *down*; on the rate shocks the contract runs 1.4 and the book 2.8 to 2.9, so it takes
+the rate multiple *up*. Averaging the two into one direction is what the earlier version of this
+paragraph did, and it hid the only part worth knowing.
+
+The split is the same one `docs/validation.md` reaches from the other side: behaviour accounts
+for the rate half and moneyness for most of the equity half. The book models moneyness directly,
+through the roll, and does not model behaviour at all, which is why it helps on one family and
+not the other. Neither is a property of how many model points there are.
 
 Phase matters enough to call out, since it is the one dimension that is not a market variable. A
 deferring contract is still earning a bonus, still eligible for the GWB adjustment that floors
