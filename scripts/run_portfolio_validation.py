@@ -236,7 +236,7 @@ def main() -> None:
     setup = build(cache_size=5)
     panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
     history = scenarios.load_history(panel, setup["calibration"].heston,
-                                    setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
+                                     setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
     disclosed = load_disclosed()
 
     attributions = vintage_attributions(setup["valuer"], panel, history,

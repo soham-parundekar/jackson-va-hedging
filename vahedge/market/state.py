@@ -215,4 +215,3 @@ def load(path=None) -> MarketCalibration:
             f"{path} does not exist; run `python -m scripts.run_calibration` to build it"
         )
     return MarketCalibration.from_json(path)
-

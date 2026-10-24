@@ -108,7 +108,8 @@ def test_the_derivative_table_covers_both_dates_of_every_filing_that_has_one():
         dates = set(block["as_of"])
         assert len(dates) == 2, f"FY{filing} derivative table covers {sorted(dates)}"
         for risk, rows in block.groupby("risk"):
-            assert set(rows["as_of"]) == dates, f"FY{filing} {risk} covers {sorted(set(rows['as_of']))}"
+            assert set(rows["as_of"]) == dates, (
+                f"FY{filing} {risk} covers {sorted(set(rows['as_of']))}")
 
 
 def test_the_overlapping_derivative_blocks_agree_across_filings():
@@ -117,7 +118,8 @@ def test_the_overlapping_derivative_blocks_agree_across_filings():
     totals = load_derivatives().query("level == 'total'")
     shared = totals.groupby(["as_of", "shock"])["impact_musd"].agg(["nunique", "size"])
     repeated = shared[shared["size"] > 1]
-    assert len(repeated) >= 8, f"expected at least 8 repeated derivative figures, got {len(repeated)}"
+    assert len(repeated) >= 8, (
+        f"expected at least 8 repeated derivative figures, got {len(repeated)}")
     assert int(repeated["nunique"].max()) == 1
 
 

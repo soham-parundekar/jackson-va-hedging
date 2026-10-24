@@ -124,7 +124,7 @@ def main() -> None:
     setup = build(cache_size=5)
     panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
     history = scenarios.load_history(panel, setup["calibration"].heston,
-                                    setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
+                                     setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
     disclosed = disclosed_at(TARGET_DATE)
 
     print(f"Reconciling against the {TARGET_DATE} disclosure, {setup['valuer'].n_paths:,} paths")

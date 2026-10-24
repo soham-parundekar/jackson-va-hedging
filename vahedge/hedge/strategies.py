@@ -196,7 +196,8 @@ def matrix() -> dict:
             instruments=with_puts, hedge_ratio=0.90,
         ),
         "S6": Strategy(
-            name="S6", description="S3 plus a two-year 80/60 macro put spread held outside the solve",
+            name="S6",
+            description="S3 plus a two-year 80/60 macro put spread held outside the solve",
             instruments=with_puts, overlay=macro_leg(),
         ),
     }

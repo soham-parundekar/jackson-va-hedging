@@ -92,6 +92,7 @@ def test_the_same_seed_draws_the_same_scenario_set():
 def test_a_long_block_mostly_walks_forward_and_a_one_day_block_does_not():
     """The mean block length is the only parameter, so it had better do something."""
     path = _labelled_path(n=400)
+
     def share_consecutive(mean_block: float) -> float:
         drawn = stationary_bootstrap(path, n_days=300, n_paths=20, seed=5, mean_block=mean_block)
         return float(np.mean(np.diff(drawn, axis=1) == 1))

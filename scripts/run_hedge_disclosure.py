@@ -349,7 +349,8 @@ def main() -> None:
             spread = pair["offset_of_guarantee"].max() - pair["offset_of_guarantee"].min()
             model_spread = (pair["model_offset_S2"].max() - pair["model_offset_S2"].min())
             print(f"  rates {direction} at 2024-12-31, 50bp against 100bp: the disclosed ratio "
-                  f"moves {spread:.1%} and a full hedge of the model's liability {model_spread:.1%}")
+                  f"moves {spread:.1%} and a full hedge of the model's liability "
+                  f"{model_spread:.1%}")
     # The headline the table exists to produce. A ratio below one is not evidence of a partial
     # hedge on its own, so the gap is quoted against the model's own full hedge rather than
     # against one: S2 kills delta and rho together, which is what the disclosed programme says

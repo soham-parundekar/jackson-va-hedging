@@ -363,7 +363,7 @@ def run(
             position_rows.append({
                 "date": path.dates[day],
                 **{f"units_{name}": line.units
-                   for name, line in zip(_names([l.instrument for l in book]), book)},
+                   for name, line in zip(_names([held.instrument for held in book]), book)},
                 "target_delta": solved.target.delta,
                 "achieved_delta": solved.achieved.delta,
                 "target_rho": solved.target.rho,

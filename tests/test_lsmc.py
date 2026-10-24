@@ -346,7 +346,8 @@ def test_the_value_between_anniversaries_brackets_the_post_and_pre_event_fits():
     state = dict(account_value=90.0, benefit_base=130.0, variance=0.03, zero_10y=0.045)
     at_eight = proxy.greeks(7, **state)["value"][0]       # the fit keyed 7 applies at year 8
     before_nine = proxy.greeks(8, **state, pre_event=True)["value"][0]
-    assert approx(0.5 * (at_eight + before_nine), rel=1e-12) == proxy.greeks_at(8.5, **state)["value"][0]
+    assert (approx(0.5 * (at_eight + before_nine), rel=1e-12)
+            == proxy.greeks_at(8.5, **state)["value"][0])
     assert approx(at_eight, rel=1e-12) == proxy.greeks_at(8.0, **state)["value"][0]
     assert approx(proxy.greeks(8, **state)["value"][0], rel=1e-12) == (
         proxy.greeks_at(9.0, **state)["value"][0]

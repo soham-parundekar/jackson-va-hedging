@@ -192,12 +192,12 @@ def floored_reserve(
     following the account value, so its derivative with respect to equity changes sign. The hedge
     is short equity against a guarantee that gets cheaper as markets rise; the floored reserve
     rises instead of falling, so the hedge loss is realised against a reserve that does not
-    release. This returns the reserve and whether the floor binds, and the sign change is demonstrated on a
-    ledger rather than asserted: two runs differing only in the guarantee give the same statutory
-    capital once the floor is binding and different economic capital, which is the whole of the
-    effect. It used to return two delta columns as well, which nothing outside a test ever read
-    and whose comment claimed the unfloored one carried the guarantee's own delta while the code
-    returned a bare one.
+    release. This returns the reserve and whether the floor binds, and the sign change is
+    demonstrated on a ledger rather than asserted: two runs differing only in the guarantee give
+    the same statutory capital once the floor is binding and different economic capital, which is
+    the whole of the effect. It used to return two delta columns as well, which nothing outside a
+    test ever read and whose comment claimed the unfloored one carried the guarantee's own delta
+    while the code returned a bare one.
     """
     guarantee = np.asarray(guarantee_reserve, dtype=float)
     account = np.asarray(account_value, dtype=float)

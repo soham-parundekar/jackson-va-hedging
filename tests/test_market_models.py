@@ -235,9 +235,9 @@ def test_characteristic_function_is_one_at_zero():
 
 def test_skewness_from_the_characteristic_function_matches_a_simulated_sample():
     """The skew check run beside the calibration reads a third moment off the characteristic
-    function,
-    and the simulator reaches the same number by a completely different route. Across ten seeds
-    at this path count the sample skewness scatters with a standard deviation of 0.046 and sits
+    function, and the simulator reaches the same number by a completely different route. Across
+    ten seeds at this path count the sample skewness scatters with a standard deviation of 0.046
+    and sits
     no further than 0.085 from the closed form, so the tolerance here is wide enough to be
     quiet and far too tight to survive a sign error or a mis-scaled rho."""
     params = _heston()
@@ -281,18 +281,136 @@ def test_skewness_steepens_as_the_leverage_correlation_does():
 
 def test_skewness_does_not_depend_on_the_difference_step():
     """The default step is the middle of a flat region. A step that drifts out of it would move
-    the number without failing anything, so pin the width of the region rather than the value."""
+    the number without failing anything, so pin the width of the region rather than the value.
+
+    The region's edges are pinned too, and that half is the newer one: the docstring used to
+    claim the number was flat to six figures four decades either side of the default, and it is
+    flat over about one decade. Four decades below, the third difference has lost the
+    cancellation entirely - the second difference comes back negative and the function refuses
+    rather than return a skewness built on it. Asserting where the flatness stops is what keeps
+    that claim from being made again.
+    """
     params = _heston()
     reference = log_return_skewness(params, 30.0 / 365.0)
     for step in (1e-2, 3e-3, 3e-4, 1e-4):
         assert log_return_skewness(params, 30.0 / 365.0, step=step) == approx(reference, rel=1e-4)
+
+    with raises(ValueError, match="non-positive variance"):
+        log_return_skewness(params, 30.0 / 365.0, step=1e-7)
+    far = log_return_skewness(params, 30.0 / 365.0, step=1e-6)
+    assert abs(far / reference - 1.0) > 1e-2, (
+        f"a step a thousandth of the default agreed to {abs(far / reference - 1.0):.1e}, so the "
+        "flat region is wider than the docstring now says and the prose needs remeasuring"
+    )
+
+
+def test_the_parity_guard_has_less_headroom_than_it_reads_like():
+    """Both sides of the tolerance, because only one of them had ever been checked.
+
+    `test_cos_call_and_put_satisfy_parity_across_the_fit_bounds` asserts the gap stays under
+    PARITY_TOLERANCE. Nothing asserted it stays anywhere near it, and the comment beside the
+    constant claimed four orders of magnitude of headroom when the true figure is a factor of
+    seven - at the 0.39-year expiry the direct call sits 0.137 basis points of the forward from
+    parity against a tolerance of one. That matters in one direction only, and it is the
+    direction a well-meaning change goes: dropping the term count or tightening the truncation
+    costs accuracy here, and at a factor of seven the guard starts substituting parity on quotes
+    that were being priced directly - silently, since parity is a legitimate answer.
+
+    So this fails if the gap grows past a third of the tolerance, and also if someone widens the
+    tolerance far enough that it stops discriminating.
+    """
+    from vahedge.market.heston_cos import PARITY_TOLERANCE
+
+    params, forward = _heston(), 7702.53
+    strikes = forward * np.array([0.75, 0.85, 0.95, 1.00, 1.05, 1.10])
+    worst = 0.0
+    for maturity in (0.049315, 0.142466, 0.391781, 1.0, 2.0, 3.230137, 5.227397):
+        discount = float(np.exp(-0.04 * maturity))
+        call = cos_price(params, forward, strikes, maturity, discount, True, n_terms=192)
+        put = cos_price(params, forward, strikes, maturity, discount, False, n_terms=192)
+        gap = np.abs(call - put - discount * (forward - strikes)) / (discount * forward)
+        worst = max(worst, float(gap.max()))
+
+    assert worst == approx(1.3708e-05, rel=0.02), (
+        f"the direct call's worst distance from parity moved to {worst:.4e} of the forward"
+    )
+    assert worst < PARITY_TOLERANCE / 3.0, (
+        f"the gap is {worst:.2e} against a tolerance of {PARITY_TOLERANCE:.0e}, so the guard is "
+        "close enough to firing that parity may be standing in for quotes that do not need it"
+    )
+    assert PARITY_TOLERANCE < 100 * worst, (
+        f"a tolerance of {PARITY_TOLERANCE:.0e} against a gap of {worst:.2e} is slack enough "
+        "that a badly conditioned call would pass the check"
+    )
+
+
+def test_the_put_floor_is_reached_inside_the_fit_bounds():
+    """The floor in `cos_price` is a live branch, not a defensive one.
+
+    Three audit passes found a public function with no caller and a docstring citing it as the
+    reason for a convention, so a guarded branch whose guard never fires is worth proving one way
+    or the other. Over a grid on the fit's own bounds, at the strikes and expiries this chain
+    has, the expansion comes out under the put's intrinsic value at three and a half per cent of
+    the points, the worst of them 229 index points under - which is the number the comment beside
+    the floor now quotes. The old comment said forty-five.
+
+    The floored output is checked at every point as well, so this covers the branch's effect and
+    not only its reachability.
+    """
+    from vahedge.market.heston_cos import DEFAULT_BOUNDS, _cumulants, _put_coefficients
+
+    def expansion_only(params, forward, strikes, maturity, discount, n_terms=192):
+        """The put before the floor, rebuilt from the same pieces cos_price uses."""
+        c1, c2 = _cumulants(params, maturity)
+        width = 12.0 * np.sqrt(abs(c2))
+        x = np.log(forward / strikes)
+        lower, upper = x + c1 - width, x + c1 + width
+        k = np.arange(n_terms)
+        u = k[None, :] * np.pi / (upper - lower)[:, None]
+        with np.errstate(over="ignore", invalid="ignore"):
+            density = characteristic_function(u, params, maturity)
+            unit = np.real(density * np.exp(1j * u * (x[:, None] - lower[:, None])))
+            unit[:, 0] *= 0.5
+            return discount * np.sum(unit * _put_coefficients(lower, upper, k), axis=1) * strikes
+
+    forward = 7702.53
+    strikes = forward * np.array([0.75, 0.85, 0.95, 1.00, 1.05, 1.10])
+    grid = itertools.product(
+        (DEFAULT_BOUNDS["v0"][0], 0.08, DEFAULT_BOUNDS["v0"][1]),
+        (DEFAULT_BOUNDS["kappa"][0], 1.0, DEFAULT_BOUNDS["kappa"][1]),
+        (DEFAULT_BOUNDS["theta"][0], 0.20, DEFAULT_BOUNDS["theta"][1]),
+        (DEFAULT_BOUNDS["xi"][0], 1.78, DEFAULT_BOUNDS["xi"][1]),
+        (DEFAULT_BOUNDS["rho"][0], -0.5, DEFAULT_BOUNDS["rho"][1]),
+    )
+    under, evaluated, worst = 0, 0, 0.0
+    for v0, kappa, theta, xi, rho in grid:
+        params = HestonParameters(v0=v0, kappa=kappa, theta=theta, xi=xi, rho=rho)
+        for maturity in (0.142466, 0.391781, 1.0, 3.230137):
+            discount = float(np.exp(-0.04 * maturity))
+            intrinsic = discount * np.maximum(strikes - forward, 0.0)
+            shortfall = expansion_only(params, forward, strikes, maturity, discount) - intrinsic
+            floored = cos_price(params, forward, strikes, maturity, discount, False, n_terms=192)
+            assert np.all(floored >= intrinsic - 1e-9), f"floor failed at {params}, T={maturity}"
+            evaluated += len(strikes)
+            under += int((shortfall < -1e-9).sum())
+            worst = min(worst, float(np.nanmin(shortfall)))
+
+    share = under / evaluated
+    assert 0.02 < share < 0.06, (
+        f"the floor binds at {share:.1%} of {evaluated} points, against the three and a half "
+        "per cent the comment in cos_price quotes"
+    )
+    assert worst == approx(-228.8, rel=0.02), (
+        f"the worst shortfall under intrinsic moved to {worst:.1f} index points"
+    )
 
 
 def test_implied_vol_inverts_black76():
     forward, strike, maturity, discount = 7702.53, 6500.0, 1.5, 0.94
     for vol in (0.10, 0.22, 0.45):
         price = float(black76(forward, strike, maturity, vol, discount, False))
-        assert implied_vol(price, forward, strike, maturity, discount, False) == approx(vol, abs=1e-6)
+        assert implied_vol(price, forward, strike, maturity,
+                           discount, False) == approx(vol, abs=1e-6)
 
 
 def test_implied_vol_returns_nan_outside_the_arbitrage_bounds():

@@ -22,7 +22,7 @@ def test_the_p_value_matches_a_known_case():
 
 
 def test_the_p_value_rises_as_the_sample_shrinks():
-    """The same coefficient on four observations says nothing, which is the point of reporting it."""
+    """The same coefficient on four observations says nothing, which is why it is reported."""
     assert replica.two_sided_p(-0.821, 4) > 0.2
     assert replica.two_sided_p(-0.821, 40) < 0.001
 

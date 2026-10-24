@@ -286,9 +286,8 @@ def project(
             proportional = 1.0 - np.clip(excess / remaining, 0.0, 1.0)
             rollup_base = (rollup_base - dollar_part) * proportional
             if np.any(ratchets):
-                ratchet_base = ratchet_base * (
-                    1.0 - np.clip(from_account / np.maximum(account_before_withdrawal, 1e-12), 0.0, 1.0)
-                )
+                ratchet_base = ratchet_base * (1.0 - np.clip(
+                    from_account / np.maximum(account_before_withdrawal, 1e-12), 0.0, 1.0))
 
         if np.any(step_up):
             # The Bonus Base moves only when the step-up itself lifts the GWB, which the

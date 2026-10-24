@@ -158,8 +158,8 @@ def margin_map(
             rows.append({
                 "issue_age": issue_age,
                 "deferral_end_age": deferral_end,
-                "first_withdrawal_age": int(book.attained_age[0])
-                                        + int(book.deferral_years[0]) + 1,
+                "first_withdrawal_age": (int(book.attained_age[0])
+                                         + int(book.deferral_years[0]) + 1),
                 "gawa_pct": float(book.gawa_pct[0]),
                 "charged_pct": result.charged,
                 "fair_pct": result.fair,

@@ -149,7 +149,7 @@ def rolled_states(history, terms, equity_weight: float) -> dict:
             int(at_issue.projection_years.max()), 0.5,
         )
         rolled = simulator.roll_contract(at_issue, window, survival, deaths,
-                                        equity_weight=equity_weight)
+                                         equity_weight=equity_weight)
         daily = simulator.daily_state(window, rolled, at_issue, PREMIUM, PREMIUM)
         elapsed = float(window.year_fraction[-1])
         out[target] = {
@@ -265,7 +265,7 @@ def locate_disclosure_on_curve(profile: pd.DataFrame, disclosed: pd.DataFrame) -
                 "model_range_low": curve[column].min(),
                 "model_range_high": curve[column].max(),
                 "implied_gwb_over_av": (float(np.interp(target, curve[column],
-                                                       curve["gwb_over_av"]))
+                                                        curve["gwb_over_av"]))
                                         if inside else np.nan),
                 "within_model_range": inside,
             })
@@ -321,7 +321,7 @@ def main() -> None:
     setup = build(cache_size=5)
     panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
     history = scenarios.load_history(panel, setup["calibration"].heston,
-                                    setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
+                                     setup["calibration"].mix, dividend_yield=DIVIDEND_YIELD)
     disclosed = load_disclosed()
 
     print("Disclosed sensitivities, scaled by variable annuity account value (%)")
@@ -404,6 +404,7 @@ def main() -> None:
     disclosed_rate = float(comparable["disclosed_rates_up_100bp"].mean())
     disclosed_equity = float(comparable["disclosed_equity_down_10pct"].mean())
     rate_curve, equity_curve = diagnostic, diagnostic
+
     def monotone_branch(curve: pd.DataFrame, column: str) -> pd.DataFrame:
         """The part of the diagnostic where the response still moves with the withdrawal rate.
 

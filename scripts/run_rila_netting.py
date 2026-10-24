@@ -432,9 +432,10 @@ def main() -> None:
               f"{row['filed_over_model']:7.3f}")
 
     span = surface["equity_exposure_pct_of_account"]
+    per_unit = sweep["model_rila_exposure_per_unit"]
     print(f"\n  Across every term position and index level a segment can occupy, and every cap on "
           f"the swept grid, the exposure spans a factor of "
-          f"{sweep['model_rila_exposure_per_unit'].max() / sweep['model_rila_exposure_per_unit'].min():.1f} "
+          f"{per_unit.max() / per_unit.min():.1f} "
           f"as a book and {span.max() / span.min():.1f} as a single segment. The filed line's "
           f"equity sensitivity moved by a factor of 330 between two consecutive year-ends.")
 

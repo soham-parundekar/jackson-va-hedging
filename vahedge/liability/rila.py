@@ -302,9 +302,10 @@ def equity_exposure(
         "equity_exposure_pct_of_account": (up - down) / span / account_value,
         "equity_up_10pct": shocked_up - base["embedded_derivative"],
         "equity_down_10pct": shocked_down - base["embedded_derivative"],
-        "equity_up_10pct_pct_of_account": (shocked_up - base["embedded_derivative"]) / account_value,
-        "equity_down_10pct_pct_of_account": (shocked_down - base["embedded_derivative"])
-                                            / account_value,
+        "equity_up_10pct_pct_of_account": (
+            (shocked_up - base["embedded_derivative"]) / account_value),
+        "equity_down_10pct_pct_of_account": (
+            (shocked_down - base["embedded_derivative"]) / account_value),
         "share_capped": base["share_capped"],
         "share_through_buffer": base["share_through_buffer"],
         "std_error": base["std_error"],

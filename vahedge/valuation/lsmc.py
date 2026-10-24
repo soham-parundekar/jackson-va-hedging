@@ -799,4 +799,3 @@ def _fit_year(moneyness, volatility, rate, claim_target, fee_target, fit_rows, r
         min_support=max(MIN_SUPPORT_ROWS, MIN_SUPPORT_SHARE * fit_rows.sum()),
         n_exhausted=int((live[fit_rows] == False).sum()),  # noqa: E712 - count, not a filter
     )
-

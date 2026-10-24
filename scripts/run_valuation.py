@@ -261,7 +261,7 @@ def robustness(setup) -> pd.DataFrame:
     rows.append(price(
         "sub-account all equity", "against the FY2025 fund mix's 0.83 equity exposure",
         where=replace(state, mix=SubAccountMix(equity=1.0, bond=0.0, balanced=0.0,
-                                              money_market=0.0)),
+                                               money_market=0.0)),
         design=True,
     ))
 

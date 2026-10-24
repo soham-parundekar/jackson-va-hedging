@@ -57,7 +57,6 @@ class HestonParameters:
         return float(np.sqrt(self.theta))
 
 
-
 def characteristic_function(u, params: HestonParameters, maturity: float) -> np.ndarray:
     """E[exp(i*u*log(S_T/S_0))] under Q, excluding the drift.
 
@@ -103,8 +102,14 @@ def log_return_skewness(params: HestonParameters, maturity: float, step: float =
     cumulant expression, because the second cumulant already in this file is the truncation
     approximation from the COS literature and sits 5.2 per cent away from the true value at thirty
     days, 0.7 at a year - harmless for setting an integration range, wrong for a third
-    standardised moment at the tenor this is used on. The default step is flat to six figures
-    across four decades either side of it.
+    standardised moment at the tenor this is used on.
+
+    The step is not a free parameter and the flat region is narrower than a differencing step
+    usually is. At the calibrated parameters the thirty-day skewness holds to six figures only
+    between about 5e-4 and 5e-3, and to four figures from 3e-5 to 5e-2; below that the
+    cancellation in the third difference takes over, and at 1e-7 the second difference comes
+    back negative and this raises rather than return a skewness built on it. The default sits in
+    the middle of the four-figure window, which is what the test pins.
 
     Drift is excluded from the characteristic function, which costs nothing here: shifting a
     distribution leaves its skewness alone.
@@ -141,7 +146,8 @@ def _cumulants(params: HestonParameters, maturity: float) -> tuple[float, float]
         xi * t * kappa * ekt * (v0 - theta) * (8.0 * kappa * rho - 4.0 * xi)
         + kappa * rho * xi * (1.0 - ekt) * (16.0 * theta - 8.0 * v0)
         + 2.0 * theta * kappa * t * (-4.0 * kappa * rho * xi + xi**2 + 4.0 * kappa**2)
-        + xi**2 * ((theta - 2.0 * v0) * np.exp(-2.0 * kappa * t) + theta * (6.0 * ekt - 7.0) + 2.0 * v0)
+        + xi**2 * ((theta - 2.0 * v0) * np.exp(-2.0 * kappa * t)
+                   + theta * (6.0 * ekt - 7.0) + 2.0 * v0)
         + 8.0 * kappa**2 * (v0 - theta) * (1.0 - ekt)
     )
     return float(c1), float(c2)
@@ -169,8 +175,8 @@ def cos_price(
     the probability mass outside the range. The call's integrates exp(y) over the part above
     zero, so it evaluates exp of the range's upper edge: the coefficients come out enormous and
     the sum over terms has to cancel them back down to a price of order one. Inside this
-    project's own calibrated region that costs nothing - the two agree to about a hundredth of
-    a basis point of the forward - but over the whole box the calibration is free to search, the
+    project's own calibrated region that costs nothing - the two agree to about a tenth of a
+    basis point of the forward - but over the whole box the calibration is free to search, the
     direct call broke put-call parity by more than a basis point of the forward at a third of
     the corners tested, returned a negative price at a sixth of them, and overflowed to NaN at
     the far ones. A negative option price steering a least-squares fit is the kind of defect
@@ -208,9 +214,11 @@ def cos_price(
         return discount * np.sum(unit * coefficients, axis=1) * strikes
 
     # The expansion can come out under the payoff's own arbitrage floor when the truncation
-    # range is too narrow for the density - at a variance process with almost no mean reversion
-    # and a large volatility of variance the second cumulant stops describing the spread, and a
-    # deep in-the-money put forty-five points under its intrinsic value is what that looks like.
+    # range is too narrow for the density - at a dispersed enough variance process the second
+    # cumulant stops describing the spread, and a put ten per cent in the money coming out two
+    # hundred and thirty index points under its intrinsic value is what that looks like. On a
+    # grid over the fit's own bounds, at the strikes and expiries this chain has, it happens at
+    # three per cent of the points, so the branch below is reached rather than defensive.
     # Floored rather than raised on, because the floor is the correct bound and because a
     # least-squares search that walks through such a corner should get a usable residual rather
     # than an exception. Flooring the put and taking the call off parity keeps both sides
@@ -239,9 +247,13 @@ def cos_price(
 
 
 # How far the direct call may sit from parity before the expansion is judged to have lost the
-# cancellation and parity is used instead. A basis point of the forward: four orders of
-# magnitude above where the two sit on this chain, and four below where the direct branch
-# starts returning prices of the wrong sign.
+# cancellation and parity is used instead. A basis point of the forward, and the headroom is
+# thinner than that sounds: on this chain the direct value's worst distance from parity is 0.14
+# basis points, so the guard sits a factor of seven from firing rather than orders of magnitude
+# away, and a smaller term count or a tighter truncation would start substituting parity on
+# quotes that do not need it. The distance is not what detects a wrong sign either - a deep
+# out-of-the-money call worth almost nothing can come back slightly negative at any distance at
+# all - which is why the arbitrage floor and the overflow are tested on their own below.
 PARITY_TOLERANCE = 1e-4
 
 
@@ -255,6 +267,8 @@ def _call_coefficients(lower, upper, k) -> np.ndarray:
     """Cosine coefficient of the call payoff, in units of the strike."""
     chi, psi = _chi_psi(lower, upper, np.zeros_like(lower), upper, k)
     return 2.0 / (upper - lower)[:, None] * (chi - psi)
+
+
 def _chi_psi(lower, upper, c, d, k) -> tuple[np.ndarray, np.ndarray]:
     """The two analytic integrals behind the payoff coefficients.
 
@@ -363,9 +377,9 @@ def calibrate(
 
     ``quotes`` is a DataFrame with columns maturity, strike, forward, discount, is_call,
     price and vega. Errors are weighted by one over vega, which turns a price error into an
-    approximate volatility error: a far out-of-the-money option worth eighty cents and an
-    at-the-money option worth four hundred dollars then count roughly equally, which is what
-    a fit meant to reproduce a surface should do. Weighting prices directly would fit the
+    approximate volatility error: the cheapest quote the cleaning leaves in, worth three dollars
+    and change, and an at-the-money option worth four hundred then count roughly equally, which
+    is what a fit meant to reproduce a surface should do. Weighting prices directly would fit the
     at-the-money options and ignore the tail that this liability lives in.
 
     Several starts are run because the objective has local minima that differ mainly in how

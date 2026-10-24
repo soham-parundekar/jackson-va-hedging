@@ -384,3 +384,69 @@ def test_the_notebook_carries_no_stored_output():
     carrying = [i for i, cell in enumerate(cells)
                 if cell.get("outputs") or cell.get("execution_count")]
     assert not carrying, f"notebook cells with stored output or an execution count: {carrying}"
+
+
+def test_the_source_holds_to_its_own_whitespace_conventions():
+    """The sweep for a class of drift that no behavioural test can see.
+
+    Pass seventeen read `vahedge/market/heston_cos.py` end to end for the first time - the one
+    module sixteen passes had only ever sampled - and the two things wrong with it were a
+    missing blank line between `_call_coefficients` and `_chi_psi` and a run of three where the
+    file uses two. Neither moves a number, which is exactly why nothing had caught them. Widened
+    to the whole tree it turned up twenty-nine more: fifteen lines past a hundred characters
+    against a body of code whose ninety-ninth percentile is ninety-seven, two files ending on a
+    blank line where forty do not, six continuation lines each sitting one column short of the
+    bracket above them, and a loop variable named `l`.
+
+    The conventions asserted here are the ones the repository already keeps, read off its own
+    distribution rather than imported from a style guide. Continuation-line alignment and the
+    single-character name are left out: one needs a tokeniser to judge and the other is a single
+    past slip, and a test that re-implements half a linter is a liability of its own.
+    """
+    import ast
+
+    sources = (sorted(paths.ROOT.glob("vahedge/**/*.py"))
+               + sorted(paths.ROOT.glob("scripts/*.py"))
+               + sorted(paths.ROOT.glob("tests/*.py")))
+    assert len(sources) > 40, f"only found {len(sources)} source files, so the sweep is not running"
+
+    problems = []
+    for path in sources:
+        where = path.relative_to(paths.ROOT)
+        raw = path.read_text()
+        lines = raw.split("\n")
+
+        for number, line in enumerate(lines, start=1):
+            if len(line) > 100:
+                problems.append(f"{where}:{number} is {len(line)} characters")
+
+        if raw.endswith("\n\n"):
+            problems.append(f"{where} ends on a blank line")
+        elif raw and not raw.endswith("\n"):
+            problems.append(f"{where} has no final newline")
+
+        run = 0
+        for number, line in enumerate(lines, start=1):
+            run = run + 1 if line.strip() == "" else 0
+            if run == 3:
+                problems.append(f"{where}:{number - 2} starts a run of three blank lines")
+
+        # Two blank lines above every top-level definition, measured above any decorator and
+        # above a comment block that sits flush against it, since such a block is part of the
+        # definition rather than something between it and the code before.
+        tree = ast.parse(raw)
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            top = min([node.lineno] + [d.lineno for d in node.decorator_list])
+            index = top - 2
+            while index >= 0 and lines[index].startswith("#"):
+                index -= 1
+            blanks = 0
+            while index >= 0 and lines[index].strip() == "":
+                blanks += 1
+                index -= 1
+            if index >= 0 and blanks != 2:
+                problems.append(f"{where}:{top} has {blanks} blank lines above `{node.name}`")
+
+    assert not problems, "\n".join([f"{len(problems)} whitespace departures:"] + problems)

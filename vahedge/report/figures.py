@@ -269,9 +269,11 @@ def leg_comparison(name: str = "leg_comparison") -> str:
         ax.set_xlabel("strategy")
 
     unhedged = base[base["strategy"] == "S0"]["pnl_sd_pct"]
-    removed = ("" if unhedged.empty else
-               f", removing {100 * (1 - (base['pnl_sd_pct'].min() / float(unhedged.iloc[0])) ** 2):.1f}% "
-               f"of the variance between them")
+    if unhedged.empty:
+        removed = ""
+    else:
+        share = 1 - (base["pnl_sd_pct"].min() / float(unhedged.iloc[0])) ** 2
+        removed = f", removing {100 * share:.1f}% of the variance between them"
     fig.suptitle(f"Each instrument class takes out less than the one before{removed}, "
                  f"and the option leg is where the cost is")
     fig.tight_layout()

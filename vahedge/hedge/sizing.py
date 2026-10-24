@@ -260,7 +260,8 @@ def effectiveness(exposure: Exposures, positions: HedgePositions,
     for name, start, end in zip(Exposures.ORDER, before, after):
         out[f"{name}_before"] = float(start)
         out[f"{name}_after"] = float(end)
-        out[f"{name}_removed"] = float(1.0 - abs(end) / abs(start)) if abs(start) > 1e-12 else np.nan
+        out[f"{name}_removed"] = (float(1.0 - abs(end) / abs(start))
+                                  if abs(start) > 1e-12 else np.nan)
     weights = np.asarray(weights, dtype=float)
     out["weighted_norm_before"] = float(np.linalg.norm(weights * before))
     out["weighted_norm_after"] = float(np.linalg.norm(weights * after))

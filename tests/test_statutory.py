@@ -242,7 +242,7 @@ def test_a_rally_with_the_floor_binding_leaves_the_hedge_loss_unoffset():
 
 
 def test_the_basis_gap_does_not_depend_on_the_hedge():
-    """Which is why it is not the cost of hedging, and the first version of the experiment was wrong.
+    """Which is why it is not the cost of hedging, and why the first experiment was wrong.
 
     The hedge mark is in both capital series, so it cancels out of the difference and the gap
     comes out identical for an unhedged book and a hedged one. The experiment reported the same
