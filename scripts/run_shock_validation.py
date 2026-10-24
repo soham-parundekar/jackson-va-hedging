@@ -193,7 +193,7 @@ def in_force_comparison(setup, disclosed: pd.DataFrame, panel, history) -> pd.Da
 
     states = rolled_states(history, terms, setup["state"].mix.equity_weight)
     rows = []
-    for target, rolled in states.items():
+    for _, rolled in states.items():
         state = market_at(panel, history, calibration, rolled["date"])
         elapsed = rolled["elapsed_years"]
         for duration, label in ((int(np.floor(elapsed)), "anniversary on or before"),

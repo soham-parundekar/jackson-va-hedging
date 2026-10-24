@@ -608,3 +608,128 @@ def test_every_path_the_prose_names_is_a_path_that_exists():
 
     assert len(checked) > 30, f"only {len(checked)} qualified paths found; the regex has drifted"
     assert not broken, "prose naming paths that do not exist:\n" + "\n".join(broken)
+
+
+def test_nothing_is_introduced_and_then_left_unused():
+    """Locals and imports the code creates and never reads, which closes a hole in the sweep
+    above.
+
+    `test_every_public_function_in_the_library_is_called_from_somewhere` counts mentions of a
+    name across the repository, and a mention is cheap. `curves.flat_curve` satisfied it for
+    nineteen passes on the strength of one line in a test - `curve = flat_curve(0.04)`, followed
+    a few lines later by `del curve`, with the value never used and the delete there to stop
+    anything noticing. A dead call is a mention. So the orphan sweep needs this one beside it:
+    a call whose result is thrown away shows up here as a dead local, and the two together
+    cannot both be satisfied by the same trick.
+
+    What the same sweep found on its first run, besides that one:
+
+    - `_choose_smoothing` accumulated a standard error per grid point and a coefficient vector
+      per grid point, returned neither, and had done so since the one-standard-error rule it
+      was written for was measured and dropped. Its summary line still said it selected by that
+      rule, which is the opposite of what the body does and explains.
+    - four tuple unpacks and a loop key left bound to a name the function does not use, where
+      the repository's own convention elsewhere is to unpack those into `_`.
+    - an alias, `state = calibration`, surviving a rename.
+    - two private imports in a test carrying `# noqa: F401  (used below)`, used nowhere below.
+      The suppression was load-bearing: it turned off the one check that would have said so.
+
+    A list that is only ever appended to counts as dead, because `x.append(v)` reads `x` and
+    would otherwise satisfy any check that looks for a read. Arguments are out of scope - an
+    unused parameter is often an interface obligation - and so is anything named with a leading
+    underscore, which is how this repository already says "deliberately discarded".
+    """
+    import ast
+    import collections
+
+    nested = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+    sources = (sorted(paths.ROOT.glob("vahedge/**/*.py"))
+               + sorted(paths.ROOT.glob("scripts/*.py"))
+               + sorted(paths.ROOT.glob("tests/*.py")))
+    assert len(sources) > 40, f"only {len(sources)} source files, so the sweep is not running"
+
+    def own_stores(function):
+        """Names stored in this function's own scope, skipping nested scopes.
+
+        A class body inside a function assigns attributes, not locals, and a nested function
+        assigns its own; counting either as a local of the enclosing function is how a first
+        version of this reported four tests' fake projections as dead.
+        """
+        found = collections.defaultdict(list)
+
+        def walk(node):
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, nested):
+                    continue
+                if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                    found[child.id].append(child.lineno)
+                walk(child)
+
+        for statement in function.body:
+            if not isinstance(statement, nested):
+                walk(statement)
+        return found
+
+    def reads(function):
+        """Names read as a value, and names only ever appended to, anywhere in the body.
+
+        Loads are counted inside nested scopes as well as outside, because a closure reading an
+        enclosing local is a genuine use of it.
+        """
+        loads, appends = collections.Counter(), collections.Counter()
+
+        class Visitor(ast.NodeVisitor):
+            def visit_Call(self, node):
+                target = node.func
+                if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                        and target.attr in {"append", "extend"}):
+                    appends[target.value.id] += 1
+                    for argument in node.args:
+                        self.visit(argument)
+                    for keyword in node.keywords:
+                        self.visit(keyword.value)
+                    return
+                self.generic_visit(node)
+
+            def visit_Name(self, node):
+                if isinstance(node.ctx, ast.Load):
+                    loads[node.id] += 1
+
+        visitor = Visitor()
+        for statement in function.body:
+            visitor.visit(statement)
+        return loads, appends
+
+    dead = []
+    for source in sources:
+        where = source.relative_to(paths.ROOT)
+        tree = ast.parse(source.read_text())
+
+        for function in [node for node in ast.walk(tree)
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+            loads, appends = reads(function)
+            parameters = {argument.arg for argument in
+                          function.args.args + function.args.kwonlyargs
+                          + function.args.posonlyargs}
+            for name, lines in own_stores(function).items():
+                if name in parameters or name.startswith("_") or loads[name]:
+                    continue
+                shape = "appended to and never read" if appends[name] else "never read"
+                dead.append(f"{where}:{lines[0]} in {function.name}(): {name} is {shape}")
+
+        imported = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported[(alias.asname or alias.name).split(".")[0]] = node.lineno
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name != "*":
+                        imported[alias.asname or alias.name] = node.lineno
+        mentioned = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        mentioned |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+        for name, line in sorted(imported.items(), key=lambda row: row[1]):
+            if name not in mentioned and name != "annotations":
+                dead.append(f"{where}:{line} imports {name} and never uses it")
+
+    assert not dead, "\n".join([f"{len(dead)} names introduced and left unused:"] + dead)

@@ -351,7 +351,6 @@ def netting(book: pd.DataFrame, guarantee: pd.DataFrame, absorbed: pd.DataFrame,
 def main() -> None:
     print("Calibration, history and one simulation", flush=True)
     calibration = market_state.load()
-    state = calibration
     panel = pd.read_csv(paths.FRED_PANEL, comment="#", parse_dates=["date"]).set_index("date")
     history = scenarios.load_history(panel, calibration.heston, calibration.mix,
                                      dividend_yield=DIVIDEND_YIELD)

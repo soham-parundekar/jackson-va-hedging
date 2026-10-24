@@ -209,7 +209,7 @@ def model_offsets(setup, panel, history, smile) -> pd.DataFrame:
     states = rolled_states(history, terms, equity_weight)
 
     rows = []
-    for target, rolled in states.items():
+    for _, rolled in states.items():
         state = market_at(panel, history, calibration, rolled["date"])
         duration = int(np.floor(rolled["elapsed_years"]))
         book = contract_at(rolled["account_value"], rolled["benefit_base"], duration, terms)

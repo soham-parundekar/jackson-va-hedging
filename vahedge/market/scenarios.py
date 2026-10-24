@@ -80,7 +80,7 @@ class DailyPath:
     dates: pd.DatetimeIndex
     index: np.ndarray              # equity total-return index, rebased to 1 at the start
     fund: np.ndarray               # sub-account total return index, rebased to 1
-    curves: list                   # one ZeroCurve per date
+    curves: list[ZeroCurve]
     zero_10y: np.ndarray
     implied_vol: np.ndarray        # at the reference tenor, decimal
     variance: np.ndarray           # Heston instantaneous variance implied by the quote

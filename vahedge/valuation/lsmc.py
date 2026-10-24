@@ -91,8 +91,9 @@ MIN_SUPPORT_ROWS = 25
 # varying region carries information in every row and is left alone.
 REPLICATE_EFFECTIVE_ROWS = 2_000
 REPLICATE_TOLERANCE = 1e-6       # moneyness values this close together count as the same state
-# Smoothing strengths tried for the roughness penalty, and how much better a score has to be
-# to prefer a rougher fit. Scored on held-out paths; see _choose_smoothing.
+# Smoothing strengths tried for the roughness penalty, scored on held-out paths. The strength
+# with the lowest score wins outright; see _choose_smoothing for why there is no tolerance for
+# preferring a rougher fit at a nearly equal score.
 SMOOTHING_GRID = (0.0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0)
 # Size of the move the reported gamma is averaged over, in log contract value. Shared with the
 # hedge instruments, so the solve matches one curvature against another of the same definition.
@@ -579,6 +580,17 @@ def _roughness(knots: np.ndarray, width: int, n_grid: int = 400) -> np.ndarray:
 
 
 def _penalised_solve(design, target, ridge, weights, penalty, strength) -> np.ndarray:
+    """Weighted least squares with the roughness penalty, on a strength that means the same
+    thing every year.
+
+    The trace ratio is why ``SMOOTHING_GRID`` can be one fixed grid. The penalty is an integral
+    over the knot range and the Gram matrix is a sum over rows, so their raw magnitudes have
+    nothing to do with each other and both move from year to year as the row count falls and
+    the moneyness range widens toward exhaustion. Scaling the penalty to the Gram's own trace
+    makes ``strength`` dimensionless, so a strength of 1e-3 buys the same amount of smoothing at
+    year thirty as at year one. Without it the grid would be searching a different interval
+    every year and the held-out choice would be comparing strengths that are not comparable.
+    """
     weighted = design * weights[:, None]
     gram = weighted.T @ weighted
     scale = np.trace(gram) / max(np.trace(penalty), 1e-300)
@@ -588,8 +600,8 @@ def _penalised_solve(design, target, ridge, weights, penalty, strength) -> np.nd
 
 
 def _choose_smoothing(design, target, weights, penalty, ridge, score_design, score_target,
-                      grid=SMOOTHING_GRID) -> tuple:
-    """Pick the smoothing strength on held-out paths, by the one-standard-error rule.
+                      grid=SMOOTHING_GRID) -> float:
+    """Pick the smoothing strength at the held-out minimum, which is not the usual rule.
 
     Choosing the strength that minimises held-out error and then using the fit's second
     derivative is a mistake with a name: estimating a derivative from noisy data needs more
@@ -611,15 +623,12 @@ def _choose_smoothing(design, target, weights, penalty, ridge, score_design, sco
     this fit at all. See ``greeks``: it is an average over a move of a stated size, which is
     both the estimable quantity and the one a convexity hedge is sized for.
     """
-    scores, errors, betas = [], [], []
+    scores = []
     for strength in grid:
         beta = _penalised_solve(design, target, ridge, weights, penalty, strength)
         squared = (score_design @ beta - score_target) ** 2
         scores.append(float(squared.mean()))
-        errors.append(float(squared.std(ddof=1) / np.sqrt(squared.size)))
-        betas.append(beta)
-
-    return grid[int(np.argmin(scores))], scores
+    return grid[int(np.argmin(scores))]
 
 
 def _replicate_weights(moneyness: np.ndarray) -> np.ndarray:
@@ -632,7 +641,7 @@ def _replicate_weights(moneyness: np.ndarray) -> np.ndarray:
     capping it is the same.
     """
     rounded = np.round(np.asarray(moneyness, dtype=float) / REPLICATE_TOLERANCE)
-    values, inverse, counts = np.unique(rounded, return_inverse=True, return_counts=True)
+    _, inverse, counts = np.unique(rounded, return_inverse=True, return_counts=True)
     scale = np.where(counts > REPLICATE_EFFECTIVE_ROWS,
                      REPLICATE_EFFECTIVE_ROWS / np.maximum(counts, 1), 1.0)
     return scale[inverse]
@@ -776,7 +785,7 @@ def _fit_year(moneyness, volatility, rate, claim_target, fee_target, fit_rows, r
     penalty = _roughness(knots, design.shape[1])
     if score_rows is None or score_rows.sum() < 100:
         score_rows = fit_rows
-    strength, _ = _choose_smoothing(
+    strength = _choose_smoothing(
         design[fit_rows], claim_target[fit_rows], weights, penalty, ridge,
         design[score_rows], claim_target[score_rows],
     )

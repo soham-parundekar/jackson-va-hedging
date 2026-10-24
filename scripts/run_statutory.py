@@ -93,7 +93,7 @@ def sweep() -> tuple:
     sensitivity to the surrender share, both at the base case."""
     rows, floor, profile, shares = [], None, None, None
     for premium in PREMIUM_SWEEP:
-        _, _, market_paths, projection = build(premium)
+        *_, projection = build(premium)
         table = statutory.requirement(projection.deficiency_pv, levels=LEVELS)
         table["equity_risk_premium"] = premium
         rows.append(table)

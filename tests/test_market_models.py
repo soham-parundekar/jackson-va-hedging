@@ -16,7 +16,7 @@ from dataclasses import replace
 import numpy as np
 
 from tests.checks import approx, raises
-from vahedge.market.curves import ZeroCurve, bootstrap, fit_curve, fit_nss, flat_curve
+from vahedge.market.curves import ZeroCurve, bootstrap, fit_curve, fit_nss
 from vahedge.market.heston_cos import (
     HestonParameters,
     black76,
@@ -198,8 +198,7 @@ def test_the_call_is_priced_directly_everywhere_the_committed_chain_asks():
     not the method. This asserts the direct expansion is what every committed quote is priced
     with, which is also what makes the guard free of any effect on a committed number.
     """
-    from vahedge.market.heston_cos import PARITY_TOLERANCE, _call_coefficients
-    from vahedge.market.heston_cos import _chi_psi, _cumulants  # noqa: F401  (used below)
+    from vahedge.market.heston_cos import PARITY_TOLERANCE
 
     params = _heston()
     forward, discount = 7702.53, 0.98
@@ -545,14 +544,12 @@ def test_simulator_matches_the_cos_pricer_with_rates_switched_off():
     tolerance below, and a test should not take its own slack from a bug the module it tests
     documents.
     """
-    curve = flat_curve(0.04)
     nss = fit_curve(ZeroCurve(tenors=np.arange(0.5, 30.5, 0.5),
                               zero_rates=np.full(60, 0.04)))
     model = HullWhite(a=0.27, sigma=1e-9, curve=nss)
     params = _heston()
     paths = simulate(params, model, Correlations(params.rho, 0.0), SubAccountMix.all_equity(),
                      n_years=5, n_paths=200000, seed=7)
-    del curve
 
     for years in (1, 5):
         discount = float(nss.discount(float(years)))

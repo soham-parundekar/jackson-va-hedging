@@ -105,12 +105,6 @@ def bootstrap(tenors, par_yields, frequency: int = 2) -> ZeroCurve:
     return ZeroCurve(tenors=grid, zero_rates=zeros)
 
 
-def flat_curve(rate: float, max_tenor: float = 60.0) -> ZeroCurve:
-    """A flat continuously compounded curve. Used in tests and closed-form checks."""
-    tenors = np.array([0.5, max_tenor])
-    return ZeroCurve(tenors=tenors, zero_rates=np.array([rate, rate]))
-
-
 @dataclass(frozen=True)
 class NelsonSiegelSvensson:
     """Six-parameter smooth zero curve with an analytic instantaneous forward.
