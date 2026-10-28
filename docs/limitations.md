@@ -126,6 +126,23 @@ covers policy years 3 to 13, which is the best part of that range, but nothing i
 reads a delta off policy year 1. Its **second derivative is not usable**, which is why the option
 leg is sized from a tabulated nested surface instead.
 
+**Which paths become nodes is not stable across numerical environments.** The nested surface
+takes its nodes by sorting the fitting paths on moneyness and picking evenly spaced ranks. Two of
+those ranks sit on point masses - an exhausted contract is at exactly zero and a contract that
+stepped up is at exactly the post-charge ceiling - so a great many paths are tied there, and which
+one lands at a given rank is decided by the last bits of the sort key. Rerun under a different
+numpy and scipy, where the calibration itself moves in its twelfth significant figure, 60 of the
+548 nodes come back as a different path at the same moneyness: the same rank, a different variance
+and ten-year rate, and a value up to 262 of its own Monte Carlo standard errors away.
+
+The curvature survives it, which is the point. A swapped path changes the level of the three
+prices in a node's ladder together, and a second difference does not see a level. Across all 548
+nodes the gamma moves by at most 1.6 of the error implied for it and by 0.000 at the median, so
+`data/processed/gamma_surface.csv` - the only thing downstream reads - is reproducible to well
+inside its own precision. What is not reproducible is the node table itself, which means the
+variance-spread sensitivity read off those nodes is a figure about one draw of them rather than
+about the surface.
+
 **Extrapolation is the condition on every hedging result.** The realised path asks the proxy for a
 state outside its design on 36% of rebalance dates. That is reported with every run rather than
 checked once, because a hedging conclusion built on mostly extrapolated Greeks is not a conclusion.
@@ -170,6 +187,27 @@ itself. On a forty-five-year guarantee these are the larger risks.
 
 **The equity hedge is a frictionless futures overlay.** No contract granularity, no roll basis, no
 margin funding.
+
+**The two tables carrying a drawdown predate the convention the code now uses.** A drawdown is
+measured from a high-water mark, and that mark starts at zero: before the first day the programme
+has earned nothing, so the cost of striking the book belongs inside the drawdown. Running the
+maximum straight over the cumulative profit instead makes the first day the peak whenever it is a
+loss, which for every option strategy it is, and that is what `summarise` did while
+`hedge_crisis_replays.csv` and `real_world_paths.csv` were written. `worst_day_pct` has always
+included the first day, so the two sat in the same row on different conventions.
+
+The code measures from zero now and the two tables do not yet reflect it. The size is bounded and
+one-sided - a drawdown can only widen - and on the crisis replays it moves nine of the
+twenty-eight rows, by between 0.002 and 0.127 points of account value; the largest is S6 through
+volmageddon, from 0.574% to 0.701%. The other nineteen rows do not move at all, because their
+high-water mark fell later than the first day. Nothing in these documents draws a conclusion from
+the column.
+
+Regenerating the two tables is what closes it, and a regeneration moves more than this one column:
+see **Reproducibility** in `docs/data_sources.md` for what a rerun in a different numerical
+environment does to the hedge set, which on this column is larger than the convention change
+itself. That is the reason the correction is recorded here rather than applied by pasting a column
+from one environment into tables produced by another.
 
 **Four model inputs are dated after the decisions they drive, and the list is the whole of it.**
 A desk rebalancing in September 2016 could not have had any of them:

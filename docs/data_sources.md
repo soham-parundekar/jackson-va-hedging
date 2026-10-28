@@ -223,5 +223,17 @@ life than the Basic table, or a disclosed figure that disagrees between two fili
 
 The raw files are committed. The FRED series are revised occasionally and the S&P 500
 window rolls forward, so a pull on a later date will not reproduce the committed panel
-exactly. Committing the data is what makes the results reproducible rather than
-approximately repeatable.
+exactly. Committing the data is what makes the results repeatable at all.
+
+It does not make them repeatable to the byte, and the Makefile's reproduction check -
+`make clean && make all && git diff --stat reports` - should be read with that in mind. Rerun
+in a container with numpy 2.5, pandas 3.0 and scipy 1.18 against the versions that produced
+the committed tables, `build_dataset` comes back byte-identical and the calibration does not:
+five of its tables move. The fitted curve and the rate model agree to nine parts in a
+thousand billion, the surface fit to five parts in a hundred million of a volatility point,
+and the two volatility-index comparisons by one unit in the last decimal they store. Nothing
+there is a result, but `git diff` cannot tell a last digit from a finding, so a reproduction
+run needs the sizes looked at rather than the file list counted.
+
+The nested convexity surface is the one place where that distinction has teeth, and it is
+discussed under **The regression proxy** in `docs/limitations.md`.

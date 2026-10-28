@@ -647,14 +647,16 @@ def summarise(ledger: pd.DataFrame, account_value: float,
     pnl = ledger["pnl"].to_numpy()
     cumulative = np.cumsum(pnl)
     worst = int(np.argmin(pnl))
-    # The running peak starts at the first day's cumulative profit rather than at zero, so the
-    # cost of striking the book on day one sits outside the drawdown while ``worst_day_pct``
-    # below includes it. The two are therefore on different conventions, and on the covid
-    # window that is worth roughly four tenths of a point on a drawdown of nine. Measuring
-    # from inception instead - prepending a zero before the running maximum - is the better
-    # convention and changes two committed tables, so it is a correction owed rather than one
-    # made quietly here. Nothing in the documents draws a conclusion from the column.
-    drawdown = cumulative - np.maximum.accumulate(cumulative)
+    # The peak the drawdown is measured from starts at zero, not at the first day's cumulative
+    # profit. Before day one the programme has earned nothing, so zero is the high-water mark
+    # it starts from, and the cost of striking the book belongs inside the drawdown rather than
+    # outside it. Running the maximum straight over ``cumulative`` instead - which this did
+    # first - makes the first day the peak whenever it is a loss, which for every option
+    # strategy it is, and put ``worst_drawdown_pct`` and ``worst_day_pct`` on different
+    # conventions in the same row: on the covid window the omitted first day was four tenths
+    # of a point against a drawdown of nine.
+    peak = np.maximum.accumulate(np.concatenate([[0.0], cumulative]))[1:]
+    drawdown = cumulative - peak
     return {
         "days": int(ledger.shape[0]),
         "rebalances": int(ledger["rebalanced"].sum()),

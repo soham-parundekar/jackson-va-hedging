@@ -21,7 +21,7 @@ import os
 import re
 import struct
 
-from tests.checks import raises
+from tests.checks import approx, raises
 from vahedge import paths
 
 # Everything in the PNG specification plus the APNG extensions. Anything else is a private or
@@ -614,22 +614,29 @@ def test_the_put_grid_choice_does_not_decide_the_ranking():
     assert len(grid) == 9, f"the sweep is now {len(grid)} cells, not the three-by-three"
     assert bool(grid["on_frontier"].all()), "a cell has dropped off the frontier"
 
-    spread = [round(100 * float(grid["pnl_sd_pct"].min()), 3),
-              round(100 * float(grid["pnl_sd_pct"].max()), 3)]
-    assert spread == [0.135, 0.163], f"the grid's residual now spans {spread}"
-    cost = [round(100 * float(grid["total_cost_pct"].min()), 1),
-            round(100 * float(grid["total_cost_pct"].max()), 1)]
-    assert cost == [5.2, 21.5], f"the grid's cost now spans {cost}"
+    # The spreads the prose quotes, to the precision the quantity has rather than the precision
+    # it is printed at. Both ends are nested Monte Carlo carried through the option sizing, and
+    # a rerun under a different numpy and scipy moves them by up to two per cent - which the
+    # first version of this test pinned to one decimal and duly failed on, against a rerun that
+    # had changed nothing. A guard that fires on an environment is not a guard.
+    spread = [100 * float(grid["pnl_sd_pct"].min()), 100 * float(grid["pnl_sd_pct"].max())]
+    assert approx([0.135, 0.163], rel=0.03) == spread, f"the grid's residual now spans {spread}"
+    cost = [100 * float(grid["total_cost_pct"].min()), 100 * float(grid["total_cost_pct"].max())]
+    assert approx([5.2, 21.5], rel=0.05) == cost, f"the grid's cost now spans {cost}"
 
+    # The claim itself, which is an ordering and reproduces far better than either level: the
+    # margin is fifteen per cent of the put cell and moved by four tenths of a point across
+    # environments. Asserting the margin rather than the two numbers is what makes this a test
+    # of the sentence in docs/limitations.md instead of a test of the container.
     frontier = pd.read_csv(paths.TABLES / "hedge_frequency_frontier.csv")
     best_s2 = float(frontier[frontier["strategy"] == "S2"]["pnl_sd_pct"].min())
     worst_put_cell = float(grid["pnl_sd_pct"].max())
-    assert worst_put_cell < best_s2, (
-        f"the worst cell of the put grid leaves {100 * worst_put_cell:.3f}% against S2's best "
-        f"{100 * best_s2:.3f}%, so the ranking now depends on which cell was chosen and "
-        "docs/limitations.md says it does not"
+    margin = (best_s2 - worst_put_cell) / worst_put_cell
+    assert margin > 0.08, (
+        f"the worst cell of the put grid leaves {100 * worst_put_cell:.4f}% against S2's best "
+        f"{100 * best_s2:.4f}%, a margin of {100 * margin:.1f}%. docs/limitations.md says the "
+        "ranking does not depend on which cell was chosen, and at this margin it is starting to"
     )
-    assert [round(100 * worst_put_cell, 3), round(100 * best_s2, 3)] == [0.163, 0.188]
 
 
 def test_every_path_the_prose_names_is_a_path_that_exists():
