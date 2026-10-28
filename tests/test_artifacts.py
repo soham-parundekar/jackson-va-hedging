@@ -542,6 +542,57 @@ def test_the_prose_figures_still_round_to_what_the_tables_say():
     assert [round(float(spread.min()), 1), round(float(spread.max()), 1)] == [1.2, 2.6]
 
 
+def test_the_hypothesis_three_decline_is_the_one_the_table_produces():
+    """The project's loudest claim about shape, pinned to the table it comes from.
+
+    `docs/validation.md` tabulates the model's equity sensitivity at the four disclosure dates
+    against the filing's, and the last column is each row's 2025 figure over its 2022 one. The
+    disclosed row has always been right, because it is typed out of the filings and never moves.
+    The model row was carried over from a superseded run - 4.56 through 2.64 against the
+    committed 4.10 through 2.34 - and the ratio taken from those stale values happened to land
+    within 0.0001 of the disclosed ratio. That read as agreement to one part in ten thousand, and
+    the document called it the strongest single piece of evidence in the project that the model
+    has the right shape. It was quoted that way in the README and in the notebook as well.
+
+    From the committed table the two declines are 0.5720 and 0.5794, which agree to 1.3 per
+    cent. That is still a result - nothing in the fit is aimed at the pace of the decline - and
+    it is three orders of magnitude weaker than the claim it replaced.
+
+    Pass seventeen's README figure sweep and two of this pass's own attempts all passed this row,
+    because they tested each figure against the union of every rounded value in every committed
+    table. A decoy test put that pool's hit rate at 100 per cent for a one-, two- or
+    three-decimal figure, so those checks could not fail. This one names the table, the column
+    and the row.
+    """
+    import pandas as pd
+
+    book = pd.read_csv(paths.TABLES / "portfolio_vs_disclosed.csv")
+    assert len(book) == 4, f"the comparison now has {len(book)} dates, not four"
+    model = book["model_equity_down_10pct"]
+    disclosed = book["disclosed_equity_down_10pct"]
+
+    assert [round(float(v), 2) for v in model] == [4.10, 3.75, 2.47, 2.34]
+    assert [round(float(v), 2) for v in disclosed] == [1.47, 1.18, 0.96, 0.85]
+
+    model_decline = float(model.iloc[-1] / model.iloc[0])
+    disclosed_decline = float(disclosed.iloc[-1] / disclosed.iloc[0])
+    assert round(model_decline, 4) == 0.5720, f"the model decline is now {model_decline:.4f}"
+    assert round(disclosed_decline, 4) == 0.5794, (
+        f"the disclosed decline is now {disclosed_decline:.4f}, which would mean the filed "
+        "figures were retyped")
+
+    # The claim the prose makes about the two: close, and not closer than this. The upper bound
+    # is what fails if a stale row ever makes them agree to a part in ten thousand again.
+    gap = abs(model_decline - disclosed_decline) / disclosed_decline
+    assert 0.005 < gap < 0.02, (
+        f"the two declines now agree to {100 * gap:.2f} per cent, and validation.md, the README "
+        "and the notebook all say 1.3")
+
+    # And the levels, which the same paragraph calls about three times the disclosure.
+    multiples = (model / disclosed).tolist()
+    assert all(2.0 < float(m) < 4.0 for m in multiples), multiples
+
+
 def test_every_path_the_prose_names_is_a_path_that_exists():
     """The prose-name sweep pass fifteen ran for function names, run for file paths.
 

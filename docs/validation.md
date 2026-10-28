@@ -232,13 +232,13 @@ the book moved out of the money:
 
 | | 2022 | 2023 | 2024 | 2025 | 2025 / 2022 |
 |---|---|---|---|---|---|
-| Model, equity down 10% | 4.56 | 3.91 | 3.02 | 2.64 | 0.5795 |
+| Model, equity down 10% | 4.10 | 3.75 | 2.47 | 2.34 | 0.5720 |
 | Disclosed | 1.47 | 1.18 | 0.96 | 0.85 | 0.5794 |
 
-The levels differ by about three times and the declines agree to one part in ten thousand.
-That is the strongest single piece of evidence in the project that the model has the right shape:
-the thing driving the decline - a book moving out of the money as markets rose - is reproduced
-without being fitted.
+The levels differ by about three times and the declines agree to 1.3 per cent - 0.5720 against
+0.5794 across four years. What makes that a shape test rather than a coincidence is that nothing
+in the fit was aimed at it: the driver of the decline is a book moving out of the money as
+markets rose, and the model reproduces the pace of it without having been shown it.
 
 ## Scale
 

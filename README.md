@@ -24,7 +24,7 @@ All eighteen disclosed shock sensitivities come out with the right sign, across 
 balance-sheet dates and both directions of both shocks. The convexity in Jackson's table comes out
 close: where the filings disclose both ±50bp and ±100bp, the ratio of the two is 1.855 up and
 2.128 down, against 1.882 and 2.128 from the model. The decline in sensitivity per dollar of
-account value from 2022 to 2025, as the book moved out of the money, comes out at 0.5795 of its
+account value from 2022 to 2025, as the book moved out of the money, comes out at 0.5720 of its
 starting level against 0.5794 disclosed.
 
 The levels sit about three times the disclosure, which the research design predicted. What it did
