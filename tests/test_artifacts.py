@@ -593,6 +593,45 @@ def test_the_hypothesis_three_decline_is_the_one_the_table_produces():
     assert all(2.0 < float(m) < 4.0 for m in multiples), multiples
 
 
+def test_the_put_grid_choice_does_not_decide_the_ranking():
+    """The one selection the hedging backtest really makes, and the bound on it.
+
+    S3's put tenor and strike were picked off the E3 sweep - the same replay the strategy is
+    then scored on - so they are chosen in sample. `docs/limitations.md` used to answer the
+    whole bias question with "there is no survivorship or selection question to answer here",
+    which is true of the issuer, the shocks and the window and not true of these two numbers.
+
+    What makes the in-sample choice harmless is not an argument, it is an ordering: the project
+    concludes a ranking of instrument sets, and the worst cell of the put grid still leaves a
+    tighter residual than the best cell of S2 at any rebalance frequency. That is what this
+    pins, along with the grid's own spread, because those are the figures the corrected
+    paragraph quotes. If a future change ever makes the ranking depend on which cell was picked,
+    the claim has to be withdrawn rather than reworded.
+    """
+    import pandas as pd
+
+    grid = pd.read_csv(paths.TABLES / "hedge_put_design.csv")
+    assert len(grid) == 9, f"the sweep is now {len(grid)} cells, not the three-by-three"
+    assert bool(grid["on_frontier"].all()), "a cell has dropped off the frontier"
+
+    spread = [round(100 * float(grid["pnl_sd_pct"].min()), 3),
+              round(100 * float(grid["pnl_sd_pct"].max()), 3)]
+    assert spread == [0.135, 0.163], f"the grid's residual now spans {spread}"
+    cost = [round(100 * float(grid["total_cost_pct"].min()), 1),
+            round(100 * float(grid["total_cost_pct"].max()), 1)]
+    assert cost == [5.2, 21.5], f"the grid's cost now spans {cost}"
+
+    frontier = pd.read_csv(paths.TABLES / "hedge_frequency_frontier.csv")
+    best_s2 = float(frontier[frontier["strategy"] == "S2"]["pnl_sd_pct"].min())
+    worst_put_cell = float(grid["pnl_sd_pct"].max())
+    assert worst_put_cell < best_s2, (
+        f"the worst cell of the put grid leaves {100 * worst_put_cell:.3f}% against S2's best "
+        f"{100 * best_s2:.3f}%, so the ranking now depends on which cell was chosen and "
+        "docs/limitations.md says it does not"
+    )
+    assert [round(100 * worst_put_cell, 3), round(100 * best_s2, 3)] == [0.163, 0.188]
+
+
 def test_every_path_the_prose_names_is_a_path_that_exists():
     """The prose-name sweep pass fifteen ran for function names, run for file paths.
 

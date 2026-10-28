@@ -176,7 +176,7 @@ A desk rebalancing in September 2016 could not have had any of them:
 
 | Input | Dated | Reaches back to |
 |---|---|---|
-| Heston parameters and the proxy surface fitted on them | the SPX chain of 28 Sep 2026 | the whole replay, from Sep 2016 |
+| Heston parameters, and the proxy surface fitted under them | the SPX chain of 28 Sep 2026 | the whole replay, from Sep 2016 |
 | Hull-White mean reversion and volatility | fitted on the 3-month bill, Sep 1981 to Sep 2026 | the whole replay |
 | Mortality improvement under Scale G2 | projected to 2026 and held | the whole replay |
 | Sub-account mix at 0.83 equity, cash surrender value at 98.0% of account value | the FY2025 10-K | the whole replay |
@@ -200,9 +200,31 @@ the hedging results are reported as a ranking of instrument sets rather than as 
 could have earned. Read as a ranking they are not a forecast and the dating does not flatter them;
 read as a P&L they would be, and the project does not read them that way anywhere.
 
-What none of this is: there is no survivorship or selection question to answer here. One issuer,
-named in advance, every disclosed shock it published used rather than a subset, and the replay
-window set by where the free index history starts rather than by where the hedge looks good.
+Only the Heston parameters are dated 2026 in that first row. The curve the proxy is fitted off
+is the Treasury curve of 26 September 2016, replaced deliberately in
+`scripts/run_hedge_experiments.py`: a proxy fitted off December 2025's curve has a design
+distribution for the ten-year zero of roughly three to six and a half per cent, while the decade
+being replayed spent most of its time between half and three, so seventy per cent of the
+backtest's days would be valued by a fit that had never simulated a rate near them. What is held
+at 2026 is the shape of the surface and the speed of mean reversion, not the level and not the
+rate environment.
+
+There is no survivorship question here, and the selection question has one real answer rather
+than none. No survivorship: one issuer named in advance, every disclosed shock it published used
+rather than a subset, and the replay window set by where the free index history starts rather
+than by where the hedge looks good.
+
+The selection that does exist is the option leg's two parameters. S3's put tenor and strike were
+picked off the sweep in E3 - that is, off the same replay the strategy is then scored on - and
+`strategies.py` says so where they are set. What bounds it is that the whole grid is published
+and none of it is hidden: across the nine cells of the three-by-three sweep the residual standard
+deviation runs 0.135% to 0.163% of account value and the cost 5.2% to 21.5%, every cell sits on
+the frontier once the crisis outcome is an axis, and no cell dominates another. The conclusion the
+project draws from this is a ranking of instrument sets, and the ranking does not depend on the
+choice: the *worst* cell of the put grid still leaves a tighter residual than the *best* cell of
+S2 over any rebalance frequency, 0.163% against 0.188%. A reader who prefers a different tenor or
+strike can read their own cell out of `reports/tables/hedge_put_design.csv` and the ordering is
+unchanged.
 
 **One realised decade, widened but not escaped.** The bootstrap experiment resamples the decade's
 equity days into other orderings, which gives the hedging result a distribution rather than a

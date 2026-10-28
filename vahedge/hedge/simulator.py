@@ -647,6 +647,13 @@ def summarise(ledger: pd.DataFrame, account_value: float,
     pnl = ledger["pnl"].to_numpy()
     cumulative = np.cumsum(pnl)
     worst = int(np.argmin(pnl))
+    # The running peak starts at the first day's cumulative profit rather than at zero, so the
+    # cost of striking the book on day one sits outside the drawdown while ``worst_day_pct``
+    # below includes it. The two are therefore on different conventions, and on the covid
+    # window that is worth roughly four tenths of a point on a drawdown of nine. Measuring
+    # from inception instead - prepending a zero before the running maximum - is the better
+    # convention and changes two committed tables, so it is a correction owed rather than one
+    # made quietly here. Nothing in the documents draws a conclusion from the column.
     drawdown = cumulative - np.maximum.accumulate(cumulative)
     return {
         "days": int(ledger.shape[0]),
