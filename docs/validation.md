@@ -95,9 +95,11 @@ construction, and the worst residual across eighteen expiries is 0.96 index poin
 7,710 - but a perfectly straight line can sit at the wrong level, which is what a mislabelled
 strike column or a snapshot taken on the wrong date produces. The level has an external check.
 Each expiry's discount factor is a financing rate, and across eighteen expiries from eighteen days
-to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury, and within a
-few points of 45 everywhere except the two shortest expiries. That is what an SPX box spread looks
-like, and nothing in the calibration was told to make it so.
+to 3.2 years it comes out 38 to 94 basis points over the matched-maturity Treasury. From the
+six-month expiry out it sits within three basis points of 45 everywhere but the two-year, which
+comes in at 38. The three that miss are all inside six months: 94 basis points at eighteen days,
+65 at three and a half months and 53 at five. That is what an SPX box spread looks like, and
+nothing in the calibration was told to make it so.
 
 ### Monte Carlo error and truncation
 
@@ -105,7 +107,9 @@ At twenty thousand paths the standard error on the market risk benefit is $136 o
 policy, and it halves as paths quadruple - 2.01, 1.96 and 1.99 across the three quadruplings in
 `monte_carlo_convergence.csv`. Greeks are taken on common random numbers and each carries the
 standard error of its own paired difference: the equity exposure's is 164 on 14,501, rho's is 19
-on 5,887 per 100bp, vega's is 40 on 893. A Greek whose error is a third of its value is not a
+on 5,887 per 100bp, vega's is 40 on 894. The vega error belongs to the two vegas together, which
+is what the volatility bump moved; quoting it against the 27 of current variance alone would read
+as a Greek worth less than its own noise. A Greek whose error is a third of its value is not a
 risk number, and printing the error is the only way to know.
 
 The forty-thousand-path row of that table used to read 106 rather than 96, which is the one

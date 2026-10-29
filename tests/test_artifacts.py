@@ -973,3 +973,75 @@ def test_the_methodology_document_figures_match_the_tables_they_came_from():
     assert int(surface["n_quotes"].sum()) == 1468
     assert round(float(surface["maturity"].max()), 2) == 3.23
     assert round(100 * float(surface["rmse_vol"].max()), 2) == 0.85
+
+
+def test_the_validation_document_error_and_parity_figures_match_their_tables():
+    """`docs/validation.md`'s Monte Carlo and parity paragraphs, which carried three defects.
+
+    The vega error was quoted as 40 on 893. The error belongs to the two vegas added together -
+    the volatility bump moves the current variance and the long-run level at once, and the split
+    between them is a second valuation with no error of its own - and that sum is 894, so the
+    893 was a truncation where every figure beside it rounds. Quoting the same error against the
+    27 of current variance alone, which `Greeks.to_frame` did before it was deleted, reads as a
+    Greek worth less than its own noise.
+
+    The parity paragraph said the financing spread sits within a few basis points of 45
+    everywhere except the two shortest expiries. The second-shortest sits at 43.1, two points
+    off 45, and the expiries that miss are the shortest at 93.9, the three-and-a-half-month at
+    65.1 and the five-month at 52.7, with the two-year at 38.5 the only miss further out. The
+    claim named the wrong exceptions.
+
+    The index level the residual is quoted against, 7,710, is in the calibration diagnostics
+    rather than any committed table, so it is not here; `market_calibration.json` is gitignored
+    and a test cannot read it.
+    """
+    import pandas as pd
+
+    def table(name):
+        return pd.read_csv(paths.TABLES / f"{name}.csv")
+
+    # "the equity exposure's is 164 on 14,501, rho's is 19 on 5,887 per 100bp, vega's is 40 on
+    # 894" - the signs are the model's and the prose quotes magnitudes
+    greeks = table("greeks")
+    economic = greeks[greeks["basis"].str.startswith("economic")].iloc[0]
+    assert round(abs(float(economic["equity_exposure"]))) == 14501
+    assert round(float(economic["equity_exposure_std_error"])) == 164
+    assert round(abs(100 * float(economic["rho_per_bp"]))) == 5887
+    assert round(100 * float(economic["rho_std_error"])) == 19
+    both = float(economic["vega_current"]) + float(economic["vega_long_run"])
+    assert round(both) == 894
+    assert round(float(economic["vega_std_error"])) == 40
+
+    # "2.01, 1.96 and 1.99 across the three quadruplings"
+    convergence = table("monte_carlo_convergence").set_index("paths")
+    quadruplings = [(2500, 10000), (5000, 20000), (10000, 40000)]
+    ratios = [round(float(convergence.loc[a, "std_error"] / convergence.loc[b, "std_error"]), 2)
+              for a, b in quadruplings]
+    assert ratios == [2.01, 1.96, 1.99]
+
+    # "across eighteen expiries from eighteen days to 3.2 years"
+    parity = table("parity_discount_check").sort_values("maturity")
+    assert len(parity) == 18
+    assert round(365 * float(parity["maturity"].min())) == 18
+    assert round(float(parity["maturity"].max()), 1) == 3.2
+    assert round(float(parity["parity_max_resid"].max()), 2) == 0.96
+
+    # "38 to 94 basis points over the matched-maturity Treasury"
+    spread = parity["spread_bp"]
+    assert [round(float(spread.min())), round(float(spread.max()))] == [38, 94]
+
+    # "From the six-month expiry out it sits within three basis points of 45 everywhere but the
+    # two-year, which comes in at 38"
+    out = parity[parity["maturity"] >= 0.45]
+    two_year = out[(out["maturity"] > 2.0) & (out["maturity"] < 2.5)]
+    assert len(two_year) == 1
+    assert round(float(two_year["spread_bp"].iloc[0])) == 38
+    rest = out[~out.index.isin(two_year.index)]
+    assert (rest["spread_bp"] - 45.0).abs().max() < 3.0
+
+    # "the three that miss are all inside six months: 94 basis points at eighteen days, 65 at
+    # three and a half months and 53 at five"
+    front = parity[parity["maturity"] < 0.45].sort_values("maturity")
+    missing = front[(front["spread_bp"] - 45.0).abs() >= 3.0]
+    assert [round(float(v)) for v in missing["spread_bp"]] == [94, 65, 53]
+    assert [round(12 * float(m), 1) for m in missing["maturity"]] == [0.6, 3.6, 4.7]

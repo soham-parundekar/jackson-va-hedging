@@ -239,9 +239,12 @@ def main() -> None:
         print(f"    rho per 100bp   {100*row['rho_per_bp']:>12,.0f} "
               f"({row['rho_per_100bp_pct_av']:+.2f}% of account, standard error "
               f"{100*row['rho_std_error']:,.0f})")
+        # The error is on the two together, which is what the bump moved, so it is printed
+        # against their sum rather than after the split and left to be read as either one's.
         print(f"    vega, current {row['vega_current']:>10,.0f} and long run "
-              f"{row['vega_long_run']:,.0f} per point (standard error "
-              f"{row['vega_std_error']:,.0f})")
+              f"{row['vega_long_run']:,.0f} per point, together "
+              f"{row['vega_current'] + row['vega_long_run']:,.0f} "
+              f"(standard error {row['vega_std_error']:,.0f})")
 
     sizing = positions(setup)
     sizing.to_csv(paths.TABLES / "hedge_sizing.csv", index=False, float_format="%.4f")

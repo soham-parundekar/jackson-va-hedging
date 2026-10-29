@@ -65,25 +65,17 @@ class Greeks:
     vega_long_run: float            # dV / d(long-run volatility), dollars per point
     equity_std_error: float
     rho_std_error: float
+    # Belongs to the two vegas added together, not to either one. The volatility bump moves the
+    # current variance and the long-run level at once and the error is the paired error of that
+    # difference; the split between the two is a second valuation with no error of its own. So
+    # the error to quote beside it is 40 on 894, not 40 on the 27 of current variance, which
+    # would read as a Greek worth less than its own noise.
     vega_std_error: float
     level_std_error: float
 
     @property
     def equity_exposure_pct_of_account(self) -> float:
         return self.equity_exposure / self.account_value
-
-    def to_frame(self) -> pd.DataFrame:
-        return pd.DataFrame(
-            [
-                ("value", self.value, self.level_std_error),
-                ("equity exposure per log index", self.equity_exposure, self.equity_std_error),
-                ("equity gamma", self.equity_gamma, np.nan),
-                ("rho per basis point", self.rho_per_bp, self.rho_std_error),
-                ("vega per point, current variance", self.vega_current, self.vega_std_error),
-                ("vega per point, long-run level", self.vega_long_run, np.nan),
-            ],
-            columns=["measure", "value", "std_error"],
-        )
 
 
 def compute(
