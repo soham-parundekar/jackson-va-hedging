@@ -1045,3 +1045,42 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
     missing = front[(front["spread_bp"] - 45.0).abs() >= 3.0]
     assert [round(float(v)) for v in missing["spread_bp"]] == [94, 65, 53]
     assert [round(12 * float(m), 1) for m in missing["maturity"]] == [0.6, 3.6, 4.7]
+
+
+def test_the_instrument_library_builds_what_its_docstring_counts():
+    """A stale count, which is what the module opened with for several passes.
+
+    `instruments.py` began "The six instrument types Jackson names" and gave a paragraph to the
+    total return swap as something the module builds. It builds five: the swap had been removed,
+    `docs/methodology.md` and `strategies.py` both recorded the removal and the reason, and the
+    docstring of the module it was removed from did not.
+
+    An instrument here is a class implementing the whole protocol the solve and the simulator
+    call - exposures, value, notional, trade_cost, carry - which is what distinguishes the five
+    from `Exposures`, `HedgeMarket` and `SmileShape` in the same file. The count in the first
+    line has to match. Adding a sixth means saying so there, which is the point.
+    """
+    import ast
+
+    protocol = {"exposures", "value", "notional", "trade_cost", "carry"}
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+    source = (paths.ROOT / "vahedge" / "hedge" / "instruments.py").read_text()
+    tree = ast.parse(source)
+
+    built = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        methods = {item.name for item in node.body
+                   if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        if protocol <= methods:
+            built.append(node.name)
+
+    first_line = ast.get_docstring(tree).splitlines()[0].lower()
+    counted = [value for word, value in words.items() if f"{word} " in first_line]
+    assert len(counted) == 1, (
+        f"the first line has to name exactly one count, or this cannot check it: {first_line!r}"
+    )
+    assert counted[0] == len(built), (
+        f"the docstring counts {counted[0]} and the module builds {len(built)}: {sorted(built)}"
+    )

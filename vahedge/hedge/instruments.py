@@ -1,16 +1,12 @@
-"""The six instrument types Jackson names, priced well enough to hedge with and no better.
+"""Five instrument types, priced well enough to hedge Jackson's guarantee with and no better.
 
-Item 7A lists the derivative book by category: equity futures, total return swaps, equity
-options, interest-rate futures, bond forwards and interest-rate swaps. Those are what this
-module builds, because a hedging study that trades something Jackson does not is answering a
-different question. What each one is here for:
+Item 7A lists the derivative book in six categories: equity futures, total return swaps, equity
+options, interest-rate futures, bond forwards and interest-rate swaps. Everything but the total
+return swap is built here, because a hedging study that trades something Jackson does not is
+answering a different question. What each one is here for:
 
 *Equity futures* are the delta instrument. Daily mark to market, no premium, almost no cost,
 and no convexity at all - which is the point of the experiments, since the liability has plenty.
-
-*Total return swaps* do the same job through a financing leg instead of a futures basis. They
-matter because their cost is a running spread rather than a round trip, so the two instruments
-rank differently depending on how often the hedge is rebalanced.
 
 *Index puts* are the only listed instrument that carries gamma and vega. They cost premium,
 and whether that premium is worth paying is the question E1 and E3 exist to answer.
@@ -34,12 +30,29 @@ effective duration rather than by valuing a deliverable basket with a cheapest-t
 option. For a hedge whose rate exposure is a parallel shift on a single-factor curve that is the
 right level of detail; it would not be for a curve-shape hedge, which is why none is claimed.
 
+The total return swap is the one Jackson holds that is missing, and it is missing on purpose. A
+version of it lived here and was taken out: everything in this module is stateless, marked off
+today's market and nothing else, and a swap marked that way reports a financing rho that its own
+profit and loss can never realise, so the solve would have sized it for an exposure that was not
+there. Doing it properly needs a position that knows how long it has been held. `strategies.py`
+carries the longer version of that decision and what it costs - one instrument pays a spread per
+trade and the other a spread per day, so which is cheaper turns on rebalancing frequency, and E3
+sweeps the frequency without being able to answer that particular comparison.
+
+Its residue is ``carry``, which every instrument here implements and every one returns zero
+from. The channel is real - the simulator charges it daily and the cost sweep scales it with
+everything else - and nothing fills it, because the option premium is paid up front and decays
+in the mark, the swap's accrual is in the mark, and futures margin is funded from the cash the
+simulator already tracks. A running financing spread is what it was for.
+
 Sign conventions, written out because a sign error here produces a plausible-looking result that
 is exactly wrong. Every exposure is the derivative of the instrument's own value with respect to
 the risk factor, from the holder's point of view: a long position in the instrument. Equity
-exposure is per unit log move in the index, rho is per basis point of parallel shift, vega is
-per volatility point. The liability side of the hedge equation is handled in sizing.py, where
-the insurer's position in its own guarantee is the negative of the market risk benefit.
+exposure is per unit log move in the index, rho is per basis point of parallel shift, and vega is
+per unit of decimal volatility rather than per point - this line said per point until the
+mismatch it describes was measured, which is in ``Exposures`` below and in
+``sizing.insurer_exposures``. The liability side of the hedge equation is handled in sizing.py,
+where the insurer's position in its own guarantee is the negative of the market risk benefit.
 """
 
 from __future__ import annotations
@@ -53,8 +66,11 @@ from ..market.curves import par_equivalent
 from ..market.heston_cos import black76, cos_price, implied_vol
 from ..valuation.greeks import EQUITY_CURVATURE_STEP
 
-# Round-trip transaction costs, as a share of traded notional unless noted. These are
-# assumptions, not quotes; scripts/run_hedge_experiments.py sweeps half, one and two times.
+# One-way transaction costs, as a share of traded notional unless noted. One way rather than
+# round trip because the simulator charges them on the change in position, so a position that is
+# opened and later closed pays twice; this block said round-trip until that was noticed, against
+# the option constant below, which says one way. These are assumptions, not quotes;
+# scripts/run_hedge_experiments.py sweeps half, one and two times.
 FUTURES_COST = 0.00005          # half a basis point of notional
 RATE_FUTURES_COST = 0.000025    # a quarter of a basis point
 BOND_FORWARD_COST = 0.00005
