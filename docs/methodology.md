@@ -489,8 +489,10 @@ shape the fit.
 
 Even so the proxy's second derivative is not a risk number, so the option leg is sized from a
 tabulated nested surface built by valuing the liability at a ladder of equity levels around each
-node. The proxy's value is accurate, its delta is usable from about policy year three, and its
-curvature is not usable at all; `docs/validation.md` gives the measured sizes.
+node. Inside its design range the proxy's value is accurate, its delta is usable from about policy
+year three, and its curvature is not usable at all; `docs/validation.md` gives the measured sizes.
+Outside that range, which above the money is everywhere, the value stops being accurate too, and
+`docs/limitations.md` gives that size band by band.
 
 ## Hedge
 

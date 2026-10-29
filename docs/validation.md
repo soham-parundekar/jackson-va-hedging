@@ -393,7 +393,12 @@ one. The figures were always right; the names were not. They now read `rmse_shar
 and `worst_share_of_premium`, which is what they hold, and no value in the table moved when they
 were renamed.
 
-The value is accurate everywhere, at two to seven tenths of a per cent of premium. The delta is
+The value is accurate at every policy year, at two to seven tenths of a per cent of premium, and
+that is an in-range figure. Above the money the ratchet records no anniversary, so the proxy is
+extrapolating, and the convexity surface's own nodes put the median error there at 2.05 per 100 of
+premium just past the money and 10.76 further out, against the 0.20 to 0.68 in range. **The
+regression proxy** in `docs/limitations.md` carries the band-by-band table.
+The delta is
 not usable in the first two policy years, where the fitting paths have barely dispersed and the
 whole design piles into a narrow band. It is best from
 year 9 to year 14 and then deteriorates again, not because the fit gets worse - the value RMSE

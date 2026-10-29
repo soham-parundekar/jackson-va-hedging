@@ -214,6 +214,27 @@ def main() -> None:
     print(summary.round(3).to_string())
     print(f"  nodes flagged outside the design: {comparison['outside_design'].mean():.0%}")
 
+    # The range above the money, which the summary above leaves out entirely: the ratchet caps a
+    # recorded anniversary at a moneyness of one, so every node past it is a rung of the equity
+    # ladder and almost every one is extrapolation. Reported rather than dropped, because the
+    # absence of these rows from the summary was read in `docs/limitations.md` as the range having
+    # no check behind it, when what it has is a check the proxy fails.
+    # Errors are quoted per 100 of premium, not against the node's own nested value: above the
+    # money the guarantee turns into an asset and the nested value crosses zero inside these
+    # bands, so a ratio to it blows up where the denominator is small rather than where the proxy
+    # is wrong. The in-range comparison to read these against is 0.20 to 0.68 per 100.
+    print("  the value error by moneyness, per 100 of premium")
+    for low, high in ((0.0, 0.85), (0.85, 1.0), (1.0, 1.2), (1.2, 1.6)):
+        block = comparison[(comparison["moneyness"] >= low) & (comparison["moneyness"] < high)]
+        print(f"    {low:.2f} to {high:.2f}: {len(block):3d} nodes, "
+              f"{block['outside_design'].mean():3.0%} outside the design, median error "
+              f"{block['value_error'].abs().median():6.2f}, ninetieth percentile "
+              f"{block['value_error'].abs().quantile(0.9):6.2f}")
+    above = comparison[comparison["moneyness"] >= 1.0]
+    wrong_sign = ((above["nested_value"] > 0) & (above["proxy_value"] < 0)).sum()
+    print(f"    and on {wrong_sign} of the {len(above)} nodes at or above the money the proxy "
+          f"returns a liability of the wrong sign")
+
     print("\nwhat tabulating against moneyness alone leaves out")
     print(volatility_spread(table).round(3).to_string())
 

@@ -154,8 +154,31 @@ Wednesday in the middle of a year resembles, and therefore the one a hedge is si
 nested comparison runs on recorded post-event states, and because the step-up resets the benefit
 base to the contract value at every anniversary, a post-event contract value can never exceed its
 base: the moneyness at those nodes runs 0.0 to 1.00 and no higher, by construction rather than by
-sampling. So the family the backtest evaluates most of the time, and the whole of the range above
-the money, has no independent check behind it.
+sampling. So the family the backtest evaluates most of the time has no independent check behind it.
+
+The range above the money does have one, and it fails. The convexity surface reaches past the
+ratchet's ceiling by valuing the near-the-base nodes along a ladder of equity shifts, so 208 of its
+548 nodes sit at or above a moneyness of one - ten exactly on the ceiling and the rest up the
+ladder - and each carries a nested value beside the proxy's own.
+Median absolute value error, per 100 of premium, against the 0.20 to 0.68 the in-range comparison
+reports:
+
+| Moneyness | Nodes | Outside the design | Median error | Ninetieth percentile |
+|---|---|---|---|---|
+| below 0.85 | 293 | 1% | 0.40 | 1.02 |
+| 0.85 to 1.00 | 47 | 23% | 0.50 | 1.19 |
+| 1.00 to 1.20 | 81 | 88% | 2.05 | 7.31 |
+| 1.20 to 1.60 | 127 | 100% | 10.76 | 24.02 |
+
+On 20 of the 208 the proxy returns a liability of the wrong sign. Errors are quoted against
+premium rather than against each node's own nested value because the guarantee turns into an asset
+above the money - the median nested value is -3.3 in the first band and -8.1 in the second - so a
+ratio to it would blow up where the denominator is small rather than where the fit is wrong.
+
+Nearly every node past the money is flagged outside the design range, which is the mechanism
+rather than an excuse: 36% of the realised path's rebalances ask the proxy for a state it declines
+to answer for, and the table above is what it answers with when pressed. The headline accuracy
+figures are the in-range ones and say nothing about this.
 
 What it has instead is an identity: the pre-event value less the post-event value has to equal
 that year's own net cash flow, and `tests/test_lsmc.py` holds both fits to it on their design
@@ -239,8 +262,9 @@ and the position being rebalanced, which comes from the prior day's ledger and n
 
 Three of the four are unavoidable on free data and the fourth is a choice. Nothing free carries a
 historical option surface, the mean reversion is not identified by a decade, and a 2016 fund mix
-is not disclosed; holding the mortality basis at 2026 is a decision, worth 0.92 years of expected
-lifetime at age 70 across the 2012-to-2025 improvement, which is the smallest of the four.
+is not disclosed; holding the mortality basis at 2026 is a decision, worth 0.93 years of expected
+lifetime at age 70 on the valuation's own Basic table across the 2012-to-2025 improvement, 0.92 on
+the reporting basis, which is the smallest of the four.
 
 The size of the first one is measured rather than argued, in **Model risk** in
 `docs/validation.md`: re-sizing the same hedge from deliberately wrong Greeks - no skew at all, a
@@ -256,7 +280,10 @@ is the Treasury curve of 26 September 2016, replaced deliberately in
 `scripts/run_hedge_experiments.py`: a proxy fitted off December 2025's curve has a design
 distribution for the ten-year zero of roughly three to six and a half per cent, while the decade
 being replayed spent most of its time between half and three, so seventy per cent of the
-backtest's days would be valued by a fit that had never simulated a rate near them. What is held
+backtest's days would be valued by a fit that had never simulated a rate near them. That share is
+measured against each fit year's own range rather than one box - the floor rises from 3.4% in
+policy year three to 4.0% by year ten as the simulated curve mean-reverts upward - which is why it
+is higher than the share below a flat three per cent. What is held
 at 2026 is the shape of the surface and the speed of mean reversion, not the level and not the
 rate environment.
 

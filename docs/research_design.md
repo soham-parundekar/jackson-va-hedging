@@ -103,7 +103,7 @@ Getting this right changes the exercise in three ways. It explains how a variabl
 guarantee can sit on the balance sheet as a $4.2bn net asset. It means a model that prices
 only the guarantee leg is not comparable to the disclosure at all, in sign or in
 magnitude. And because the percentage is frozen at inception, a contract written when the
-ten-year Treasury zero was 1.6% carries a different attribution than one written at 4.2%,
+ten-year Treasury zero was 1.6% carries a different attribution than one written at 4.33%,
 which is the mechanism that turns a decade of rising rates and rising markets into a
 reported net asset.
 

@@ -1247,6 +1247,87 @@ def test_the_model_risk_and_rider_economics_figures_match_their_tables():
     assert round(float(curve["value"].idxmin()), 4) == 0.05
 
 
+def test_the_value_error_above_the_money_matches_the_band_table():
+    """The band table in `docs/limitations.md`, which replaced a claim that nothing checked it.
+
+    That document said the range above the money had no independent check behind it. It has one.
+    The convexity surface reaches past the ratchet's ceiling by valuing the near-the-base nodes
+    along a ladder of equity shifts, so 198 of its 548 nodes sit above a moneyness of one, each
+    with a nested value beside the proxy's - and the proxy misses them by a median 2.05 per 100 of
+    premium just past the money and 10.76 further out, against 0.20 to 0.68 in range. The
+    measurement was in the committed table all along; nothing read it, because the surface script
+    summarised only the nodes inside the design range and reported the rest as a single share.
+
+    Errors are checked against premium rather than each node's own nested value on purpose. Above
+    the money the guarantee is an asset and the nested value crosses zero inside both bands, so a
+    ratio to it reports where the denominator is small, not where the fit is wrong. The first
+    draft of this finding used that ratio and had to be redone.
+    """
+    import numpy as np
+    import pandas as pd
+
+    comparison = pd.read_csv(paths.TABLES / "convexity_proxy_comparison.csv")
+    assert len(comparison) == 548
+    # At or above, which is the set the band table covers: ten nodes sit exactly on the ratchet's
+    # ceiling and the rest are rungs of the ladder above it.
+    above = comparison[comparison["moneyness"] >= 1.0]
+    assert [len(above), int((comparison["moneyness"] == 1.0).sum())] == [208, 10]
+
+    # The structural claim the whole paragraph rests on: a recorded post-event anniversary cannot
+    # be above its own benefit base, so the design range stops at exactly one.
+    inside = comparison[~comparison["outside_design"]]
+    assert float(inside["moneyness"].max()) == approx(1.0, abs=1e-9)
+
+    bands = {(0.00, 0.85): (293, 0.01, 0.40, 1.02), (0.85, 1.00): (47, 0.23, 0.50, 1.19),
+             (1.00, 1.20): (81, 0.88, 2.05, 7.31), (1.20, 1.60): (127, 1.00, 10.76, 24.02)}
+    for (low, high), (nodes, outside, median, ninetieth) in bands.items():
+        block = comparison[(comparison["moneyness"] >= low) & (comparison["moneyness"] < high)]
+        assert len(block) == nodes, f"{len(block)} nodes between {low} and {high}, not {nodes}"
+        assert round(float(block["outside_design"].mean()), 2) == outside
+        error = block["value_error"].abs()
+        assert round(float(error.median()), 2) == median, (
+            f"median error between {low} and {high} is {float(error.median()):.3f} and the "
+            f"document says {median}")
+        assert round(float(error.quantile(0.9)), 2) == ninetieth
+
+    # "On 20 of the 208 the proxy returns a liability of the wrong sign"
+    assert int(((above["nested_value"] > 0) & (above["proxy_value"] < 0)).sum()) == 20
+    # "the median nested value is -3.3 in the first band and -8.1 in the second"
+    for low, high, level in ((1.00, 1.20, -3.3), (1.20, 1.60, -8.1)):
+        block = comparison[(comparison["moneyness"] >= low) & (comparison["moneyness"] < high)]
+        assert round(float(block["nested_value"].median()), 1) == level
+
+    # The in-range figure both documents quote the bands against, as a share of a premium of 100
+    accuracy = pd.read_csv(paths.TABLES / "proxy_accuracy.csv")
+    in_range = 100 * accuracy["rmse_share_of_premium_in_range"]
+    assert [round(float(in_range.min()), 2), round(float(in_range.max()), 2)] == [0.20, 0.68]
+    assert float(np.median(in_range)) < 0.68
+
+    # The index-linked balance behind E5, which the notebook had doubling over 2025. It grew by
+    # about three quarters, and the filed sensitivity moved by a factor of 330 on top of it -
+    # which is the whole point of that section, so the growth figure carries weight.
+    book = pd.read_csv(paths.DATA_RAW / "jackson_book_statistics.csv", comment="#")
+    funds = book.set_index("as_of")["rila_contract_holder_funds_musd"]
+    growth = float(funds["2025-12-31"]) / float(funds["2024-12-31"]) - 1.0
+    assert round(growth, 2) == 0.74, f"the index-linked balance grew {growth:.1%} over 2025"
+    # The same balance-sheet date appears once per filing that discloses it, so the duplicates go
+    # before the series is indexed by date.
+    filed = pd.read_csv(paths.TABLES / "disclosed_hedge_offset.csv")
+    filed = filed[filed["liability_basis"] == "market risk benefit"]
+
+    def rila_move(shock: str) -> pd.Series:
+        rows = filed[filed["shock"] == shock].drop_duplicates(subset=["as_of"])
+        return rows.set_index("as_of")["rila_impact_musd"].abs()
+
+    # The $4m to $1,321m pair the prose quotes is the up-shock side, which is where the factor of
+    # 330 comes from; the down shock moves from 10 to 1,594 over the same year.
+    up = rila_move("equity_up_10pct")
+    assert [round(float(up["2024-12-31"])), round(float(up["2025-12-31"]))] == [4, 1321]
+    assert round(float(up["2025-12-31"]) / float(up["2024-12-31"])) == 330
+    down = rila_move("equity_down_10pct")
+    assert [round(float(down["2024-12-31"])), round(float(down["2025-12-31"]))] == [10, 1594]
+
+
 def test_the_instrument_library_builds_what_its_docstring_counts():
     """A stale count, which is what the module opened with for several passes.
 
