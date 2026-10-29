@@ -1328,6 +1328,108 @@ def test_the_value_error_above_the_money_matches_the_band_table():
     assert [round(float(down["2024-12-31"])), round(float(down["2025-12-31"]))] == [10, 1594]
 
 
+def test_the_notebook_only_figures_match_the_tables_they_came_from():
+    """The figures the notebook's prose carries and no guarded document repeats.
+
+    Pass 34 read all 41 markdown cells against the committed tables - 254 figure tokens - and
+    found them right, which is worth holding on to rather than re-deriving. Most of them also
+    appear in `docs/validation.md` or `docs/limitations.md` and are pinned with those documents.
+    What is here is the remainder: the figures that live only in the notebook, where nothing
+    executes them. The one defect prose like this has produced was exactly that - an index-linked
+    balance described as doubling when it grew by three quarters, in a cell whose other four
+    figures were right.
+    """
+    import numpy as np
+    import pandas as pd
+
+    def table(name):
+        return pd.read_csv(paths.TABLES / f"{name}.csv")
+
+    # Section 6: "The unhedged guarantee lost 22.0% of account value over the episode. Futures
+    # alone recovered two thirds of that, futures and swaps left 2.7%, and adding the option leg
+    # turned it into a 1.9% gain."
+    covid = table("hedge_crisis_replays").query("episode == 'covid'").set_index("strategy")
+    pnl = 100 * covid["total_pnl_pct"]
+    assert [round(float(pnl[s]), 1) for s in ("S0", "S2", "S3")] == [-22.0, -2.7, 1.9]
+    recovered = (float(pnl["S0"]) - float(pnl["S1"])) / float(pnl["S0"])
+    assert round(recovered, 2) == 0.69, f"futures recovered {recovered:.0%}, not two thirds"
+
+    # "a median 0.041 points of residual against 0.058 on the realised path, for twelve points of
+    # cost" - the edge is computed path by path in the ranking table, not as a difference of the
+    # two strategies' own medians, which gives 0.050 and is a different statistic.
+    ranking = table("real_world_ranking")
+    leg = ranking.query("arm == 'as drawn' and richer == 'S3' and simpler == 'S2'").iloc[0]
+    assert round(100 * float(leg["median_sd_edge_pct"]), 3) == 0.041
+    assert round(100 * float(leg["realised_sd_edge_pct"]), 3) == 0.058
+    assert round(100 * float(leg["median_cost_gap_pct"])) == 13, "twelve point something"
+    assert [round(float(v), 1) for v in ranking["share_tighter"]] == [1.0] * 5 + [0.9]
+
+    # Section 6's external check: the disclosed offset series, year by year
+    offset = table("disclosed_hedge_offset")
+    offset = offset[offset["liability_basis"] == "market risk benefit"]
+    offset = offset.drop_duplicates(subset=["as_of", "shock"])
+
+    def points(date: str, shock: str, column: str = "offset_of_guarantee") -> float:
+        rows = offset[(offset["as_of"] == date) & (offset["shock"] == shock)]
+        assert len(rows) == 1, f"{len(rows)} rows for {date} {shock}"
+        return 100 * float(rows[column].iloc[0])
+
+    def share(date: str, shock: str, column: str = "offset_of_guarantee") -> int:
+        return round(points(date, shock, column))
+
+    # "The rate share goes 37-43% at the end of 2022, to 78-86% a year later"
+    assert [share("2022-12-31", "rates_down_50bp"),
+            share("2022-12-31", "rates_up_50bp")] == [37, 43]
+    assert [share("2023-12-31", "rates_down_50bp"),
+            share("2023-12-31", "rates_up_50bp")] == [86, 78]
+    # "104% and 77%, then 110% and 81% - and halves to 49% and 50% in 2024"
+    assert [share("2022-12-31", "equity_down_10pct"),
+            share("2022-12-31", "equity_up_10pct")] == [104, 77]
+    assert [share("2023-12-31", "equity_down_10pct"),
+            share("2023-12-31", "equity_up_10pct")] == [110, 81]
+    assert [share("2024-12-31", "equity_down_10pct"),
+            share("2024-12-31", "equity_up_10pct")] == [49, 50]
+    # "the offset falls to 9% and turns negative ... On both lines the offset is 49% then 44%"
+    assert share("2025-12-31", "equity_down_10pct") == 9
+    assert share("2025-12-31", "equity_up_10pct") < 0
+    assert [share("2024-12-31", "equity_down_10pct", "offset_of_both_lines"),
+            share("2025-12-31", "equity_down_10pct", "offset_of_both_lines")] == [49, 44]
+    # "it absorbs 79 to 84% of the equity move before any derivative is involved"
+    assert [share("2025-12-31", "equity_down_10pct", "rila_absorbs_of_guarantee"),
+            share("2025-12-31", "equity_up_10pct", "rila_absorbs_of_guarantee")] == [79, 84]
+
+    # "the disclosed ratio moves 1.1 points on the down shift and 2.7 on the up where a full hedge
+    # of the model's liability moves 3.8 and 4.3" - the one date disclosed at both shift sizes
+    for direction, disclosed_move, model_move in (("down", 1.1, 3.8), ("up", 2.7, 4.3)):
+        fifty = points("2024-12-31", f"rates_{direction}_50bp")
+        hundred = points("2024-12-31", f"rates_{direction}_100bp")
+        assert round(abs(hundred - fifty), 1) == disclosed_move, direction
+        model = table("model_hedge_offset").query(
+            "strategy == 'S2' and as_of == '2024-12-31'").set_index("shock")
+        moved = 100 * abs(float(model.loc[f"rates_{direction}_100bp", "offset_of_liability"])
+                          - float(model.loc[f"rates_{direction}_50bp", "offset_of_liability"]))
+        assert round(moved, 1) == model_move, f"{direction}: the model moves {moved:.2f} points"
+
+    # Section 8: "9 to 15% more variable than the economic outcome ... on every hedged strategy",
+    # and the own-credit adjustment's 0.127% against S3's 0.153%
+    lens = table("reporting_lens").set_index("strategy")
+    hedged = lens.drop(index="S0")["net_income_sd_multiple"]
+    extra = [round(100 * (float(hedged.min()) - 1)), round(100 * (float(hedged.max()) - 1))]
+    assert extra == [9, 15], f"the hedged strategies run {extra[0]} to {extra[1]}% more variable"
+    assert float(hedged.min()) > 1.0, "every hedged strategy is claimed to be more variable"
+    assert round(100 * float(lens["oci_sd_pct"].iloc[0]), 3) == 0.127
+    assert round(100 * float(lens.loc["S3", "net_income_sd_pct"]), 3) == 0.153
+
+    # "a correlation of +0.006 ... over eighteen quarters, which at that sample size could not have
+    # detected anything smaller than about 0.47"
+    replica = table("disclosure_replica")
+    quarterly = replica[replica.iloc[:, 0].astype(str).str.contains("quarterly")].iloc[0]
+    assert round(float(quarterly["periods"])) == 18
+    assert round(float(quarterly["correlation"]), 3) == 0.006
+    detectable = np.tanh(1.96 / np.sqrt(float(quarterly["periods"]) - 3.0))
+    assert round(float(detectable), 2) == 0.47
+
+
 def test_the_instrument_library_builds_what_its_docstring_counts():
     """A stale count, which is what the module opened with for several passes.
 
