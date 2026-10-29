@@ -125,8 +125,12 @@ row sits on the trend at 1.415.
 Truncation is measured on common draws, which is the only way the comparison means anything: the
 simulator draws its normals in one array whose width follows the horizon, so a forty-year run and
 a fifty-year run at the same seed are different worlds rather than a prefix and its extension.
-Measured properly, cutting the projection at age 115 costs less than a dollar and at 105 costs
-$36, against a standard error of $136.
+Measured properly, cutting the projection at age 115 costs well under a dollar and at 105 costs
+under forty - against a standard error of $462, which is the error of the run that measures it.
+The $136 in the headline table is a different simulation, ten times the paths, and putting it
+here understated the noise the truncation is being compared against by a factor of three. The
+conclusion survives either way and is stronger with the right denominator: the cost of cutting
+at 105 is under a tenth of one standard error.
 
 ## The calibrated surface against free data it never saw
 
@@ -310,8 +314,9 @@ over account value at which the model would reproduce that year's figure:
 | 2024 | 0.853 | 0.901 |
 | 2025 | 0.822 | 0.855 |
 
-Two independent shocks implying the same ratio, year after year, without being made to. The ratio
-declines across the four years, which is what a decade of rising markets does to a book. The
+Two independent shocks landing within seven points of each other in 2022 and four by 2025,
+without being made to, and nothing in the fit ties them together. The ratio declines across the
+four years, which is what a decade of rising markets does to a book. The
 vintage portfolio sits at 0.985, which is the size of the remaining gap.
 
 The rate shocks fall **outside** the model's range at every moneyness, which is the same statement

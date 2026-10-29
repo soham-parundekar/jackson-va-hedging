@@ -33,8 +33,9 @@ the guarantee and collapses the rate sensitivity with it, while the benefit base
 whatever the owner draws, so the equity sensitivity barely moves: across the sweep the rate
 multiple falls 2.16 to 0.49 and the equity multiple only 2.09 to 1.59. The equity half is
 moneyness instead, and the model says so independently - locating the disclosed figure on the
-model's own curve implies a benefit base over account value of 0.94 falling to 0.82 across the
-four years, with the up and down shocks implying the same ratio without being made to.
+model's own curve implies a benefit base over account value falling from 0.94 to 0.82 across the
+four years on the down shock and from 1.01 to 0.86 on the up shock, two independent readings
+landing within a few points of each other without being made to.
 
 **A delta and rho hedge removes most of the daily variation. Convexity removes most of the rest,
 and costs two hundred and seventy times as much to trade.**
@@ -63,9 +64,11 @@ hundred times larger, and the section below on what the rider earned puts a numb
 February and March 2020 makes the point better than the summary statistics. The unhedged guarantee
 lost 22.0% of account value in twenty-four trading days. Futures alone recovered two thirds of it,
 futures and swaps left 2.7%, and the option leg turned it into a 1.9% gain. Volmageddon is the
-opposite case: an 8.8% index move with volatility doubling, where futures and swaps remove 74.5%
-of the variance against 94% in covid, because instruments carrying no vega were never going to
-catch a volatility event.
+opposite case: an 8.8% index move with the thirty-day volatility index tripling over the window,
+where futures and swaps remove 74.5% of the variance against 94% in covid, because instruments
+carrying no vega were never going to catch a volatility event. The one-year level the puts are
+marked at rose 35% over the same days, which is the other half of why a long-dated option is a
+blunt instrument for a two-week spike.
 
 **The decade that happened flattered the hedge, and the bootstrap says by how much.**
 
@@ -261,7 +264,8 @@ whose width follows the horizon, so a forty-year run and a fifty-year run at the
 different simulations rather than a prefix and its extension. The test that was meant to show the
 projection horizon does not matter was reporting ninety dollars of Monte Carlo difference as a
 truncation effect, and passing for the wrong reason. On common draws, cutting at age 115 costs
-less than a dollar and at 105 costs thirty-six.
+well under a dollar and at 105 costs under forty, against a standard error of four hundred and
+sixty on the level the test runs at.
 
 **A solve that returned its own bracket.** The break-even fee was solved by bisection between 5
 and 800 basis points on the stated grounds that the guarantee gets cheaper the more it is charged.
