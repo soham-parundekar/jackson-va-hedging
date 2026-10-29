@@ -123,6 +123,17 @@ def test_every_source_the_literature_cites_has_a_register_row():
                      if not any(doi in known or known in doi for known in registered))
     assert not missing, f"cited in literature.md and in no register row: {missing}"
 
+    # Matching on DOIs alone leaves a hole the other way: a source with no DOI is invisible to
+    # the sweep above, and one of the register's papers has none because Wilmott never registered
+    # it. So every paper in the register has to appear in the document by title as well. Titles
+    # are compared on collapsed whitespace and ignoring case, because the register carries
+    # Crossref's capitalisation and the document uses sentence case.
+    flat = re.sub(r"\s+", " ", literature).lower()
+    absent = [row["title"] for row in _register()
+              if row["kind"] in ("journal_article", "magazine_article", "working_paper")
+              and re.sub(r"\s+", " ", row["title"]).lower() not in flat]
+    assert not absent, f"in the register and not cited in literature.md: {absent}"
+
 
 def test_the_filing_identifiers_in_the_docs_match_the_register():
     """One accession number, one spelling of it, wherever it appears.

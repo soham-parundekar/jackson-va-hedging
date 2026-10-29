@@ -131,7 +131,8 @@ Albrecher, H., Mayer, P., Schoutens, W., and Tistaert, J. (2007). The little Hes
 
 Fang, F., and Oosterlee, C. W. (2008). A novel pricing method for European options based on
 Fourier-cosine series expansions. *SIAM Journal on Scientific Computing* 31(2), 826-848.
-[10.1137/080718061](https://doi.org/10.1137/080718061)
+[10.1137/080718061](https://doi.org/10.1137/080718061) (posted online 2008, issue dated 2009,
+which is why the paper is universally cited as 2008)
 
 > The pricer the calibration objective is evaluated with, and the benchmark the simulator's
 > step size was chosen against.
@@ -188,8 +189,14 @@ Life Insurance*. Wiley. ISBN 0-471-39290-1.
 
 ## A note on what was verified
 
-Every reference above was checked against Crossref for author list, journal, volume, issue,
-pages and year. One error was caught that way: a Kling, Ruez and Russ paper carried in
+Every reference above that carries a DOI was checked against Crossref for author list, journal,
+volume, issue, pages and year. One carries none: Wilmott published the 2007 article on the
+characteristic function's branch cut without registering a DOI, so its details come from the
+repository record `references/source_register.csv` points at instead. The two reviews of Hardy
+have DOIs of their own and were checked the same way; the book is background reading rather than
+a source anything depends on, which is why it has no row in that register.
+
+One error was caught that way: a Kling, Ruez and Russ paper carried in
 memory as a 2011 ASTIN Bulletin article on stochastic volatility does not exist under those
 details. The paper by those authors on hedge efficiency is the 2014 *European Actuarial
 Journal* article listed above, and it is about policyholder behaviour rather than stochastic
