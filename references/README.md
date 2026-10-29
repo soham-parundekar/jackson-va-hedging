@@ -3,9 +3,17 @@
 Everything the project takes from outside itself, and where it came from.
 
 `source_register.csv` is the index: one row per source, with an identifier, the metadata
-needed to find it again, and the component of the project that depends on it. When a result
-in `docs/validation.md` cites REF-004, that row says which filing it is, what was taken from
-it, and whether the document itself is stored here.
+needed to find it again, and the component of the project that depends on it.
+
+The mapping runs from the source outwards. Each row's `used_by` column names the files and the
+decisions that rest on it - REF-005 names `data/raw/jackson_rider_terms.csv`, the age-banded
+rates in `vahedge/liability/terms.py` and the issue-age constants in
+`scripts/run_valuation.py` - so the question "what would break if this source were wrong" has
+an answer in one place. The documents go the other way in prose rather than by identifier: they
+name Item 7A, Note 6, the rate sheet, the 8-K, and `references.md` gives each of those its
+identifier and its accession number. This README used to describe `docs/validation.md` as
+citing REF-004 directly. It does not, and neither does anything else outside this directory;
+the identifiers live here and the prose names its sources the way a reader reads them.
 
 ## What is stored and what is not
 

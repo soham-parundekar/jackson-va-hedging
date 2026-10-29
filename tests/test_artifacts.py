@@ -1084,3 +1084,81 @@ def test_the_instrument_library_builds_what_its_docstring_counts():
     assert counted[0] == len(built), (
         f"the docstring counts {counted[0]} and the module builds {len(built)}: {sorted(built)}"
     )
+
+
+def test_the_source_register_and_the_files_it_names_agree():
+    """The mechanical half of the reference audit, which had never been a test.
+
+    Four things that are facts rather than judgements, and four ways a reference layer rots: a
+    row names a file that is not there; something cites an identifier no row defines; the
+    register and the bibliography drift apart; a file sits under references/ that no row claims.
+    The judgement half - whether an extract really is the filing it says it is, whether the
+    metadata is right - needs the original, and the original is on sec.gov, which nothing here
+    can reach from a script. `references/README.md` says so, and this test stops where that
+    begins.
+
+    No assertion that every row is used somewhere, which the first version had. Measured, the
+    identifiers appear nowhere outside this directory: all thirty are in `references.md` and
+    nothing else cites one, because the documents name Item 7A and Note 6 and the rate sheet in
+    prose and the mapping to components runs the other way, through the register's `used_by`
+    column. So "cited nowhere" would have meant "absent from the bibliography" while reading
+    like a usage check - the shape of a check that promises more than it does.
+
+    One deliberate hole in the numbering: a short-rate series was retrieved, measured against
+    the rate already in the panel, and dropped. The gap is left rather than closed by
+    renumbering, which would invalidate every identifier already cited. The register's header
+    says which identifier that was and why, and this reads the retired ones out of that header
+    rather than carrying a list of its own - which also stops the check tripping over its own
+    docstring, as the first version of it did.
+    """
+    import re
+    import pandas as pd
+
+    csv_path = paths.ROOT / "references" / "source_register.csv"
+    header = [line for line in csv_path.read_text().splitlines() if line.startswith("#")]
+    retired = {found for line in header if "absent on purpose" in line
+               for found in re.findall(r"REF-\d{3}", line)}
+    assert retired, "the register's header names no retired identifier; has it been rewritten?"
+
+    register = pd.read_csv(csv_path, comment="#")
+    assert len(register) > 25, f"only {len(register)} rows, so the check is not running"
+    defined = set(register["ref_id"])
+    assert len(defined) == len(register), "the register has a duplicate identifier"
+    assert not register.isna().all(axis=1).any(), "the register has a blank row"
+
+    missing = []
+    claimed = set()
+    for _, row in register.iterrows():
+        if pd.isna(row["local_path"]):
+            continue
+        for piece in str(row["local_path"]).split(";"):
+            path = paths.ROOT / piece.strip()
+            claimed.add(path.resolve())
+            if not path.exists():
+                missing.append(f"{row['ref_id']} names {piece.strip()}")
+    assert not missing, "rows naming a file that is not there:\n" + "\n".join(missing)
+
+    index_files = {"README.md", "references.md", "source_register.csv"}
+    unclaimed = sorted(
+        path.relative_to(paths.ROOT).as_posix()
+        for path in (paths.ROOT / "references").rglob("*")
+        if path.is_file() and path.name not in index_files
+        and path.resolve() not in claimed
+    )
+    assert not unclaimed, f"files under references/ that no row claims: {unclaimed}"
+
+    cited: dict = {}
+    for pattern in ("docs/*.md", "*.md", "vahedge/**/*.py", "scripts/*.py", "tests/*.py",
+                    "references/*.md", "data/raw/*.csv"):
+        for path in sorted(paths.ROOT.glob(pattern)):
+            for found in re.findall(r"REF-\d{3}", path.read_text(errors="replace")):
+                cited.setdefault(found, set()).add(path.name)
+    undefined = set(cited) - defined - retired
+    assert not undefined, f"cited and not in the register: {sorted(undefined)}"
+
+    bibliography = (paths.ROOT / "references" / "references.md").read_text()
+    listed = set(re.findall(r"REF-\d{3}", bibliography))
+    assert listed == defined, (
+        f"the bibliography and the register disagree: only in the register "
+        f"{sorted(defined - listed)}, only in the bibliography {sorted(listed - defined)}"
+    )
