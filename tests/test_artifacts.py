@@ -883,3 +883,93 @@ def test_a_drawdown_is_computed_in_one_place_on_one_convention():
         "running extrema outside simulator.worst_drawdown:\n" + "\n".join(stray)
     )
     assert found, "no running extremum anywhere, so worst_drawdown is not the one being checked"
+
+
+def test_the_methodology_document_figures_match_the_tables_they_came_from():
+    """The figures `docs/methodology.md` states that a committed table can settle.
+
+    That document carries about forty-five figures and no tables of its own, so nothing in the
+    suite reached them. Tracing them one at a time found one wrong: the par-shift claim said a
+    hundred basis points arrived as 98.2 at five years and 104.7 at thirty, where the bootstrap
+    gives 98.3 and 103.9 and `curves.py` had said so since pass eighteen. The correction had
+    been made in the module and not carried into the document, and five passes went by.
+
+    The two figures that caught it are not in any table, so they are not here - a rerun of the
+    bootstrap is what checks those, and the module and the document now agree. What is here is
+    every methodology figure a committed table does settle, pinned at the rounding the prose
+    prints, so the next table that moves takes the document with it.
+    """
+    import pandas as pd
+
+    def table(name):
+        return pd.read_csv(paths.TABLES / f"{name}.csv")
+
+    # "a 5.95% lifetime draw exhausts the account on 78% of paths by year twenty"
+    flows = table("cash_flow_profile")
+    assert round(float(flows.loc[flows["policy_year"] == 20, "prob_exhausted"].iloc[0]), 2) == 0.78
+
+    # "866 per point against 27 for the current variance", and the $136 standard error, which
+    # the Greeks table and the convergence table state separately and have to agree on.
+    greeks = table("greeks")
+    economic = greeks[greeks["basis"].str.startswith("economic")].iloc[0]
+    assert round(float(economic["vega_long_run"])) == 866
+    assert round(float(economic["vega_current"])) == 27
+    assert round(float(economic["level_std_error"])) == 136
+    convergence = table("monte_carlo_convergence").set_index("paths")
+    assert round(float(convergence.loc[20000, "std_error"])) == 136
+    # "it halves as paths quadruple" - both quadruplings the table carries
+    for small, large in ((2500, 10000), (5000, 20000)):
+        ratio = float(convergence.loc[large, "std_error"] / convergence.loc[small, "std_error"])
+        assert abs(ratio - 0.5) < 0.02, f"{small}->{large} paths moved the error by {ratio:.3f}"
+
+    # "the robustness table prices the issuer's level at -2.3% of premium", and the base case's
+    # alpha, which the same document quotes as 0.79 at 31 December 2025
+    robustness = table("valuation_robustness")
+    issuer = robustness[robustness["variation"].str.contains("disclosed 19.12")].iloc[0]
+    assert round(float(issuer["mrb_pct_of_premium"]), 1) == -2.3
+    base = robustness[robustness["variation"] == "base case"].iloc[0]
+    assert round(float(base["implied_attribution"]), 2) == 0.79
+
+    # "Four of the five vintages calibrate to the cap, and only the 2024 vintage has margin"
+    vintages = table("portfolio_vintage_detail")
+    latest = vintages[vintages["as_of"] == "2025-12-31"]
+    assert len(latest) == 5
+    assert int((latest["attribution"] >= 1.0).sum()) == 4
+    assert round(float(latest["attribution"].min()), 3) == 0.733
+
+    # "At 1.20 of the benefit base in policy year five the exposure runs from -27,492 with most
+    # of the year to go to +2,679 on its eve"
+    proximity = table("step_up_proximity")
+    eve = proximity[(proximity["policy_year"] == 5) & (proximity["account_over_base"] == 1.2)]
+    eve = eve.sort_values("years_to_anniversary", ascending=False)
+    assert [round(float(v)) for v in eve["equity_exposure"]] == [-27492, -12407, 2679]
+
+    # "binds on 77% of in-force paths in the first policy year, dips to 55% around year twelve
+    # ... and climbs to essentially every path by year thirty-five"
+    reach = table("statutory_floor_reach")
+    first = float(reach.loc[reach["policy_year"] == 1, "share_floor_binds"].iloc[0])
+    assert round(100 * first) == 77
+    trough = reach.loc[reach["share_floor_binds"].idxmin()]
+    assert int(trough["policy_year"]) == 12
+    assert round(100 * float(trough["share_floor_binds"])) == 55
+    assert float(reach.loc[reach["policy_year"] == 35, "share_floor_binds"].iloc[0]) > 0.99
+
+    # "moves its average reach from 67.9% to 68.8% of in-force paths and what it adds to the
+    # reserve from 9.80% to 10.42%", across the four disclosed year ends and not the model's
+    # rounded 98.0%, which is the fifth row of that table
+    sensitivity = table("statutory_floor_share_sensitivity")
+    disclosed = sensitivity[sensitivity["surrender_share"].isin([0.9729, 0.9773, 0.9795, 0.9801])]
+    assert len(disclosed) == 4
+    assert [round(100 * float(v), 1) for v in (disclosed["mean_share_floor_binds"].min(),
+                                               disclosed["mean_share_floor_binds"].max())
+            ] == [67.9, 68.8]
+    addition = disclosed["mean_floor_addition_pct_of_account"]
+    assert [round(100 * float(v), 2) for v in (addition.min(), addition.max())] == [9.80, 10.42]
+
+    # "calibrated to 1,468 cleaned quotes across seventeen expiries ... worst per-maturity root
+    # mean square error of 0.85 volatility points", and the chain reaching 3.23 years
+    surface = table("surface_fit")
+    assert len(surface) == 17
+    assert int(surface["n_quotes"].sum()) == 1468
+    assert round(float(surface["maturity"].max()), 2) == 3.23
+    assert round(100 * float(surface["rmse_vol"].max()), 2) == 0.85

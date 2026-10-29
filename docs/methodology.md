@@ -248,8 +248,8 @@ The alternative was measured rather than dismissed. Shifting the quoted par yiel
 bootstrapping again is what a trading desk does, and it is the reading of "a parallel shift in
 risk-free rates" that a filer most likely has in mind. It cannot be applied to the curve this
 liability discounts on without re-fitting Svensson to the shifted bootstrap, and the re-fit is
-what spoils it. On the 31 December 2025 curve a 100 basis point par shift arrives as 98.2 basis
-points of zero-rate shift at five years and 104.7 at thirty, and the up and down legs land on
+what spoils it. On the 31 December 2025 curve a 100 basis point par shift arrives as 98.3 basis
+points of zero-rate shift at five years and 103.9 at thirty, and the up and down legs land on
 fits of different quality - residuals of 4.89 and 3.90 basis points against the unshocked fit's
 4.37 - which leaves 1.3 basis points of asymmetry at forty-five years that a central difference
 cannot see. Rho is a central difference over ten basis points, so that asymmetry would sit
