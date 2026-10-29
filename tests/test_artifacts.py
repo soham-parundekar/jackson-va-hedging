@@ -1162,3 +1162,45 @@ def test_the_source_register_and_the_files_it_names_agree():
         f"the bibliography and the register disagree: only in the register "
         f"{sorted(defined - listed)}, only in the bibliography {sorted(listed - defined)}"
     )
+
+
+def test_the_sizing_weight_table_in_the_documents_reads_its_vega_column_right():
+    """`docs/validation.md`'s weight-sweep table, where one column carried two conventions.
+
+    `sizing.effectiveness` reports `1 - |after| / |before|`, so a hedge that enlarges an exposure
+    comes back negative and -77.17 means the exposure ends at 78.17 times the size it started.
+    The document tabulates that multiple. Three of its four rows carried the raw column instead -
+    81, 81 and 12 against the multiples 82, 82 and 13 - while the first row, 78, was already the
+    multiple. One row in four on the other reading, which is the kind of thing a column of four
+    numbers hides.
+
+    The whole row is pinned rather than the vega alone, because the weight sweep is the one place
+    the sizing objective's single operative degree of freedom is measured and the residual, the
+    cost and the gamma closed are read together.
+    """
+    import pandas as pd
+
+    weights = pd.read_csv(paths.TABLES / "hedge_sizing_weights.csv")
+    put = weights[weights["strategy"] == "S3"].set_index("objective")
+    expected = {
+        "gamma and vega equal, the default": (0.137, 13.73, 95, 78),
+        "gamma ten times vega": (0.137, 14.89, 100, 82),
+        "gamma a hundred times vega": (0.137, 14.90, 100, 82),
+        "vega ten times gamma": (0.153, 3.98, 17, 13),
+    }
+    assert set(put.index) == set(expected), f"the objectives changed: {sorted(put.index)}"
+    for objective, (residual, cost, gamma, vega) in expected.items():
+        row = put.loc[objective]
+        assert round(100 * float(row["pnl_sd_pct"]), 3) == residual, objective
+        assert round(100 * float(row["total_cost_pct"]), 2) == cost, objective
+        assert round(100 * float(row["gamma_removed"])) == gamma, objective
+        assert round(1.0 - float(row["vega_removed"])) == vega, objective
+
+    # S2 has no put, so every row of it has to be identical - the control the table rests on.
+    flat = weights[weights["strategy"] == "S2"]
+    for column in ("pnl_sd_pct", "total_cost_pct", "gamma_removed", "vega_removed"):
+        assert flat[column].nunique() == 1, f"S2's {column} moved with the weights"
+
+    # "worth eleven points of trading cost" - the spread the heading claims
+    spread = 100 * (put["total_cost_pct"].max() - put["total_cost_pct"].min())
+    assert round(spread) == 11, f"the cost spread is {spread:.2f} points"

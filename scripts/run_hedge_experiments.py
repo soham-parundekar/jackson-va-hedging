@@ -327,6 +327,12 @@ def sizing_weights(setup) -> pd.DataFrame:
     compromise that closes most of the gamma and takes the vega exposure further from zero than
     it started, and a table of standard deviations alone does not show that.
 
+    The vega column needs its convention read off ``sizing.effectiveness``, which reports
+    ``1 - |after| / |before|``. A hedge that enlarges an exposure therefore comes back negative,
+    and `-77` means the exposure ends at 78 times the size it started - the multiple is one more
+    than the figure in the column. `docs/validation.md` tabulates the multiple, and three of its
+    four rows carried the raw column instead until that was noticed.
+
     Run on the whole replay for the same reason the frequency frontier is: a weight is a standing
     choice and a crisis is not the average cost of one.
     """

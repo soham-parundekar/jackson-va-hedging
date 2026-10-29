@@ -608,12 +608,12 @@ equity future reaches delta alone and the swap rho alone, so both absorb whateve
 with them and close exactly at any weights; only gamma and vega compete, because both run through
 the put's single unit count. Over the whole replay:
 
-| Objective | Residual sd | Cost | Gamma closed | Vega |
+| Objective | Residual sd | Cost | Gamma closed | Vega, multiple of its starting size |
 |---|---|---|---|---|
-| gamma and vega equal (the default) | 0.137% | 13.73% | 95% | 78x further from zero |
-| gamma ten times vega | 0.137% | 14.89% | 100% | 81x |
-| gamma a hundred times vega | 0.137% | 14.90% | 100% | 81x |
-| vega ten times gamma | 0.153% | 3.98% | 17% | 12x |
+| gamma and vega equal (the default) | 0.137% | 13.73% | 95% | 78x |
+| gamma ten times vega | 0.137% | 14.89% | 100% | 82x |
+| gamma a hundred times vega | 0.137% | 14.90% | 100% | 82x |
+| vega ten times gamma | 0.153% | 3.98% | 17% | 13x |
 
 S2, which has no put, comes out identical on all four rows, which is the control: with two
 instruments reaching two factors exactly there is no residual for a weight to allocate.
