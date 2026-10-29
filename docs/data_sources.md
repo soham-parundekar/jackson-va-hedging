@@ -247,8 +247,14 @@ the length of the window - the eleven-day volmageddon replay is the most sensiti
 the 197-day 2022 one the least - so what sets them is not established. A hedging result is a small
 residue of two large numbers and inherits whatever its inputs do.
 
+The figures are the one stage where nothing is comparable at all. Redrawn under matplotlib 3.11
+against the 3.10 that produced them, **all ten change and none of them changes in content** - a
+renderer writes different bytes for the same picture. So `make figures` on a fresh clone will
+report ten modified files whatever the data did, and the only way to tell a moved line from a
+moved pixel is to check the table the figure reads.
+
 The reproduction check is therefore per stage: bytes for `build_dataset`, last digits for the
-calibration, a couple of per cent for the hedging experiments, and for the backtest arms whether
-the ranking of the strategies survives rather than whether the figures do. The environment that
-produced the committed tables is not recoverable, which is also why `requirements.txt` floors the
-library versions instead of pinning them.
+calibration, a couple of per cent for the hedging experiments, for the backtest arms whether the
+ranking of the strategies survives rather than whether the figures do, and for `reports/figures`
+nothing at the byte level. The environment that produced the committed tables is not recoverable,
+which is also why `requirements.txt` floors the library versions instead of pinning them.

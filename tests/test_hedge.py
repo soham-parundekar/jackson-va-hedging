@@ -65,10 +65,15 @@ def _guarantee_greeks(**overrides):
 
 
 def _proxy_greeks(**overrides):
-    """The same guarantee as the regression proxy reports it: a dictionary, and its delta and
-    gamma are per log move in the account value rather than in the index."""
+    """The same guarantee as the regression proxy reports it, which is not the same units.
+
+    A dictionary, its delta and gamma per log move in the account value rather than in the
+    index, and its vega per unit of decimal volatility where the Greeks module's is per point.
+    This fixture carried 0.02 for both for twenty-five passes, which made the two branches of
+    ``insurer_exposures`` look unit-consistent when they were a hundred apart.
+    """
     defaults = dict(value=4.0, delta=-30.0 / EQUITY_WEIGHT,
-                    gamma=25.0 / EQUITY_WEIGHT ** 2, rho_per_bp=-0.08, vega=0.02,
+                    gamma=25.0 / EQUITY_WEIGHT ** 2, rho_per_bp=-0.08, vega=2.0,
                     outside_design=0.0)
     defaults.update(overrides)
     return {key: np.array([value]) for key, value in defaults.items()}
@@ -246,17 +251,51 @@ def test_the_full_greeks_are_already_in_the_index_and_are_not_converted_again():
 
 
 def test_both_greek_sources_describe_the_same_index_exposure():
-    """The identity that would have caught the convention clash. One liability, two routes to
-    its exposure vector: the proxy's contract-space derivatives put through the equity weight,
-    and the full Greeks straight. They have to land on the same index delta."""
+    """The identity that catches a convention clash, on all four factors rather than two.
+
+    One liability, two routes to its exposure vector: the proxy's contract-space derivatives put
+    through the equity weight, and the full Greeks straight. They have to land on the same four
+    numbers.
+
+    It used to stop after delta and gamma, and the row it stopped before is where the clash was.
+    The proxy differentiates in decimal volatility and `greeks.compute` reports per point, so the
+    vega row needed a factor of a hundred that nothing applied - and the fixtures hid it by
+    giving both sources the same figure. A hedge sized off the full Greeks got a vega target a
+    hundredth of its size.
+    """
     contract_delta, contract_gamma = -36.0, 36.0
-    proxy = _proxy_greeks(delta=contract_delta, gamma=contract_gamma)
+    per_unit_vega, rho = 1.7, -0.11
+    proxy = _proxy_greeks(delta=contract_delta, gamma=contract_gamma,
+                          vega=per_unit_vega, rho_per_bp=rho)
     full = _guarantee_greeks(equity_exposure=contract_delta * EQUITY_WEIGHT,
-                             equity_gamma=contract_gamma * EQUITY_WEIGHT ** 2)
+                             equity_gamma=contract_gamma * EQUITY_WEIGHT ** 2,
+                             vega_current=per_unit_vega / 100.0, rho_per_bp=rho)
     from_proxy = sizing.insurer_exposures(proxy, equity_weight=EQUITY_WEIGHT)
     from_full = sizing.insurer_exposures(full, equity_weight=EQUITY_WEIGHT)
-    assert approx(from_proxy.delta, rel=1e-12) == from_full.delta
-    assert approx(from_proxy.gamma, rel=1e-12) == from_full.gamma
+    for factor in inst.Exposures.ORDER:
+        assert approx(getattr(from_proxy, factor), rel=1e-12) == getattr(from_full, factor), (
+            f"the two sources disagree on {factor}"
+        )
+
+
+def test_the_instruments_measure_vega_in_the_unit_the_proxy_does():
+    """Which is per unit of decimal volatility, and the reason the conversion above exists.
+
+    Measured against Black-76 rather than asserted: a level shift scales the smile, so the
+    strike's own volatility moves by its multiplier and the put's vega is the closed-form figure
+    times that multiplier - per unit of the level, since the differencing step is in the level
+    and nothing divides by a hundred afterwards.
+    """
+    market = _market()
+    put = inst.IndexPut(maturity=1.0, strike_over_spot=0.90).struck(market)
+    strike = float(put.strike)
+    forward = market.forward(1.0)
+    discount = float(market.curve.discount(1.0))
+    vol = market.strike_volatility(strike / market.index)
+    d1 = (np.log(forward / strike) + 0.5 * vol ** 2) / vol
+    closed_form = discount * forward * np.exp(-0.5 * d1 ** 2) / np.sqrt(2.0 * np.pi)
+    multiplier = float(market.smile(strike / market.index))
+    assert approx(closed_form * multiplier, rel=1e-4) == put.exposures(market).vega
 
 
 def test_the_long_run_vega_is_not_what_a_traded_option_is_sized_against():

@@ -75,6 +75,9 @@ from .instruments import Exposures, exposure_matrix
 # weekly hedge is judged on, so they come in at a tenth.
 DEFAULT_WEIGHTS = np.array([1.0, 0.1, 0.1, 1.0])
 DEFAULT_RIDGE = 1e-6
+# Volatility points in one unit of decimal volatility. The hedge layer works in decimal, the
+# Greeks module reports in points, and insurer_exposures is where the two meet.
+POINTS_PER_UNIT = 100.0
 
 
 @dataclass(frozen=True)
@@ -142,6 +145,15 @@ def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current")
     reach; the long-run vega is an assumption about a level no option expires at. Sizing a put
     position against the long-run number would be hedging a model parameter with a traded
     instrument, so the default is the tradeable one and the remainder is reported unhedged.
+
+    Vega also needs a unit conversion, and this is the second trap rather than a footnote. The
+    instruments differentiate in decimal volatility - ``IndexPut.exposures`` divides by a step of
+    1e-4 in the level - and so does the proxy, whose volatility state is the square root of the
+    variance. ``greeks.compute`` reports per volatility point instead, multiplying by 0.01 on the
+    way out, because a point is the unit a vega is read in. Both are defensible and they are a
+    hundred apart, so the branch that takes a ``Greeks`` has to scale back up. Without it the
+    solve was handed a vega target a hundredth of its size and sized the put against gamma
+    almost alone.
     """
     if vega not in ("current", "long_run", "none"):
         raise ValueError(f"vega must be current, long_run or none; got {vega}")
@@ -154,7 +166,8 @@ def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current")
         to_index = float(equity_weight)
     else:
         delta, gamma, rho = greeks.equity_exposure, greeks.equity_gamma, greeks.rho_per_bp
-        vega_value = {
+        # Per point on this branch, per decimal unit on the other and in the instruments.
+        vega_value = POINTS_PER_UNIT * {
             "current": greeks.vega_current,
             "long_run": greeks.vega_long_run,
             "none": 0.0,

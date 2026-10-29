@@ -71,7 +71,10 @@ class Exposures:
 
     delta: float = 0.0      # d(value) / d(log index)
     gamma: float = 0.0      # d2(value) / d(log index)^2
-    vega: float = 0.0       # d(value) / d(volatility), per point
+    # Per unit of decimal volatility, not per point: the step in IndexPut.exposures is 1e-4 of
+    # the level and nothing scales it afterwards. The regression proxy's vega is in the same
+    # unit; the Greeks module's is per point, and sizing.insurer_exposures converts.
+    vega: float = 0.0       # d(value) / d(volatility level), per unit
     rho: float = 0.0        # d(value) / d(parallel rate shift), per basis point
 
     ORDER = ("delta", "gamma", "vega", "rho")

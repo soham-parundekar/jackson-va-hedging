@@ -451,12 +451,17 @@ class ProxyFit:
         cent, not for the limit as the move goes to zero. Pass ``gamma_step=0`` for the point
         derivative, which is exact for the fitted function and useless as a risk number.
 
-        Units otherwise match the Greeks module, so a hedge can be sized off either without
-        conversion. Delta and gamma are per unit log move in the contract value, vega is per
-        volatility point, and rho is per basis point of the ten-year zero rate with the curve's
-        shape held. That last one is a one-factor rate exposure and is all a one-factor rate
-        state can support; a curve-shape hedge would need a slope state in the basis and does
-        not get one.
+        Units. Delta and gamma are per unit log move in the contract value, rho is per basis
+        point of the ten-year zero rate with the curve's shape held, and vega is per unit of
+        decimal volatility, which is the state variable here - the square root of the variance,
+        so a vega of four is four dollars for a move from 20 per cent to 120. The hedge
+        instruments differentiate in the same unit; the Greeks module reports vega per
+        volatility point instead, so a hedge sized off that one needs the conversion
+        ``sizing.insurer_exposures`` applies. This used to claim the two matched everywhere and
+        needed no conversion, which is what let the mismatch stand.
+
+        The rate exposure is one-factor and that is all a one-factor rate state can support; a
+        curve-shape hedge would need a slope state in the basis and does not get one.
         """
         family = self.pre_fits if pre_event else self.fits
         if year not in family:
