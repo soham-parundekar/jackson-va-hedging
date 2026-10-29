@@ -86,16 +86,6 @@ def run(setup, path, strategy):
     )
 
 
-def drawdown(series: pd.Series, account_value: float) -> float:
-    """Worst peak-to-trough fall in a capital series, as a share of the starting account value.
-
-    Peak to trough rather than start to end, because a capital constraint is breached at the
-    trough and does not care that the position recovered afterwards.
-    """
-    running = series.cummax()
-    return float((series - running).min() / account_value)
-
-
 def frontier(setup) -> pd.DataFrame:
     episodes = scenarios.available_episodes(setup["history"])
     if STRESS_EPISODE not in episodes["covered"]:
@@ -117,10 +107,18 @@ def frontier(setup) -> pd.DataFrame:
             "cost_whole_window_pct": whole.summary["total_cost_pct"],
             "sd_whole_window_pct": whole.summary["pnl_sd_pct"],
             "crisis_economic_total_pct": crisis.summary["total_pnl_pct"],
-            "crisis_economic_drawdown_pct": drawdown(
-                marked["economic_capital"], account_value),
-            "crisis_statutory_drawdown_pct": drawdown(
-                marked["statutory_capital"], account_value),
+            # Peak to trough rather than start to end, because a capital constraint is breached
+            # at the trough and does not care that the position recovered afterwards. Measured
+            # off the two seeded profit series rather than the capital levels, so the mark
+            # starts before the book was struck and the drawdown is on the same convention as
+            # the worst-day column beside it. This read the levels until it was unified with
+            # the simulator's, which on this grid changes nothing: the hedge is ahead of its
+            # opening level well before the trough in every row, so both conventions find the
+            # same peak. On a window where it never gets ahead they would not.
+            "crisis_economic_drawdown_pct": simulator.worst_drawdown(
+                marked["economic_pnl"], account_value),
+            "crisis_statutory_drawdown_pct": simulator.worst_drawdown(
+                marked["statutory_pnl"], account_value),
             "crisis_statutory_worst_day_pct": float(
                 marked["statutory_pnl"].min() / account_value),
             "share_of_crisis_days_floored": float(marked["floor_binds"].mean()),

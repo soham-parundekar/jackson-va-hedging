@@ -154,6 +154,27 @@ def daily_profit(net_worth: pd.Series, opening: float) -> pd.Series:
     return profit
 
 
+def worst_drawdown(profit, account_value: float) -> float:
+    """Deepest fall from a high-water mark that starts before the programme, scaled.
+
+    The mark starts at zero, not at the first period's cumulative profit. Before day one the
+    programme has earned nothing, so zero is the level it starts from, and the cost of striking
+    the book belongs inside the drawdown rather than outside it. Taking a running maximum
+    straight over the cumulative series instead makes the first day the peak whenever it is a
+    loss, which for every option strategy it is, and leaves the drawdown and the worst single
+    day in the same row on different conventions. On the covid window the day that convention
+    omitted was four tenths of a point against a drawdown of nine.
+
+    ``profit`` is a period-by-period series measured from before the programme: a ledger's
+    ``pnl`` column, or whatever ``daily_profit`` returned for the basis in question. A level
+    series handed here would drop the opening gap again, which is the mistake this exists to
+    stop two call sites making separately.
+    """
+    cumulative = np.cumsum(np.asarray(profit, dtype=float))
+    peak = np.maximum.accumulate(np.concatenate([[0.0], cumulative]))[1:]
+    return float((cumulative - peak).min() / account_value)
+
+
 def roll_contract(policy_book, path, survival, deaths, equity_weight: float = 1.0) -> dict:
     """The contract's annual state along the realised path, and the cash flows it produced."""
     anniversaries = anniversary_indices(path)
@@ -645,18 +666,7 @@ def summarise(ledger: pd.DataFrame, account_value: float,
     policy at all.
     """
     pnl = ledger["pnl"].to_numpy()
-    cumulative = np.cumsum(pnl)
     worst = int(np.argmin(pnl))
-    # The peak the drawdown is measured from starts at zero, not at the first day's cumulative
-    # profit. Before day one the programme has earned nothing, so zero is the high-water mark
-    # it starts from, and the cost of striking the book belongs inside the drawdown rather than
-    # outside it. Running the maximum straight over ``cumulative`` instead - which this did
-    # first - makes the first day the peak whenever it is a loss, which for every option
-    # strategy it is, and put ``worst_drawdown_pct`` and ``worst_day_pct`` on different
-    # conventions in the same row: on the covid window the omitted first day was four tenths
-    # of a point against a drawdown of nine.
-    peak = np.maximum.accumulate(np.concatenate([[0.0], cumulative]))[1:]
-    drawdown = cumulative - peak
     return {
         "days": int(ledger.shape[0]),
         "rebalances": int(ledger["rebalanced"].sum()),
@@ -664,7 +674,7 @@ def summarise(ledger: pd.DataFrame, account_value: float,
         "pnl_sd_pct": float(pnl.std(ddof=1) / account_value),
         "worst_day_pct": float(pnl[worst] / account_value),
         "worst_day": ledger.index[worst],
-        "worst_drawdown_pct": float(drawdown.min() / account_value),
+        "worst_drawdown_pct": worst_drawdown(pnl, account_value),
         "total_cost_pct": float(
             (ledger["trade_cost"].sum() + ledger["carry_cost"].sum()) / account_value
         ),

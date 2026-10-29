@@ -198,16 +198,29 @@ included the first day, so the two sat in the same row on different conventions.
 
 The code measures from zero now and the two tables do not yet reflect it. The size is bounded and
 one-sided - a drawdown can only widen - and on the crisis replays it moves nine of the
-twenty-eight rows, by between 0.002 and 0.127 points of account value; the largest is S6 through
-volmageddon, from 0.574% to 0.701%. The other nineteen rows do not move at all, because their
-high-water mark fell later than the first day. Nothing in these documents draws a conclusion from
-the column.
+twenty-eight rows, by between 0.0008 and 0.127 points of account value; the largest is S6 through
+volmageddon, from 0.574% to 0.701%, which is 22 per cent of the figure. The other nineteen rows do
+not move at all, because their high-water mark fell later than the first day. Nothing in these
+documents draws a conclusion from the column.
 
-Regenerating the two tables is what closes it, and a regeneration moves more than this one column:
-see **Reproducibility** in `docs/data_sources.md` for what a rerun in a different numerical
-environment does to the hedge set, which on this column is larger than the convention change
-itself. That is the reason the correction is recorded here rather than applied by pasting a column
-from one environment into tables produced by another.
+Regenerating the two tables is what would close it, and the environment that wrote them is no
+longer available to do it in: the machine those tables came from does not get through the
+calibration stage any more, so nothing downstream of it runs there either. A rerun anywhere else
+moves every column of the table rather than this one, and the two tables differ in how much that
+matters. On the crisis replays the rerun shifts `worst_drawdown_pct` on all twenty-eight rows but
+by at most 3.1 per cent of the figure, against a convention change worth 22, so there the
+correction is the larger effect of the two. On the real-world paths it is the other way round -
+the rerun moves 121 rows wider and 123 narrower, which swamps a change that can only widen. So
+neither is regenerated: fixing one table would leave the hedge set with two numerical provenances
+to explain instead of one stale column. **Reproducibility** in `docs/data_sources.md` carries the
+per-stage sizes.
+
+The same convention is now computed in one place rather than two. The macro frontier read its
+drawdowns off the capital levels, whose first row is already after the book was struck, and the
+reading happens to agree with the corrected one on every row of its grid: the hedge is ahead of
+its opening level well before the trough in covid, so both conventions find the same peak. On a
+window where it never gets ahead they would not, which is why the duplicate was removed rather
+than left alone.
 
 **Four model inputs are dated after the decisions they drive, and the list is the whole of it.**
 A desk rebalancing in September 2016 could not have had any of them:

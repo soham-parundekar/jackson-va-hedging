@@ -860,6 +860,27 @@ def test_a_solved_put_rolls_when_its_strike_drifts_but_an_overlay_does_not():
     assert not simulator._needs_roll(overlay, crashed, 0.1)
 
 
+def test_a_drawdown_counts_the_cost_of_striking_the_book():
+    """The convention the backtest and the macro frontier now share, and why it is not the other.
+
+    A strategy that pays for its hedge loses on day one, and a high-water mark taken over the
+    cumulative profit starts at that loss, so the loss falls outside the drawdown. On this
+    series that reads as a drawdown shallower than a single day's fall, which is not a thing
+    that can happen: the mark starts at zero instead, where the programme actually started.
+    """
+    profit = np.array([-4.0, 1.0, -3.0, 2.0])
+    measured = simulator.worst_drawdown(profit, 100.0)
+    assert measured == approx(-0.06)
+
+    cumulative = np.cumsum(profit)
+    from_the_first_loss = float(
+        (cumulative - np.maximum.accumulate(cumulative)).min() / 100.0
+    )
+    worst_period = float(profit.min() / 100.0)
+    assert measured <= worst_period
+    assert from_the_first_loss > worst_period
+
+
 def test_an_overlay_still_rolls_on_time():
     """Held through the event, not held past expiry."""
     market = _market()

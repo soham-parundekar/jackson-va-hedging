@@ -21,7 +21,15 @@
 # compilation wait and a second code path to keep correct, and would save seconds.
 #
 # Version floors are the oldest releases this has been run against, not the versions it was
-# developed on.
+# developed on. Floors rather than pins, which is a decision and not laziness. A pin would
+# promise that a rerun reproduces the committed tables to the byte, and the measurements in the
+# Reproducibility section of docs/data_sources.md say it does not: the libraries move results in
+# their last stored digits, and in one place - the nested convexity surface's node selection -
+# that is enough to pick a different path at the same moneyness. A pin would also have to name
+# the versions the committed tables came from, and that set is no longer recoverable, so any
+# pin written here would be an assertion about provenance rather than a record of it. What is
+# recoverable is the size of the differences, which is measured per pipeline stage and written
+# down. Read the tolerances there instead of trusting a version string.
 numpy>=1.24
 pandas>=2.0
 scipy>=1.10

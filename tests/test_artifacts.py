@@ -830,3 +830,56 @@ def test_nothing_is_introduced_and_then_left_unused():
                 dead.append(f"{where}:{line} imports {name} and never uses it")
 
     assert not dead, "\n".join([f"{len(dead)} names introduced and left unused:"] + dead)
+
+
+def test_a_drawdown_is_computed_in_one_place_on_one_convention():
+    """Running extrema outside `simulator.worst_drawdown`, which is how the duplicate got in.
+
+    The macro frontier had its own drawdown, taking a running maximum straight over the capital
+    series. That series starts on the first day, already after the book has been struck, so the
+    cost of striking it fell outside the drawdown while the worst-day column in the same row
+    included it. It agreed with the corrected convention on every row of its own grid by luck -
+    the hedge is ahead of its opening level long before the trough in covid, so both find the
+    same peak - and would not have on a window where the hedge never gets ahead.
+
+    A second implementation of a convention is the thing to prevent rather than the arithmetic,
+    so this counts running extrema in the library and the scripts and expects exactly the one.
+    A legitimate new use means routing it through `worst_drawdown` or widening the allowance
+    here with the reason written down, not deleting the check.
+    """
+    import ast
+
+    allowed = {("vahedge/hedge/simulator.py", "worst_drawdown")}
+    sources = (sorted(paths.ROOT.glob("vahedge/**/*.py"))
+               + sorted(paths.ROOT.glob("scripts/*.py")))
+    assert len(sources) > 30, f"only {len(sources)} source files, so the sweep is not running"
+
+    def running_extremum(node) -> bool:
+        if not isinstance(node, ast.Attribute):
+            return False
+        if node.attr in ("cummax", "cummin"):
+            return True
+        return (node.attr == "accumulate" and isinstance(node.value, ast.Attribute)
+                and node.value.attr in ("maximum", "minimum"))
+
+    found = []
+    for source in sources:
+        where = source.relative_to(paths.ROOT).as_posix()
+        tree = ast.parse(source.read_text())
+        for function in [node for node in ast.walk(tree)
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+            for node in ast.walk(function):
+                if running_extremum(node):
+                    found.append((where, function.name, node.lineno))
+        for node in ast.walk(tree):
+            if running_extremum(node) and not any(
+                node.lineno == line for _, _, line in found
+            ):
+                found.append((where, "<module>", node.lineno))
+
+    stray = [f"{where}:{line} in {name}()" for where, name, line in found
+             if (where, name) not in allowed]
+    assert not stray, (
+        "running extrema outside simulator.worst_drawdown:\n" + "\n".join(stray)
+    )
+    assert found, "no running extremum anywhere, so worst_drawdown is not the one being checked"

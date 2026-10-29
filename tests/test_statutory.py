@@ -10,6 +10,7 @@ import numpy as np
 
 from tests.checks import approx, raises
 from vahedge.capital import statutory
+from vahedge.hedge import simulator
 
 
 def test_gpvad_takes_the_worst_point_not_the_end():
@@ -264,6 +265,26 @@ def test_the_floored_reserve_carries_no_guarantee_sensitivity():
     assert one["floor_binds"].all() and two["floor_binds"].all()
     assert one["statutory_capital"].iloc[0] == approx(two["statutory_capital"].iloc[0])
     assert one["economic_capital"].iloc[0] != approx(two["economic_capital"].iloc[0])
+
+
+def test_a_capital_drawdown_is_taken_off_the_seeded_profit_not_the_level():
+    """Which series the macro frontier hands to ``worst_drawdown``, and what the other one costs.
+
+    The capital columns start on the first day, already after the book has been struck. The two
+    profit columns are seeded with the position before any of it, so a drawdown taken off them
+    sees the striking cost and one taken off the levels cannot. Here the book costs three on day
+    one and the account then falls, so the two readings differ by exactly that three.
+    """
+    marked = statutory.statutory_capital(_ledger(
+        account=[100.0, 96.0], guarantee=[4.0, 9.0], hedge=[-3.0, 1.0], cash=[0.0, 0.0],
+    ))
+    assert marked["economic_pnl"].iloc[0] == approx(-3.0)
+
+    from_the_profit = simulator.worst_drawdown(marked["economic_pnl"], 100.0)
+    levels = marked["economic_capital"]
+    from_the_level = float((levels - levels.cummax()).min() / 100.0)
+    assert from_the_profit == approx(-0.04)
+    assert from_the_level == approx(-0.01)
 
 
 def test_the_mark_refuses_a_ledger_that_is_not_one():

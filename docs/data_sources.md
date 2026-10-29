@@ -237,3 +237,18 @@ run needs the sizes looked at rather than the file list counted.
 
 The nested convexity surface is the one place where that distinction has teeth, and it is
 discussed under **The regression proxy** in `docs/limitations.md`.
+
+Downstream of the calibration the differences are larger and still not results. Every column of
+the crisis replays moves: at most 2.6 per cent of the figure on the residual standard deviation,
+2.9 on the total, 3.1 on the worst drawdown. The macro frontier moves by at most 1.1 per cent on
+its cost column and 0.3 on its drawdowns, and names the same row as the cheapest protection in
+the grid. The real-world paths move most, 4 to 15 per cent per path. The sizes do not line up with
+the length of the window - the eleven-day volmageddon replay is the most sensitive of the five and
+the 197-day 2022 one the least - so what sets them is not established. A hedging result is a small
+residue of two large numbers and inherits whatever its inputs do.
+
+The reproduction check is therefore per stage: bytes for `build_dataset`, last digits for the
+calibration, a couple of per cent for the hedging experiments, and for the backtest arms whether
+the ranking of the strategies survives rather than whether the figures do. The environment that
+produced the committed tables is not recoverable, which is also why `requirements.txt` floors the
+library versions instead of pinning them.
