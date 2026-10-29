@@ -70,10 +70,12 @@ LOCATE_GRID = (0.4, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.6)
 CONVEXITY_RATIOS = (0.8, 1.0, 1.2)
 # Guaranteed withdrawal rates for the diagnostic. The grid reaches far below the rate sheet's
 # lowest band because that is where the disclosed sensitivities turned out to sit, and a grid that
-# stopped short reported its own endpoint by silently clamping the interpolation. These are
-# effective rates for a whole book rather than contractual ones: a book where a large share of
-# contracts have not started withdrawing draws less than any band.
-GAWA_GRID = (0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.0575, 0.065)
+# stopped short reported its own endpoint by silently clamping the interpolation. The low points
+# are effective rates for a whole book rather than contractual ones: a book where a large share of
+# contracts have not started withdrawing draws less than any band. The top of the grid is the two
+# bands this contract can land in, 5.75% at issue and 5.95% once five deferred years move it up,
+# and the second of those is the row the reported factors are quoted against.
+GAWA_GRID = (0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.0575, 0.0595, 0.065)
 
 
 def load_disclosed() -> pd.DataFrame:
@@ -289,10 +291,14 @@ def withdrawal_rate_diagnostic(setup) -> pd.DataFrame:
     """How the rate sensitivity depends on the guaranteed withdrawal rate.
 
     The model's rate sensitivity sits well above the disclosed figure, and this is the reason. A
-    contract drawing 5.75% a year against a risk-neutral drift near 4.2% less 2.26% of charges
+    contract drawing 5.95% a year against a risk-neutral drift near 4.2% less 2.26% of charges
     exhausts its account on most paths, which turns the guarantee into a long-dated life annuity
     and gives it that annuity's duration. A book where many contracts have not started
     withdrawals, or draw at the lower rates the older benefit options carry, has far less of it.
+
+    The grid carries both 5.75% and 5.95%: the first is the band a 70-year-old gets who starts
+    drawing straight away, the second is the band this contract reaches by deferring five years,
+    and the gap between those two rows is what a single band step is worth.
     """
     valuer, state, terms = setup["valuer"], setup["state"], setup["terms"]
     rows = []
@@ -408,11 +414,13 @@ def main() -> None:
     def monotone_branch(curve: pd.DataFrame, column: str) -> pd.DataFrame:
         """The part of the diagnostic where the response still moves with the withdrawal rate.
 
-        Below about one and a half per cent the account stops exhausting at all - the share of
-        paths with no contract value left by year twenty falls from 76% at the contractual rate
-        to 13% - and the living benefit stops being what the sensitivity is made of. The death
-        benefit and the fee stream take over and the response turns back up, so the curve is not
-        monotone down there and reading an implied rate off it would be reading the turn.
+        Low on the grid the account stops exhausting at all - the share of paths with no contract
+        value left by year twenty falls from 78% at the contractual rate to 13% at one per cent -
+        and the living benefit stops being what the sensitivity is made of. The death benefit and
+        the fee stream take over and the response turns back up. The turn is not in the same place
+        on the two curves: the rate response keeps falling to 1.5% and the equity response stops
+        at 2%, which is why the equity figure comes back as a bound rather than a rate. Reading an
+        implied rate off either turn would be reading the turn.
         """
         ordered = curve.sort_values("gawa_pct", ascending=False).reset_index(drop=True)
         steps = np.sign(np.diff(ordered[column].to_numpy(dtype=float)))
@@ -440,7 +448,15 @@ def main() -> None:
         side = "at or below" if rate <= float(branch["gawa_pct"].min()) else "above"
         return f"{side} {rate:.2f}%"
 
-    base_row = diagnostic[diagnostic["gawa_pct"] == 5.75].iloc[0]
+    # The two factors below are quoted against the contract's own guaranteed rate, so that rate is
+    # read off the contract rather than written in here. The grid used to stop at 5.75%, the band
+    # for a first withdrawal between 70 and 74, while the policy being valued defers five years
+    # and lands in the next band at 5.95%; dividing by the 5.75% row understated both factors.
+    contractual = 100 * float(contract_at(PREMIUM, PREMIUM, 0, setup["terms"]).gawa_pct[0])
+    at_contractual = diagnostic.index[np.isclose(diagnostic["gawa_pct"], contractual)]
+    if at_contractual.empty:
+        raise ValueError(f"GAWA_GRID carries no point at the contractual {contractual:.2f}%")
+    base_row = diagnostic.loc[at_contractual[0]]
     rate_factor = (float(np.interp(1.69, diagnostic["gawa_pct"],
                                    diagnostic["rates_up_100bp_pct_av"]))
                    / float(base_row["rates_up_100bp_pct_av"]))
@@ -452,8 +468,9 @@ def main() -> None:
           f"{implied(disclosed_rate, rate_curve, 'rates_up_100bp_pct_av')}, and matching the "
           f"disclosed equity sensitivity of {disclosed_equity:.2f} takes "
           f"{implied(disclosed_equity, equity_curve, 'equity_down_10pct_pct_av')}, against the "
-          f"5.75% the rate sheet gives a 70-year-old drawing from age 75, both averaged over the "
-          f"{len(comparable)} year-ends that disclose a 100bp shock.")
+          f"{contractual:.2f}% the rate sheet gives a first withdrawal at "
+          f"{ISSUE_AGE + DEFERRAL_YEARS + 1}, where this contract's deferral puts it, both "
+          f"averaged over the {len(comparable)} year-ends that disclose a 100bp shock.")
     print(f"  One lever moves both towards the disclosure, from "
           f"{base_row['rates_up_100bp_pct_av']:.2f} and "
           f"{base_row['equity_down_10pct_pct_av']:.2f}, but not by the same factor: at a 1.7% "

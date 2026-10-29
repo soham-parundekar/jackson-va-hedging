@@ -269,6 +269,57 @@ def test_every_withdrawal_rate_matches_the_cell_the_rate_sheet_puts_it_in():
     assert checked == 48, f"checked {checked} cells, expected the eight modelled combinations"
 
 
+def test_the_withdrawal_rate_grid_passes_through_the_policy_the_headline_values():
+    """The diagnostic row called the contractual rate has to be the contract being valued.
+
+    Two figures in `docs/validation.md` are quoted as fractions of the contract's sensitivity at
+    its contractual withdrawal rate, so the row they divide by must be that contract and not a
+    neighbouring band. For a while it was not: the grid stopped at 5.75%, the band for a first
+    withdrawal between 70 and 74, while the policy defers five years into the 75 to 80 band and
+    draws 5.95%. Nothing caught it, because 5.75% reads as a perfectly plausible rate for a
+    70-year-old and the two sensitivities it produced were the right sort of size.
+
+    What settles it is that three figures in `valuation_headline.csv` come out of the same
+    valuation as the diagnostic's contractual row - the attribution percentage, the gross
+    guarantee and the probability of exhaustion - and they are written by a different script.
+    Exactly one row can carry all three.
+    """
+    import pandas as pd
+
+    from scripts.run_shock_validation import GAWA_GRID
+    from scripts.run_valuation import DEFERRAL_YEARS, ISSUE_AGE
+
+    terms = pd.read_csv(paths.RIDER_TERMS, comment="#")
+    core = terms.query("benefit == 'flex_gmwb' and life_basis == 'single' and option == 'core'")
+    # The band is set by the age at the first withdrawal, which a deferral running to the sixth
+    # anniversary puts a year past the deferral itself.
+    first_withdrawal_age = ISSUE_AGE + DEFERRAL_YEARS + 1
+    band = core.query("age_low <= @first_withdrawal_age <= age_high")
+    assert len(band) == 1, f"{len(band)} Core bands cover age {first_withdrawal_age}"
+    contractual = 100 * float(band["gawa_pct"].iloc[0])
+
+    assert any(abs(100 * rate - contractual) < 1e-9 for rate in GAWA_GRID), (
+        f"the diagnostic grid has no point at the contractual {contractual:.2f}%, so the figures "
+        "quoted against it come from some other withdrawal rate")
+
+    headline = {row["quantity"]: float(row["value"]) for row in
+                csv.DictReader((paths.TABLES / "valuation_headline.csv").open())}
+    wanted = {"attribution": headline["fee attribution percentage"],
+              "pv_claims_pct_av": headline["gross guarantee value, % of premium"],
+              "prob_exhausted_20y": headline["probability of exhaustion by year 20"]}
+
+    grid = list(csv.DictReader((paths.TABLES / "withdrawal_rate_diagnostic.csv").open()))
+    matching = [row for row in grid
+                if all(abs(float(row[column]) - value) < 5e-4
+                       for column, value in wanted.items())]
+    assert len(matching) == 1, (
+        f"{len(matching)} of {len(grid)} rows in the withdrawal rate diagnostic reproduce the "
+        "headline valuation, and the contractual row is the one that has to")
+    assert float(matching[0]["gawa_pct"]) == approx(contractual, abs=5e-4), (
+        f"the row reproducing the headline draws {float(matching[0]['gawa_pct']):.2f}% while the "
+        f"rate sheet gives this contract {contractual:.2f}%")
+
+
 def test_the_register_and_the_annotated_bibliography_name_the_same_sources():
     """Both directions, because the two drift apart in both.
 
@@ -995,6 +1046,7 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
     rather than any committed table, so it is not here; `market_calibration.json` is gitignored
     and a test cannot read it.
     """
+    import numpy as np
     import pandas as pd
 
     def table(name):
@@ -1045,6 +1097,58 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
     missing = front[(front["spread_bp"] - 45.0).abs() >= 3.0]
     assert [round(float(v)) for v in missing["spread_bp"]] == [94, 65, 53]
     assert [round(12 * float(m), 1) for m in missing["maturity"]] == [0.6, 3.6, 4.7]
+
+    # The six rows the withdrawal rate section prints out of the nine. Two cells sit on a
+    # rounding boundary - the 1.00% attribution at 0.1535 and the 5.75% at 0.7304 - so this
+    # compares each printed figure against half a unit of its own last place rather than against
+    # a re-rounding, which would turn a tie into a failure with no defect behind it.
+    diagnostic = table("withdrawal_rate_diagnostic").set_index("gawa_pct")
+    printed = {1.00: (0.154, 0.133, 1.14, -1.52), 2.00: (0.151, 0.258, 0.99, -1.35),
+               3.00: (0.218, 0.399, 1.09, -1.86), 5.75: (0.730, 0.756, 1.92, -4.95),
+               5.95: (0.786, 0.777, 1.99, -5.22), 6.50: (0.949, 0.824, 2.18, -5.97)}
+    columns = ("attribution", "prob_exhausted_20y", "equity_down_10pct_pct_av",
+               "rates_up_100bp_pct_av")
+    for rate, cells in printed.items():
+        row = diagnostic.loc[rate]
+        for column, places, cell in zip(columns, (3, 3, 2, 2), cells):
+            assert abs(float(row[column]) - cell) <= 0.5 * 10 ** -places + 1e-12, (
+                f"the document prints {cell} for the {rate:.2f}% row's {column}, and the "
+                f"diagnostic says {float(row[column]):.4f}")
+
+    # "At a 1.7% draw the rate sensitivity is 0.26 of its contractual-rate value and the equity
+    # sensitivity 0.50 of its own" - the denominator is the 5.95% row, the contract itself
+    draw = 1.69
+    for column, factor in (("rates_up_100bp_pct_av", 0.26), ("equity_down_10pct_pct_av", 0.50)):
+        at_draw = float(np.interp(draw, diagnostic.index.to_numpy(),
+                                  diagnostic[column].to_numpy()))
+        measured = at_draw / float(diagnostic.loc[5.95, column])
+        assert round(measured, 2) == factor, (
+            f"the document says {factor} of the contractual-rate {column} survives a 1.7% draw, "
+            f"and the diagnostic gives {measured:.4f}")
+
+    # The proxy accuracy table, including its last column, which is the one the paragraph under
+    # it says is worth reading and the only one not lifted straight out of a stored field: the
+    # delta RMSE is a share of a premium of 100, so it is dollars against the mean absolute
+    # nested delta at the same nodes. The year 25 delta RMSE reached this table as 0.025 for a
+    # stored 0.02447, which is what the tolerance below is sized to catch.
+    proxy = table("proxy_accuracy").set_index("year")
+    quoted = {1: (0.9952, 0.0059, 0.126, 35.0, 36), 2: (0.9978, 0.0053, 0.081, 38.6, 21),
+              5: (0.9990, 0.0068, 0.044, 42.7, 10), 9: (0.9997, 0.0044, 0.021, 31.0, 7),
+              14: (0.9998, 0.0034, 0.010, 21.4, 5), 20: (0.9995, 0.0038, 0.021, 14.9, 14),
+              25: (0.9985, 0.0049, 0.024, 10.5, 23), 30: (0.9992, 0.0020, 0.006, 5.7, 11)}
+    fields = ("r_squared_in_range", "rmse_share_of_premium_in_range",
+              "delta_rmse_share_of_premium_in_range", "mean_abs_nested_delta")
+    for year, cells in quoted.items():
+        row = proxy.loc[year]
+        for field, places, cell in zip(fields, (4, 4, 3, 1), cells):
+            assert abs(float(row[field]) - cell) <= 0.5 * 10 ** -places + 1e-12, (
+                f"the document prints {cell} for policy year {year}'s {field}, and the table "
+                f"says {float(row[field]):.5f}")
+        relative = (100 * float(row["delta_rmse_share_of_premium_in_range"])
+                    / float(row["mean_abs_nested_delta"]))
+        assert round(100 * relative) == cells[-1], (
+            f"policy year {year}'s delta error is {100 * relative:.1f}% of the nested delta and "
+            f"the document says {cells[-1]}%")
 
 
 def test_the_instrument_library_builds_what_its_docstring_counts():

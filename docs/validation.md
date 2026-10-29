@@ -283,7 +283,10 @@ rather than being put in.
 The behaviour sweep moves utilisation from 1.0 to 0.6 and the at-the-money lapse rate from zero to
 4%, after scaling for the 75% of account value that carries a withdrawal guarantee. The best
 combination by widest miss is 0.80 utilisation with 4% lapse, every compared shock within 61% of
-the disclosed figure, against 2.03 times the disclosure on the static benchmark.
+the disclosed figure, against 118% on the static benchmark. Both figures are the widest miss
+across the four compared shocks; the benchmark's mean miss is smaller, at 2.03 times the
+disclosure, and quoting that beside the 61% would compare one combination's worst shock against
+another's average.
 
 But the two shock families do not move together, and that is the result:
 
@@ -332,18 +335,27 @@ withdrawal rate moves both sensitivities towards the disclosure, and not by the 
 | 1.00% | 0.154 | 0.133 | 1.14 | -1.52 |
 | 2.00% | 0.151 | 0.258 | 0.99 | -1.35 |
 | 3.00% | 0.218 | 0.399 | 1.09 | -1.86 |
-| 5.75% | 0.731 | 0.756 | 1.92 | -4.95 |
+| 5.75% | 0.730 | 0.756 | 1.92 | -4.95 |
+| 5.95% | 0.786 | 0.777 | 1.99 | -5.22 |
 | 6.50% | 0.949 | 0.824 | 2.18 | -5.97 |
 
+Six of the nine rows the grid carries. The 5.95% row is the contract itself, and it is identified
+by reproducing the headline table's attribution percentage, gross guarantee and exhaustion
+probability to four decimals rather than by being labelled as such. The 5.75% row above it is the
+band the same contract would have drawn had it not deferred five years into the next one, which is
+what one band step is worth.
+
 Matching the disclosed rate sensitivity takes an effective rate near 1.7%; matching the disclosed
-equity sensitivity takes 2% or below. At a 1.7% draw the rate sensitivity is 0.27 of its
-contractual-rate value and the equity sensitivity 0.52 of its own, which is the same divergence
+equity sensitivity takes 2% or below. At a 1.7% draw the rate sensitivity is 0.26 of its
+contractual-rate value and the equity sensitivity 0.50 of its own, which is the same divergence
 the behaviour sweep found, measured on a different lever.
 
-Below about 1.5% the relationship turns: the account stops exhausting at all, the living benefit
+Low on the grid the relationship turns: the account stops exhausting at all, the living benefit
 stops being what the sensitivity is made of, and the death benefit and the fee stream take over.
-The implied rate is read off the monotone branch only, because reading it off the turn would be
-reading the turn.
+The turn is not in the same place on the two curves - the rate response keeps falling to 1.5% and
+the equity response stops at 2% - which is why the equity answer comes back as a bound and the
+rate answer as a figure. Each is read off its own monotone branch, because reading it off the turn
+would be reading the turn.
 
 An effective rate of 2% against a contractual 5.95% is not a claim that holders draw a third of
 their entitlement. It is a claim about a book, and a book in which a large share of contracts have
@@ -364,7 +376,7 @@ proxy's own error is measured first.
 | 9 | 0.9997 | 0.0044 | 0.021 | 31.0 | 7% |
 | 14 | 0.9998 | 0.0034 | 0.010 | 21.4 | 5% |
 | 20 | 0.9995 | 0.0038 | 0.021 | 14.9 | 14% |
-| 25 | 0.9985 | 0.0049 | 0.025 | 10.5 | 23% |
+| 25 | 0.9985 | 0.0049 | 0.024 | 10.5 | 23% |
 | 30 | 0.9992 | 0.0020 | 0.006 | 5.7 | 11% |
 
 Both RMSE columns are shares of a premium of 100, not percentages, which is why the last column

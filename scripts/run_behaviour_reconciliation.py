@@ -147,10 +147,14 @@ def main() -> None:
 
     best = frame.loc[frame["max_abs_log_ratio"].idxmin()]
     baseline = frame[(frame["utilisation"] == 1.0) & (frame["lapse_rate"] == 0.0)].iloc[0]
+    # Both sides are the widest miss. The selection is on the widest miss, so quoting the
+    # benchmark's mean beside it compares the best combination's worst shock against the
+    # benchmark's average one, and the sentence read as though the two were the same measure.
     print(f"\nClosest combination: utilisation {best['utilisation']:.2f} with lapse "
           f"{best['lapse_rate']:.2f} at the money, every compared shock within "
           f"{100 * (np.exp(best['max_abs_log_ratio']) - 1):.0f}% of the disclosed figure, "
-          f"against {baseline['mean_ratio']:.2f} times the disclosure on the static benchmark")
+          f"against {100 * (np.exp(baseline['max_abs_log_ratio']) - 1):.0f}% on the static "
+          f"benchmark")
 
     # The result the sweep exists to produce, and it is not the closest combination.
     print(f"\n  But the two shock families do not move together. Across the grid the equity "
