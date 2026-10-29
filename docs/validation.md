@@ -672,8 +672,8 @@ episodes:
 | Misspecification | S1 | S2 | S3 |
 |---|---|---|---|
 | flat volatility, no skew | -0.0017 | -0.0024 | -0.0016 |
-| long-run volatility 17% | +0.0004 | +0.0002 | -0.0003 |
-| long-run volatility 26% | -0.0012 | -0.0011 | -0.0004 |
+| long-run volatility 17% | +0.0004 | +0.0002 | -0.0002 |
+| long-run volatility 26% | -0.0011 | -0.0011 | -0.0003 |
 
 Two of the nine averages are positive, and twelve of the forty-five episode-by-strategy cells
 behind them. Sizing from a flat-volatility model, which has no skew and so understates how much a
@@ -756,8 +756,8 @@ annual rate, against the decade's own figure:
 | drawing | -72 | -621 | -135 | +432 | -204 |
 | late | -252 | -534 | -129 | -959 | -238 |
 
-An annual rate on an eleven-day window is a rate and not an outcome, and the covid column is
-eleven weeks of fee income against a month of crash. The sign is the content: a hedge carrying no
+An annual rate on an eleven-day window is a rate and not an outcome, and the covid column takes
+five weeks - 24 trading days - and multiplies them by eleven. The sign is the content: a hedge carrying no
 convexity under-covers a convex guarantee in a fall, so the crisis columns are negative even
 though the hedge itself gained, and the one positive cell belongs to the cohort whose account had
 already fallen far enough that the guarantee had little convexity left to miss.

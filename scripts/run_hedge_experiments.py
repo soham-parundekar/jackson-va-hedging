@@ -714,6 +714,17 @@ def main() -> None:
         index="model", columns="strategy", values="extra_sd_pct"
     )
     print((100 * pivot).round(4).to_string())
+    # The average across episodes as well as the whole window, because the average is what
+    # `docs/validation.md` reports and three of its nine cells had gone a last digit stale while
+    # the only aggregation printed here was the one the document does not use.
+    across = misspecified[misspecified["model"] != "calibrated"].pivot_table(
+        index="model", columns="strategy", values="extra_sd_pct", aggfunc="mean"
+    )
+    print("\n  averaged across all five episodes")
+    print(across.round(4).to_string())
+    cells = misspecified[misspecified["model"] != "calibrated"]["extra_sd_pct"]
+    print(f"  {int((across.to_numpy() > 0).sum())} of {across.size} averages positive, and "
+          f"{int((cells > 0).sum())} of {len(cells)} episode-by-strategy cells")
     print(f"\nwrote eight tables under {paths.TABLES}")
 
 

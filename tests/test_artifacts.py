@@ -1151,6 +1151,102 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
             f"the document says {cells[-1]}%")
 
 
+def test_the_model_risk_and_rider_economics_figures_match_their_tables():
+    """`docs/validation.md`'s last two sections, one of which had drifted.
+
+    The model risk table reports the extra residual standard deviation averaged across the five
+    episodes. The script printed only the whole-window episode, so the document's aggregation
+    existed nowhere in the repository and three of its nine cells sat a last digit stale - the
+    17% arm's S3 at -0.0003 for a mean of -0.00025, and the 26% arm's S1 and S3 at -0.0012 and
+    -0.0004 for -0.00115 and -0.00035. The script now prints the average as well, and this holds
+    the document to it.
+
+    The rider economics block came through clean: all seventy-five cells of the cohort table and
+    all twenty-five of the stress table reproduce. What is pinned here is the summarising claims
+    rather than the cells, because those are the sentences a reader acts on, and the covid
+    window's length, which the prose had as eleven weeks for a window of five.
+    """
+    import numpy as np
+    import pandas as pd
+
+    def table(name):
+        return pd.read_csv(paths.TABLES / f"{name}.csv")
+
+    risk = table("hedge_model_risk")
+    off = risk[risk["model"] != "calibrated"]
+    across = off.pivot_table(index="model", columns="strategy", values="extra_sd_pct",
+                             aggfunc="mean")
+    quoted = {"flat volatility": (-0.0017, -0.0024, -0.0016),
+              "long-run vol 17%": (+0.0004, +0.0002, -0.0002),
+              "long-run vol 26%": (-0.0011, -0.0011, -0.0003)}
+    for model, cells in quoted.items():
+        for strategy, cell in zip(("S1", "S2", "S3"), cells):
+            mean = float(across.loc[model, strategy])
+            assert abs(mean - cell) <= 0.5e-4 + 1e-12, (
+                f"the document prints {cell:+.4f} for {model} on {strategy}, and the average "
+                f"across episodes is {mean:+.6f}")
+
+    # "Two of the nine averages are positive, and twelve of the forty-five episode-by-strategy
+    # cells behind them"
+    assert int((across.to_numpy() > 0).sum()) == 2
+    assert [int((off["extra_sd_pct"] > 0).sum()), len(off)] == [12, 45]
+
+    # "the median cell is a fifth of the calibrated residual and the worst is nine tenths of it"
+    calibrated = risk[risk["model"] == "calibrated"].set_index(["episode", "strategy"])
+    base = [float(calibrated.loc[(e, s), "pnl_sd_pct"])
+            for e, s in zip(off["episode"], off["strategy"])]
+    share = off["extra_sd_pct"].abs().to_numpy() / np.asarray(base)
+    assert round(float(np.median(share)), 1) == 0.2
+    assert round(float(share.max()), 1) == 0.9
+
+    economics = table("rider_economics")
+    decade = economics[economics["scenario"] == "the whole replay"]
+    assert len(economics) == 75, f"{len(economics)} runs, and the identity is claimed over 75"
+    # The identity's own residual is below the precision the table is stored at, so what can be
+    # checked here is that the net column and the ledger's own profit are the same number.
+    assert (decade["net"] - decade["ledger_pnl"]).abs().max() == 0.0
+
+    unhedged = decade[decade["strategy"] == "S0"]
+    futures = decade[decade["strategy"] == "S2"]
+    # "the unhedged book accumulates fees and earns 14 to 40 basis points, the hedged books borrow
+    # and pay", and "the unhedged rider earned 174 to 529 basis points a year"
+    assert [round(float(unhedged["cash_interest_bp"].min())),
+            round(float(unhedged["cash_interest_bp"].max()))] == [14, 40]
+    assert [round(float(unhedged["net_bp"].min())),
+            round(float(unhedged["net_bp"].max()))] == [174, 529]
+    assert float(futures["cash_interest_bp"].max()) < 0, "S2 is claimed to borrow in every cohort"
+
+    # "the funding ran 35 to 52 basis points of benefit base a year ... between a hundred and
+    # three hundred times the trading cost". The document rounds that ratio to one significant
+    # figure at both ends; the figures it rounds are 97 and 333.
+    funding = futures["cash_interest_bp"].abs()
+    assert [round(float(funding.min())), round(float(funding.max()))] == [35, 52]
+    ratio = funding / futures["hedge_cost_bp"]
+    assert [round(float(ratio.min())), round(float(ratio.max()))] == [97, 333]
+
+    # "An annual rate on an eleven-day window ... the covid column takes five weeks - 24 trading
+    # days - and multiplies them by eleven"
+    windows = economics.groupby("scenario")[["days", "years"]].first()
+    assert int(windows.loc["volmageddon", "days"]) == 11
+    assert int(windows.loc["covid", "days"]) == 24
+    assert round(float(windows.loc["covid", "days"]) / 5) == 5
+    assert round(1 / float(windows.loc["covid", "years"])) == 11
+
+    # "both need more than they are paid: 214 basis points drawing first at 76, 204 drawing first
+    # at 81, against the 125 charged", and six of the eight admit no charge at all
+    pricing = table("rider_break_even")
+    assert len(pricing) == 8
+    assert int(pricing["fair_pct"].isna().sum()) == 6
+    solved = pricing.dropna(subset=["fair_pct"]).set_index("first_withdrawal_age")
+    assert set(solved["issue_age"]) == {75}
+    assert [round(10000 * float(solved.loc[age, "fair_pct"])) for age in (76, 81)] == [214, 204]
+    assert {round(10000 * float(v)) for v in pricing["charged_pct"]} == {125}
+
+    # "it stops getting cheaper near 5%" - the fee curve's minimum, not an endpoint
+    curve = table("rider_fee_curve").set_index("fee_pct")
+    assert round(float(curve["value"].idxmin()), 4) == 0.05
+
+
 def test_the_instrument_library_builds_what_its_docstring_counts():
     """A stale count, which is what the module opened with for several passes.
 
