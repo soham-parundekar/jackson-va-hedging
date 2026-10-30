@@ -22,7 +22,8 @@ is stored as a property of the filing rather than inferred from the date.
 
 Two details from the 2025 filing shaped decisions rather than just supplying numbers. The
 separate-account fund split sets the equity weight that converts the liability's delta into an
-index position, which is an 18 per cent error in the hedge ratio if ignored. And the equity
+index position, and at 0.833 it is not a detail: a hedge sized as though the sub-account were
+all equity holds a sixth less of the index than it needs. And the equity
 option book's average remaining term of 0.24 years is why the tenor sweep was run at all, and
 the sweep is what moved the hedge's put leg off a one-year expiry.
 

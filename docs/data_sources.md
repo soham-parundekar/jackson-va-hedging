@@ -6,13 +6,20 @@ market data, and the Society of Actuaries table repository for mortality.
 ## Jackson Financial filings
 
 Central Index Key 1822993. Five annual reports have been filed since the 2021 spin-off
-from Prudential plc; the three most recent supply everything used here.
+from Prudential plc; four of them supply what is used here.
 
 | Fiscal year | Filed | Accession | Primary document |
 |---|---|---|---|
 | 2025 | 2026-02-24 | 0001822993-26-000022 | jxn-20251231.htm |
 | 2024 | 2025-02-26 | 0001822993-25-000011 | jxn-20241231.htm |
 | 2023 | 2024-02-28 | 0001822993-24-000009 | jxn-20231231.htm |
+| 2022 | 2023-03-01 | 0001822993-23-000009 | jxn-20221231.htm |
+
+The 2022 filing is there for one reason and it is not continuity. It is the last pre-LDTI
+report, so it carries the guarantee at its old carrying value and discloses a 50 basis point
+rate shift rather than 100, and it is the only source for the 2021 year-end at all. Every
+figure drawn from it is tagged `source_filing_fy` 2022 and is never put on one axis with a
+market risk benefit figure; the accounting-basis comparison is what it exists to support.
 
 Sections used:
 
@@ -213,6 +220,12 @@ book is a child. From age 40 up it reads the published column instead and refuse
 rather than filling it. A carry-forward there would substitute a lighter rate while still
 looking like data: drop age 97 from the male Basic column and the fill hands back 0.2192
 against the published 0.2386.
+
+Scale G2 has a hole at the other end, and a larger one: the export stops at 105 and leaves 106
+to 120 blank for both sexes. Those are filled with zero. It makes no difference which way that
+goes, because the published scale has already reached 0.000 at 104 and at 105, so carrying the
+last value forward gives zero as well - which is why this hole needs no refusal while a hole in
+the rates themselves does.
 
 ## Reproducibility
 

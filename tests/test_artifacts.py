@@ -158,6 +158,34 @@ def test_the_filing_identifiers_in_the_docs_match_the_register():
         for accession in pattern.findall(path.read_text()):
             assert accession in registered, f"{name} cites {accession}, which no row carries"
 
+    # The other direction, which matters for the one document that sets out to list the filings
+    # rather than cite them. A wrong digit is what the sweep above catches; a filing left out
+    # entirely is invisible to it, and the FY2022 10-K was. That one supplies every pre-LDTI
+    # figure and the whole 2021 year-end, and `docs/data_sources.md` said three filings supplied
+    # everything used here while the register and `references/references.md` both named four.
+    annual = {accession for row in _register() if "Form 10-K" in row["title"]
+              for accession in pattern.findall(row["identifier"])}
+    assert len(annual) == 4, f"the register carries {len(annual)} annual reports, not four"
+    listed = set(pattern.findall((paths.ROOT / "docs" / "data_sources.md").read_text()))
+    assert annual <= listed, (
+        f"in the register and not in the filing table in docs/data_sources.md: "
+        f"{sorted(annual - listed)}")
+
+    # "at 0.833 it is not a detail: a hedge sized as though the sub-account were all equity
+    # holds a sixth less of the index than it needs" in `references/references.md`. The figure
+    # there was an 18 per cent error, which is neither the sixth nor the fifth the split gives
+    # depending on which side you divide by, and no column produces it.
+    import pandas as pd
+
+    book = pd.read_csv(paths.DATA_RAW / "jackson_book_statistics.csv", comment="#")
+    sleeves = book.dropna(subset=["sa_equity_musd"]).iloc[-1]
+    total = sum(float(sleeves[f"sa_{name}_musd"])
+                for name in ("equity", "bond", "balanced", "money_market"))
+    weight = (float(sleeves["sa_equity_musd"])
+              + 0.6 * float(sleeves["sa_balanced_musd"])) / total
+    assert round(weight, 3) == 0.833, f"the FY2025 split gives an equity weight of {weight:.4f}"
+    assert round(1.0 - weight, 2) == 0.17, "a sixth short, as the bibliography now says"
+
 
 def test_every_stored_extract_is_the_filing_its_row_names():
     """A path that exists is not the same claim as a path that holds the right document.
