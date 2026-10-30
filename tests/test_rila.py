@@ -135,6 +135,47 @@ def test_a_wider_buffer_forces_a_lower_cap():
     assert caps[0] > caps[1] > caps[2]
 
 
+def test_treasuries_alone_price_to_a_cap_nobody_sells_rather_than_to_a_shortfall():
+    """The worked example in ``breakeven_cap``, which had the economics the wrong way round.
+
+    It said a 10% buffer costs 6.9% against a dividend margin of 4.7%, leaving the contract 1.5
+    points short with no finite cap to fix it. On the calibrated surface the protection a 10%
+    buffer gives costs 2.81%, the margin is 4.80%, and the contract clears uncapped with two
+    points in hand - so the reason no finite cap binds there is a surplus and not a shortfall,
+    which is what ``breakeven_cap``'s own error message says. The 6.9% matched nothing: the
+    put spread is 2.81%, the outright 90% put 7.78%, the 80% put 5.50%.
+
+    What is left of the argument, and the part worth holding, is that the Treasury-funded
+    contract prices to a cap no issuer would publish. Held here on the closed form rather than
+    the calibrated surface, since `market_calibration.json` is gitignored and a test cannot read
+    it; at a six-year vol near the surface's own level the two agree on the structure and on the
+    cap to within seven points.
+    """
+    r, q, term, vol = 0.038, 0.0082, 6.0, 0.20
+    discount = float(np.exp(-r * term))
+    forward = float(np.exp((r - q) * term))
+    # Treasuries only: the funding discount is the risk-free one, so the whole margin is the
+    # dividend yield the insurer keeps by crediting a price return.
+    assert round(100 * (1.0 - float(np.exp(-q * term))), 2) == 4.80
+    assert round(100 * (1.0 - discount), 2) == 20.39
+
+    def price(buffer: float):
+        return lambda cap: rila.value_black_scholes(
+            forward, discount, vol, rila.RilaTerms(buffer, cap, term))
+
+    # The 10-K's buffer: a finite cap exists and is far above anything sold.
+    deep = rila.breakeven_cap(discount, rila.RilaTerms(0.20, 1.0, term), price(0.20))
+    assert 1.5 < deep < 2.5, f"the six-year break-even cap came out at {deep:.2%}"
+    assert 0.15 < (1.0 + deep) ** (1.0 / term) - 1.0 < 0.22, "an annual cap in the high teens"
+
+    # Half that buffer and the dividend margin covers it, so the solver refuses for the opposite
+    # reason to a shortfall. The message is the assertion: it has to be the profitable branch.
+    with raises(ValueError, match="profitable uncapped"):
+        rila.breakeven_cap(discount, rila.RilaTerms(0.10, 1.0, term), price(0.10))
+    assert price(0.10)(3.0) < 1.0 - discount, "clears uncapped, which is why no cap binds"
+    assert price(0.20)(3.0) > 1.0 - discount, "does not, which is why one does"
+
+
 def test_no_funding_means_no_cap_rather_than_a_silently_wrong_one():
     terms = rila.RilaTerms(buffer=0.10, cap=0.2, term_years=1.0)
     price = lambda cap: rila.value_black_scholes(1.03, 0.9662, 0.20,

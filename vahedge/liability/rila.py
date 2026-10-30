@@ -132,9 +132,21 @@ def breakeven_cap(
     uncapped and unbuffered is worth exp(-qT) - D, while the Treasury carry is 1 - D. The
     difference is exp(-qT) - 1, which is negative for any positive dividend yield. So an insurer
     holding Treasuries and crediting a price return already keeps the dividend yield, and that
-    is its entire margin. On the 28 September 2026 curve with an implied dividend yield near
-    0.8%, that margin is about 4.7% of premium over six years, against a 10% buffer that costs
-    6.9%. Treasuries alone leave the contract 1.5 points short and no finite cap fixes it.
+    is its entire margin. On the 28 September 2026 curve the six-year zero is 3.80% and the
+    chain's implied dividend yield 0.82%, so the margin is 4.80% of premium over six years
+    against funding of 20.38%.
+
+    Whether Treasuries alone can write the contract then turns on the depth of the buffer, and
+    it is closer than it looks. The 20% buffer the 10-K gives costs 5.09%, which is the value of
+    the protection between a 100% and an 80% strike rather than the 80% put itself - that one is
+    5.50% and is the wrong quantity, because a buffer cushions the first slice of a loss instead
+    of insuring the whole of it. At 5.09% the buffer exceeds the dividend margin by three tenths
+    of a point, and the break-even cap lands at 179% over six years: an 18.65% annual cap no
+    issuer would publish. Halve the buffer to 10% and the protection costs 2.81%, the margin
+    covers it, and the solver refuses for the opposite reason - no finite cap binds, because the
+    contract already clears uncapped with two points to spare. The Treasury-funded version is
+    therefore not impossible so much as priced to a cap nobody sells, and the conclusion turns
+    on the buffer rather than holding across it.
 
     What closes the gap is the spread the general account earns over Treasuries. That is not a
     modelling convenience: it is the economics of the product. The buffer is paid for out of
