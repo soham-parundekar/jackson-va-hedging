@@ -129,7 +129,8 @@ class SubAccountMix:
         """Sensitivity of the contract value to a move in the equity index.
 
         This is the number an equity shock is multiplied by. A 10% index fall does not take
-        10% off a contract value that is a fifth in bonds.
+        10% off a contract value a sixth of which is not equity: on the FY2025 mix the weight
+        is 0.833, counting the balanced sleeve at its own equity share.
         """
         return self.equity + self.balanced * self.balanced_equity_share
 

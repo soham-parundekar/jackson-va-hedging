@@ -20,8 +20,11 @@ it as a roll-up on the GWB, which is what most GMWB descriptions assume, oversta
 years of deferral accrue by a third - 79 against 60 on a base of 100, so 179 against 160.
 
 *The bonus period restarts on a step-up.* It runs ten contract years from the endorsement, or
-ten years from the most recent step-up that raised the Bonus Base, whichever is later, and
-only while the owner is 80 or younger. A contract that keeps ratcheting can therefore collect
+ten years from the most recent step-up that raised the Bonus Base, whichever is later, and a
+step-up restarts the clock only if it falls on or before the anniversary at which the owner
+turns 81. That is a year later than the limit on the death benefit's own ratchet, and
+`terms.py` carries the two as separate constants because the prospectus words them alike.
+A contract that keeps ratcheting can therefore collect
 a bonus for far longer than ten years, which is exactly the path where the guarantee is least
 valuable, so the feature costs less than its headline suggests.
 
@@ -109,7 +112,7 @@ def project(
     contracts that have already exhausted.
 
     ``equity_shock`` scales the starting account value by the sub-account's equity weight. A
-    10% index fall does not take 10% off a contract value that is a fifth in bonds, and
+    10% index fall does not take 10% off a contract value a sixth of which is not equity, and
     applying the shock to the whole account value is the most common way to get a disclosed
     equity sensitivity wrong by the weight of the bond sleeve.
 

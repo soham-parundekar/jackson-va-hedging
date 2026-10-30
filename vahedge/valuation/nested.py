@@ -2,9 +2,12 @@
 
 The regression proxy is fitted on single-path realisations, so its residual against those
 realisations is dominated by payoff noise and says almost nothing about whether the fitted
-conditional mean is right. An out-of-sample R-squared of 0.07 in the first year is not a bad
-fit; it is a reminder that forty years of uncertainty sit between a state and its realised
-outcome. The only honest test is to compute the true value at a handful of states and compare.
+conditional mean is right. The out-of-sample R-squared in
+`reports/tables/proxy_fit_diagnostics.csv` is 0.09 at fit year zero and still only 0.54 by fit
+year four; that is not a bad fit, it is a reminder that forty years of uncertainty sit between
+a state and its realised outcome. Against nested values at the same nodes the same fit is above
+0.995 at every policy year the comparison covers, which is the measure that means something and
+the reason this module exists. The only honest test is to value a handful of states properly.
 
 That is what this does. Take states off the simulated paths, rebuild the market as it stands at
 each one, and value the contract from there with a full inner simulation. A few hundred nodes at

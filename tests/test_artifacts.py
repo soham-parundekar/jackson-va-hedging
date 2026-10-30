@@ -1190,6 +1190,42 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
             f"the document says {cells[-1]}%")
 
 
+def test_the_two_bonus_age_limits_stay_a_year_apart_in_code_and_in_prose():
+    """The confusion `terms.py` warns about, which `gmwb.py`'s own docstring had fallen into.
+
+    The prospectus words two age limits alike and they sit a year apart: the bonus clock restarts
+    on a step-up falling on or before the anniversary at which the owner turns 81, while the
+    death benefit's ratchet stops at the anniversary before that. `terms.py` carries them as two
+    constants and says in a comment that written as birthdays they look like the same number and
+    were once coded as one. `gmwb.py` then described the bonus period as running "only while the
+    owner is 80 or younger", which is the death benefit's limit, not the bonus clock's - the code
+    beside it uses the right constant.
+    """
+    from vahedge.liability.terms import (BONUS_PERIOD_YEARS, BONUS_RESTART_LAST_AGE,
+                                         DEATH_BENEFIT_LAST_ACCRUAL_AGE)
+
+    assert BONUS_RESTART_LAST_AGE == DEATH_BENEFIT_LAST_ACCRUAL_AGE + 1
+    assert [BONUS_RESTART_LAST_AGE, BONUS_PERIOD_YEARS] == [81, 10]
+
+    # Each constant has to be the one its own rule reads, so a swap fails here rather than
+    # quietly moving a bonus clock by a year.
+    gmwb = (paths.ROOT / "vahedge" / "liability" / "gmwb.py").read_text()
+    for name, guarded in (("BONUS_RESTART_LAST_AGE", "bonus_end"),
+                          ("DEATH_BENEFIT_LAST_ACCRUAL_AGE", "accruing")):
+        # A parenthesised import puts the bare name on a line of its own, so the filter has to
+        # drop that rather than looking for the word "import" on the same line.
+        uses = [line for line in gmwb.split("\n")
+                if name in line and line.strip() != f"{name},"]
+        assert len(uses) == 1, f"{name} is read on {len(uses)} lines, not one"
+        assert guarded in uses[0] or guarded in gmwb.split(uses[0])[1].split("\n")[0], (
+            f"{name} no longer guards {guarded}")
+
+    # And the prose: the bonus paragraph must not quote the other rule's age.
+    bonus = gmwb.split("*The bonus period restarts on a step-up.*")[1].split("*The GWB")[0]
+    assert "turns 81" in bonus, "the bonus paragraph no longer names its own limit"
+    assert "80 or younger" not in bonus, "the bonus paragraph is quoting the death benefit's age"
+
+
 def test_the_model_risk_and_rider_economics_figures_match_their_tables():
     """`docs/validation.md`'s last two sections, one of which had drifted.
 
