@@ -527,7 +527,7 @@ regression proxy, and repricing both sides under the same shocks.
 | | Disclosed | S1, futures | S2, plus the swap | S3, plus puts |
 |---|---|---|---|---|
 | Rates | 37% to 88% | 2% to 3% | 93% to 109% | 93% to 109% |
-| Equity | -9% to 110% | 90% to 113% | 90% to 113% | 101% to 108% |
+| Equity | -9% to 110% | 90% to 113% | 90% to 113% | 96% to 108% |
 
 The disclosed column is the market risk benefit basis on both rows, so the two are read against
 each other. The pre-LDTI dates would stretch the equity range to 135% and the rate range down to

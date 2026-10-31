@@ -48,7 +48,9 @@ import pandas as pd
 # The full-repricing route below kept its own two per cent for a while after the proxy and the
 # put were moved onto this constant, which left the disclosure comparison solving a liability
 # gamma measured one way against instrument gammas measured another - the same unit mismatch, in
-# the half of the project that was supposed to have been fixed. Both routes read it now.
+# the half of the project that was supposed to have been fixed. Both routes read it now, and
+# agreeing on the number turned out to be the easy half: the route below was still stepping in a
+# different variable from everything else, which the gamma block says more about.
 EQUITY_CURVATURE_STEP = 0.10
 
 
@@ -105,14 +107,27 @@ def compute(
     log_span = np.log((1.0 + equity_bump) / (1.0 - equity_bump))
     equity_exposure = (up.market_risk_benefit - down.market_risk_benefit) / log_span
 
-    gamma_up = valuer.value(book, state, attribution=attribution, equity_shock=gamma_bump)
-    gamma_down = valuer.value(book, state, attribution=attribution, equity_shock=-gamma_bump)
-    gamma_h = np.log(1.0 + gamma_bump)
+    # The shocks are the index moves that are symmetric in the log, +10.52% and -9.52% for a
+    # step of ten per cent, because the quantity wanted is a second derivative in the log index
+    # and a second difference only estimates one if its two steps are equal in that variable.
+    # Shocking +/-10% proportionally and dividing by ln(1.1)^2 - which is what this did - gets
+    # neither end right. The proportional pair is symmetric in the shock, so its second
+    # difference measures d2V/dh2 rather than d2V/d(ln S)2, and the two differ by dV/d(ln S),
+    # which here is -14,008 against a curvature of 85,430: a sixth of the answer, missing. The
+    # ln(1.1)^2 denominator against an h^2 numerator then scaled what was left by a further
+    # 10.1%. Together they put the reported gamma 38% above the quantity named in the field, and
+    # the nested surface and the regression proxy both step symmetrically in the log already, so
+    # the three were never measuring one thing. Sharing EQUITY_CURVATURE_STEP was necessary and
+    # is not sufficient: a step size means nothing without the variable it is a step in.
+    gamma_up = valuer.value(book, state, attribution=attribution,
+                            equity_shock=float(np.expm1(gamma_bump)))
+    gamma_down = valuer.value(book, state, attribution=attribution,
+                              equity_shock=float(np.expm1(-gamma_bump)))
     equity_gamma = (
         gamma_up.market_risk_benefit
         - 2.0 * base.market_risk_benefit
         + gamma_down.market_risk_benefit
-    ) / gamma_h**2
+    ) / gamma_bump**2
 
     rate_up = valuer.value(book, state.with_shocks(rate_shock_bp=rate_bump_bp),
                            attribution=attribution)
@@ -127,11 +142,11 @@ def compute(
     # Splitting the vega: move the current variance alone, then attribute the remainder of the
     # combined move to the long-run level.
     from dataclasses import replace
+
+    from .engine import shocked_variance
     current_only = replace(
         state,
-        heston=replace(
-            state.heston, v0=max((np.sqrt(state.heston.v0) + vol_bump) ** 2, 1e-8)
-        ),
+        heston=replace(state.heston, v0=shocked_variance(np.sqrt(state.heston.v0), vol_bump)),
     )
     vega_current = (
         valuer.value(book, current_only, attribution=attribution).market_risk_benefit

@@ -1000,11 +1000,26 @@ def test_the_methodology_document_figures_match_the_tables_they_came_from():
 
     # "866 per point against 27 for the current variance", and the $136 standard error, which
     # the Greeks table and the convergence table state separately and have to agree on.
+    #
+    # The long-run vega is checked to a tenth of its own reported standard error rather than to
+    # the unit, and that is the one figure in this file with a loosened tolerance. It is a
+    # difference of two differences of Monte Carlo levels, so a change of float summation order
+    # moves it far more than it moves anything else here: on numpy 2.5 against the 2.2 that wrote
+    # the table it comes out at 866.85 rather than 866.48, with every well-conditioned figure in
+    # the same row reproducing to eight digits. Asserting the last unit of a quantity whose own
+    # noise is 40 was pinning a digit the method does not carry, and the first symptom was this
+    # line failing on an upgrade. A tenth of the standard error is still four units on 866, which
+    # is tighter than the figure is worth and far tighter than any real change would be.
     greeks = table("greeks")
     economic = greeks[greeks["basis"].str.startswith("economic")].iloc[0]
-    assert round(float(economic["vega_long_run"])) == 866
+    assert abs(float(economic["vega_long_run"]) - 866) < 0.1 * float(economic["vega_std_error"])
     assert round(float(economic["vega_current"])) == 27
     assert round(float(economic["level_std_error"])) == 136
+    # "the reported figure came out 38 per cent above the quantity the field was named for,
+    # 93,480 where the number is 67,662", and the -14,501 the conversion term is worth
+    assert round(float(economic["equity_gamma"])) == 67662
+    assert round(93479.6563 / float(economic["equity_gamma"]) - 1, 2) == 0.38
+    assert round(abs(float(economic["equity_exposure"]))) == 14501
     convergence = table("monte_carlo_convergence").set_index("paths")
     assert round(float(convergence.loc[20000, "std_error"])) == 136
     # "it halves as paths quadruple" - both quadruplings the table carries
@@ -1097,7 +1112,11 @@ def test_the_validation_document_error_and_parity_figures_match_their_tables():
     economic = greeks[greeks["basis"].str.startswith("economic")].iloc[0]
     assert round(abs(float(economic["equity_exposure"]))) == 14501
     assert round(float(economic["equity_exposure_std_error"])) == 164
-    assert round(abs(100 * float(economic["rho_per_bp"]))) == 5887
+    # To a tenth of its own standard error, for the reason the methodology block above gives at
+    # length: 5,887.4 on the table's own numpy and 5,887.5 on the next one, with the rounding
+    # boundary between them. A tenth of the error is two units on 5,887.
+    assert abs(abs(100 * float(economic["rho_per_bp"])) - 5887) < 0.1 * (
+        100 * float(economic["rho_std_error"]))
     assert round(100 * float(economic["rho_std_error"])) == 19
     both = float(economic["vega_current"]) + float(economic["vega_long_run"])
     assert round(both) == 894
@@ -1472,6 +1491,32 @@ def test_the_notebook_only_figures_match_the_tables_they_came_from():
     # "it absorbs 79 to 84% of the equity move before any derivative is involved"
     assert [share("2025-12-31", "equity_down_10pct", "rila_absorbs_of_guarantee"),
             share("2025-12-31", "equity_up_10pct", "rila_absorbs_of_guarantee")] == [79, 84]
+
+    # The full-hedge comparison table: "| Rates | 37% to 88% | 2% to 3% | 93% to 109% | 93% to
+    # 109% | / | Equity | -9% to 110% | 90% to 113% | 90% to 113% | 96% to 108% |". Nothing tied
+    # this table to its source until the S3 equity cell moved five points under a corrected
+    # liability gamma and no test said so. The disclosed column is the market risk benefit basis
+    # on both rows, which is what the paragraph beneath the table says it is.
+    offsets = table("model_hedge_offset")
+    quoted = {("S1", "rates"): (2, 3), ("S2", "rates"): (93, 109), ("S3", "rates"): (93, 109),
+              ("S1", "equity"): (90, 113), ("S2", "equity"): (90, 113),
+              ("S3", "equity"): (96, 108)}
+    for (strategy, risk), (low, high) in quoted.items():
+        block = offsets[(offsets["strategy"] == strategy) & (offsets["risk"] == risk)]
+        ratio = 100 * block["offset_of_liability"]
+        assert [round(float(ratio.min())), round(float(ratio.max()))] == [low, high], \
+            f"{strategy} {risk}: {ratio.min():.1f}% to {ratio.max():.1f}%"
+    for risk, (low, high) in (("rates", (37, 88)), ("equity", (-9, 110))):
+        ratio = 100 * offset[offset["risk"] == risk]["offset_of_guarantee"]
+        assert [round(float(ratio.min())), round(float(ratio.max()))] == [low, high], \
+            f"disclosed {risk}: {ratio.min():.1f}% to {ratio.max():.1f}%"
+
+    # "Convexity therefore accounts for about eight points of scatter either side of one" - the
+    # full hedge's own worst distance from one, on the risk the puts are there for.
+    equity_s3 = 100 * offsets[(offsets["strategy"] == "S3")
+                              & (offsets["risk"] == "equity")]["offset_of_liability"]
+    scatter = max(abs(float(equity_s3.min()) - 100), abs(float(equity_s3.max()) - 100))
+    assert 7.0 < scatter < 9.0, f"the full hedge scatters {scatter:.1f} points either side of one"
 
     # "the disclosed ratio moves 1.1 points on the down shift and 2.7 on the up where a full hedge
     # of the model's liability moves 3.8 and 4.3" - the one date disclosed at both shift sizes

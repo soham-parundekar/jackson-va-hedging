@@ -9,6 +9,8 @@ that actually zeroes the guarantee.
 
 from __future__ import annotations
 
+from dataclasses import fields, replace
+
 import numpy as np
 
 from tests.checks import approx, raises
@@ -149,6 +151,77 @@ def test_a_rate_shock_does_cost_a_simulation():
     assert valuer.simulations == before + 1
 
 
+def test_every_field_of_the_market_state_reaches_the_path_cache_key():
+    """A field the simulator reads and the key does not is a silent zero in whatever sweeps it.
+
+    ``bond_duration`` was that field. The rolling bond return is built from it and the key named
+    the fifteen parameters that were thought to matter, so a second valuation at a different
+    duration came back off the first one's paths. Checked field by field rather than on that one
+    name, because naming it is what went wrong the first time: a new field would be in the same
+    position and nothing would say so.
+    """
+    book, attribution, state = _small_book(), np.full(8, 0.8), _state()
+
+    # One nudge per field the simulator reads, except the four sub-account weights, which have to
+    # sum to one and so cannot move singly.
+    moved = [
+        ("heston", dict(v0=0.03)), ("heston", dict(kappa=3.0)), ("heston", dict(theta=0.06)),
+        ("heston", dict(xi=1.2)), ("heston", dict(rho=-0.4)),
+        ("curve", dict(beta0=0.05)), ("curve", dict(beta1=-0.02)), ("curve", dict(beta2=0.01)),
+        ("curve", dict(beta3=0.005)), ("curve", dict(tau1=2.0)), ("curve", dict(tau2=9.0)),
+        ("correlations", dict(equity_rate=0.2)),
+        ("mix", dict(equity=0.60, bond=0.20, balanced=0.18, money_market=0.02)),
+        ("mix", dict(bond_duration=12.0)), ("mix", dict(balanced_equity_share=0.4)),
+        ("mix", dict(tracking_error=0.03)),
+    ]
+    # A fresh valuer per nudge, holding the base state and the nudged one and nothing else. The
+    # first version of this test ran them all through one valuer and passed against the very key
+    # it was written to catch: seventeen states on a cache of eight evict the base, so every
+    # valuation after the eighth re-simulated whatever the key said and the count it asserted on
+    # could not come out any other way.
+    covered = set()
+    for attribute, replacements in moved:
+        valuer = Valuer(mortality.load("basic"), n_paths=300, cache_size=2)
+        valuer.value(book, state, attribution=attribution)
+        nudged = replace(state, **{
+            attribute: replace(getattr(state, attribute), **replacements)
+        })
+        valuer.value(book, nudged, attribution=attribution)
+        named = ", ".join(f"{attribute}.{name}" for name in replacements)
+        assert valuer.simulations == 2, f"{named} missed the cache key"
+        covered |= {(attribute, name) for name in replacements}
+
+    # Three fields are not simulator inputs and are exempt: the curve's own fit error is a
+    # diagnostic, the equity-variance correlation is Heston's rho and the simulator reads it
+    # there, and a non-zero variance-rate correlation raises in the constructor. Everything else
+    # has a line above, so a field added to any of these objects fails here rather than in a
+    # sweep that comes back flat.
+    present = {(attribute, field.name)
+               for attribute in ("heston", "curve", "correlations", "mix")
+               for field in fields(getattr(state, attribute))}
+    assert present - covered == {("curve", "rmse_bp"), ("correlations", "equity_variance"),
+                                 ("correlations", "variance_rate")}
+
+
+def test_a_volatility_shock_cannot_come_back_the_wrong_side_of_zero():
+    """A crush deeper than the volatility itself lands on the floor, not on its reflection.
+
+    The clamp used to sit outside the square, where it could never fire: minus twenty points on
+    a 14.1% volatility squares to the variance of a 5.9% one, which is a positive number and
+    passes any floor. The shock in this project is a single point, so nothing reached it; a
+    stress grid would, and would read as a volatility rising.
+    """
+    state = _state()
+    volatility = float(np.sqrt(state.heston.v0))
+    crushed = state.with_shocks(vol_shock=-4.0 * volatility)
+    assert np.sqrt(crushed.heston.v0) == approx(1e-4, rel=1e-12)
+    assert np.sqrt(crushed.heston.theta) == approx(1e-4, rel=1e-12)
+    # Monotone across the sign change, which the reflection was not.
+    shocked = [state.with_shocks(vol_shock=s).heston.v0
+               for s in np.linspace(0.05, -0.30, 15)]
+    assert all(later <= earlier for earlier, later in zip(shocked, shocked[1:]))
+
+
 def test_the_path_cache_is_bounded():
     """An unbounded cache is tens of megabytes per market state, and a hedge backtest visits one
     per rebalance date."""
@@ -203,6 +276,67 @@ def test_paired_standard_errors_are_far_smaller_than_the_level_error():
     result = greeks.compute(valuer, book, state, attribution, rate_bump_bp=25.0)
     assert result.rho_std_error * 25.0 < result.level_std_error
     assert result.equity_std_error < result.level_std_error
+
+
+class _QuadraticValuer:
+    """A valuer whose liability is exactly quadratic in the log index and nothing else.
+
+    Priced off ``a + b x + c x^2`` with ``x`` the log index move, so both equity Greeks have a
+    closed form and a second difference reproduces the curvature with no truncation error at
+    all. That is what makes this worth the scaffolding: against the real book every candidate
+    construction lands within the Monte Carlo noise of several others, and the one that was
+    wrong here was wrong by a factor rather than by a rounding.
+    """
+
+    def __init__(self, a: float, b: float, c: float):
+        self.a, self.b, self.c = a, b, c
+
+    def value(self, book, state, attribution=None, equity_shock: float = 0.0, **_):
+        x = np.log1p(equity_shock)
+        return _Priced(self.a + self.b * x + self.c * x**2)
+
+
+class _Priced:
+    """Only the fields ``greeks.compute`` reads. The paired errors come out zero, which is
+    correct for a deterministic price and keeps ``_paired_error`` on its real code path."""
+
+    def __init__(self, value: float):
+        self.market_risk_benefit = value
+        self.account_value = 100.0
+        self.std_error = 0.0
+        self.projection = _Legs()
+        self.paths = _Unpaired()
+
+
+class _Legs:
+    claim_paths = np.zeros((1, 4))
+    fee_paths = np.zeros((1, 4))
+
+
+class _Unpaired:
+    def antithetic_pairs(self, sample):
+        return None
+
+
+def test_the_equity_greeks_are_derivatives_in_the_log_index_and_not_in_the_shock():
+    """A liability with a known curvature, priced to check that the bumps recover it.
+
+    The trap this closes: the index shock the engine takes is a proportional move, so a pair at
+    plus and minus the same shock is symmetric in that move and not in its logarithm, and a
+    second difference over it estimates the curvature in the wrong variable. The two differ by
+    the first derivative, which on the real book at issue is a sixth of the curvature and does
+    not announce itself in a sign or an order of magnitude. Here ``b`` is deliberately large
+    against ``c`` so that leaking any of it is unmissable.
+    """
+    valuer, book, state = _QuadraticValuer(5.0, -400.0, 70.0), _small_book(), _state()
+    bump, step = 0.01, greeks.EQUITY_CURVATURE_STEP
+    result = greeks.compute(valuer, book, state, np.full(book.size, 0.8),
+                            equity_bump=bump, gamma_bump=step)
+
+    # Exact for a quadratic: the secant between the two log-index points is the derivative at
+    # their midpoint, and ln(1+h) + ln(1-h) is where that midpoint sits.
+    assert result.equity_gamma == approx(2.0 * 70.0, rel=1e-12)
+    assert result.equity_exposure == approx(-400.0 + 70.0 * np.log1p(-bump**2), rel=1e-12)
 
 
 def test_asymmetry_refuses_a_shock_it_was_not_given():

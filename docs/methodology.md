@@ -448,6 +448,17 @@ gamma, and a solve matching one against the other is sizing a position off a uni
 full-repricing route kept the two per cent for longer still, which left the disclosure comparison
 making the same mistake after the backtest had stopped; both routes read one constant now.
 
+Agreeing on the step was the easy half. The full-repricing route then shocked the index plus and
+minus ten per cent and divided by the square of $\ln(1.1)$, which is a second difference in the
+proportional move under the denominator of a logarithmic one, and neither end of that is right.
+A pair symmetric in the proportional move measures the curvature in that variable, and that
+differs from the curvature in the log by the first derivative, here $-14{,}501$ and a sixth of
+the answer; the mismatched denominator then scaled what was left by a further ten per cent. The
+reported figure came out 38 per cent above the quantity the field was named for, $93{,}480$ where
+the number is $67{,}662$. The shocks are now the two index moves that are symmetric in the log,
+$+10.52$ and $-9.52$ per cent, which is the construction the nested surface and the regression
+proxy had been using all along.
+
 Signs, which decide whether the hedge is long or short. Equity exposure is negative: a higher
 index makes the guarantee less likely to bite. Rho is negative: a long-dated liability discounts
 away faster when rates rise. Vega is positive. Equity gamma is positive, so the loss from a fall

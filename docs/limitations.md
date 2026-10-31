@@ -143,6 +143,18 @@ inside its own precision. What is not reproducible is the node table itself, whi
 variance-spread sensitivity read off those nodes is a figure about one draw of them rather than
 about the surface.
 
+**Two of the Greeks move with it too.** The same rerun leaves every well-conditioned figure in
+`greeks.csv` reproducing to eight significant digits and moves two much further: the long-run vega
+goes from 866.48 to 866.85 and rho from $-58.8738$ to $-58.8751$ per basis point. Both are
+differences of large valuations over a small bump, which is where a change of summation order is
+magnified, and both sat inside half a unit of the figure quoted for them, so the quoted figure
+rounded one way on the numpy that wrote the table and the other way on the next one. Neither digit
+was worth anything to begin with - the vega's own standard error is 40 and rho's is 19 per 100bp -
+but two assertions had been written to the unit and duly failed on an upgrade. Those two now check
+the table against the quoted figure to a tenth of its own reported error, four units on 866 and
+two on 5,887, which is tighter than any change worth noticing and no longer a test of which numpy
+wrote the file.
+
 **Extrapolation is the condition on every hedging result.** The realised path asks the proxy for a
 state outside its design on 36% of rebalance dates. That is reported with every run rather than
 checked once, because a hedging conclusion built on mostly extrapolated Greeks is not a conclusion.

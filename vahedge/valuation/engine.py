@@ -35,7 +35,7 @@ is worth a factor of two on a full Greek set.
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 
 import numpy as np
 import pandas as pd
@@ -49,6 +49,22 @@ from ..market.simulate import Correlations, MarketPaths, SubAccountMix, simulate
 
 DEFAULT_PATHS = 20_000
 DEFAULT_SEED = 20251231
+# The lowest volatility a shock is allowed to land on, in decimal. Squared it is the 1e-8
+# variance floor that has always been the intent here.
+VOL_FLOOR = 1e-4
+
+
+def shocked_variance(volatility: float, shock: float) -> float:
+    """A variance that is still a variance after the volatility has been shocked.
+
+    The floor goes on the volatility and not on the variance, which sounds like a detail and is
+    not. Clamping after squaring cannot catch anything: a shock that takes a 14.1% volatility
+    down 20 points comes back as the square of minus 5.9%, so the clamp passes it and the state
+    reports a 5.9% volatility for a shock meant to crush volatility to nothing. Nothing in the
+    project reaches that far today - the vega bump is one point - but a stress grid would, and
+    a reflected volatility is worse than a refused one because it is signed the wrong way.
+    """
+    return float(max(volatility + shock, VOL_FLOOR) ** 2)
 
 
 @dataclass(frozen=True)
@@ -106,9 +122,11 @@ class MarketState:
             state = replace(state, curve=shifted)
         if vol_shock:
             heston = self.heston
-            new_v0 = max((np.sqrt(heston.v0) + vol_shock) ** 2, 1e-8)
-            new_theta = max((heston.long_run_vol + vol_shock) ** 2, 1e-8)
-            state = replace(state, heston=replace(heston, v0=new_v0, theta=new_theta))
+            state = replace(state, heston=replace(
+                heston,
+                v0=shocked_variance(np.sqrt(heston.v0), vol_shock),
+                theta=shocked_variance(heston.long_run_vol, vol_shock),
+            ))
         return state
 
 
@@ -142,9 +160,17 @@ class BookValuation:
 class Valuer:
     """Holds the fixed inputs and caches simulated paths across revaluations.
 
-    The cache is keyed on what actually changes the paths: the market parameters, the path
-    count and the seed. An equity shock is deliberately not part of the key, because it does
-    not change them.
+    The cache is keyed on every field of every market object, the path count and the seed. An
+    equity shock is deliberately not part of the key, because it does not change the paths.
+
+    Reading the fields off the dataclasses rather than naming them is the second version of this
+    key. The first named the fifteen that were thought to matter and missed ``bond_duration``,
+    which the rolling bond return is built from: doubling it moves a fund return by half a per
+    cent and the cache handed back the base paths and reported no difference. Nothing in the
+    project varies it, so no published figure was ever wrong, but a duration sensitivity would
+    have come out flat and looked like a finding. A key that cannot fall behind the dataclass is
+    worth the handful of fields in it that have no effect - the curve's own fit error is in there
+    now, and the cost of that is nothing, because it never moves without the betas moving too.
 
     It is also bounded. One set of paths for a hundred cohorts over sixty years is tens of
     megabytes, and a Greek set visits half a dozen market states while a hedge backtest visits
@@ -174,12 +200,10 @@ class Valuer:
 
     def paths_for(self, state: MarketState, n_years: int) -> MarketPaths:
         key = (
-            state.heston.v0, state.heston.kappa, state.heston.theta, state.heston.xi,
-            state.heston.rho, state.mean_reversion, state.rate_vol,
-            state.curve.beta0, state.curve.beta1, state.curve.beta2, state.curve.beta3,
-            state.curve.tau1, state.curve.tau2,
-            state.correlations.equity_rate, state.mix.equity_weight, state.mix.bond_weight,
-            state.mix.tracking_error, n_years, self.n_paths, self.seed, self.steps_per_year,
+            _field_values(state.heston), _field_values(state.curve),
+            _field_values(state.correlations), _field_values(state.mix),
+            state.mean_reversion, state.rate_vol,
+            n_years, self.n_paths, self.seed, self.steps_per_year,
         )
         if key in self._paths:
             self._paths.move_to_end(key)
@@ -319,6 +343,11 @@ class Valuer:
             equity_weight=state.mix.equity_weight,
         )
         return _implied_attribution(projection)
+
+
+def _field_values(obj) -> tuple:
+    """Every field of a market dataclass, in order, for use in the path cache key."""
+    return tuple(getattr(obj, field.name) for field in fields(obj))
 
 
 def _implied_attribution(projection: gmwb.GmwbProjection) -> np.ndarray:
