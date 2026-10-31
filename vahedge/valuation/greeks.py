@@ -70,7 +70,7 @@ class Greeks:
     # Belongs to the two vegas added together, not to either one. The volatility bump moves the
     # current variance and the long-run level at once and the error is the paired error of that
     # difference; the split between the two is a second valuation with no error of its own. So
-    # the error to quote beside it is 40 on 894, not 40 on the 27 of current variance, which
+    # the error to quote beside it is 40 on 894, not 40 on the 26 of current variance, which
     # would read as a Greek worth less than its own noise.
     vega_std_error: float
     level_std_error: float
@@ -112,10 +112,11 @@ def compute(
     # and a second difference only estimates one if its two steps are equal in that variable.
     # Shocking +/-10% proportionally and dividing by ln(1.1)^2 - which is what this did - gets
     # neither end right. The proportional pair is symmetric in the shock, so its second
-    # difference measures d2V/dh2 rather than d2V/d(ln S)2, and the two differ by dV/d(ln S),
-    # which here is -14,008 against a curvature of 85,430: a sixth of the answer, missing. The
-    # ln(1.1)^2 denominator against an h^2 numerator then scaled what was left by a further
-    # 10.1%. Together they put the reported gamma 38% above the quantity named in the field, and
+    # difference measures d2V/dh2 rather than d2V/d(ln S)2, and the two differ by dV/d(ln S).
+    # In the committed greeks.csv that is -14,501 against a proportional curvature of about
+    # 84,900, which is the old 93,480 divided by the 1.101 mentioned next: a sixth of it. The
+    # ln(1.1)^2 denominator against an h^2 numerator scaled the figure up by that 10.1%.
+    # Together they put the reported gamma 38% above the quantity named in the field, and
     # the nested surface and the regression proxy both step symmetrically in the log already, so
     # the three were never measuring one thing. Sharing EQUITY_CURVATURE_STEP was necessary and
     # is not sufficient: a step size means nothing without the variable it is a step in.
@@ -140,18 +141,24 @@ def compute(
     vega_both = (vol_up.market_risk_benefit - vol_down.market_risk_benefit) / (2.0 * vol_bump)
 
     # Splitting the vega: move the current variance alone, then attribute the remainder of the
-    # combined move to the long-run level.
+    # combined move to the long-run level. The current-variance difference is central like the
+    # combined one it is taken from. A forward difference here would leave its own curvature bias
+    # in the remainder, and the remainder is the long-run vega by construction, so the error
+    # would be booked to the exposure no listed option reaches.
     from dataclasses import replace
 
     from .engine import shocked_variance
-    current_only = replace(
-        state,
-        heston=replace(state.heston, v0=shocked_variance(np.sqrt(state.heston.v0), vol_bump)),
-    )
+
+    def current_only(shock: float):
+        return replace(
+            state,
+            heston=replace(state.heston, v0=shocked_variance(np.sqrt(state.heston.v0), shock)),
+        )
+
     vega_current = (
-        valuer.value(book, current_only, attribution=attribution).market_risk_benefit
-        - base.market_risk_benefit
-    ) / vol_bump
+        valuer.value(book, current_only(vol_bump), attribution=attribution).market_risk_benefit
+        - valuer.value(book, current_only(-vol_bump), attribution=attribution).market_risk_benefit
+    ) / (2.0 * vol_bump)
     vega_long_run = vega_both - vega_current
 
     return Greeks(

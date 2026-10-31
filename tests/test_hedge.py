@@ -550,6 +550,7 @@ def _synthetic_ledger(n: int = 60, seed: int = 4) -> pd.DataFrame:
     frame["hedge_gamma"] = 0.0
     frame["hedge_vega"] = 0.0
     frame["hedge_rho_per_bp"] = 0.0
+    frame["hedge_theta"] = 0.0
     frame["cash_flow"] = 0.01
     frame["interest"] = 0.0
     frame["trade_cost"] = 0.0
@@ -595,7 +596,8 @@ def _consistent_ledger(k: float, curvature: float, n: int = 60, seed: int = 7,
     frame["delta"] = -k + curvature * x          # dL/dx, state dependent
     frame["gamma"] = curvature
     for name in ("vega", "rho_per_bp", "theta", "hedge_delta", "hedge_gamma", "hedge_vega",
-                 "hedge_rho_per_bp", "cash_flow", "interest", "trade_cost", "carry_cost"):
+                 "hedge_rho_per_bp", "hedge_theta", "cash_flow", "interest", "trade_cost",
+                 "carry_cost"):
         frame[name] = 0.0
     frame["variance"] = 0.04
     frame["implied_vol"] = 0.2
@@ -771,7 +773,8 @@ def test_the_ledger_on_a_date_does_not_depend_on_anything_after_it():
     # The traded columns are in the list as well as the marked ones. A hedge that peeked would
     # show up first in what it chose to do - the size it put on and what that cost - and those
     # are the columns the economic decomposition is built from.
-    for column in ("liability", "delta", "hedge_delta", "hedge_mark", "cash", "net_worth",
+    for column in ("liability", "delta", "hedge_delta", "hedge_theta", "hedge_mark", "cash",
+                   "net_worth",
                    "account_value", "benefit_base", "rebalance_cash", "trade_cost",
                    "carry_cost", "fee", "claim", "pnl"):
         assert approx(full.ledger.loc[common, column].to_numpy(), rel=1e-12, abs=1e-12) == (
@@ -928,3 +931,175 @@ def test_an_overlay_still_rolls_on_time():
                                   opened_at=0.0, role="overlay")
     assert not simulator._needs_roll(overlay, market, 1.0)
     assert simulator._needs_roll(overlay, market, 1.6)
+
+
+# ---------------------------------------------------------------- a put that is held gets older
+
+
+def test_a_held_put_runs_down_with_the_clock_when_nothing_else_moves():
+    """The defect that sat in every put strategy until the mark learned the date.
+
+    ``_Position.mark`` used to price a held put at its original tenor whatever the policy time
+    was, so in a flat market a put bought for 3.90 per hundred of index was still worth 3.90
+    nine months later, on the day it was rolled. The roll rule counted the age and nothing that
+    priced the position did. The expected values here are the same put revalued at its
+    remaining life, which is the definition and not a second implementation of the fix.
+    """
+    market = _market()
+    put = inst.IndexPut(maturity=1.0, strike_over_spot=0.90).struck(market)
+    line = simulator._Position(instrument=put, units=2.0, reference=None, opened_at=0.5)
+
+    marks = [line.mark(market, 0.5 + held) for held in (0.0, 0.25, 0.5, 0.75)]
+    for held, mark in zip((0.0, 0.25, 0.5, 0.75), marks):
+        assert mark == approx(2.0 * put.value(market, 1.0 - held), rel=1e-12)
+    assert marks[0] > marks[1] > marks[2] > marks[3] > 0.0
+    assert marks[3] < marks[0] / 3.0
+
+    # Everything that reads the position sees the same shorter life, not only the mark.
+    aged = line.current(0.5 + 0.75)
+    assert aged.remaining == approx(0.25)
+    assert aged.exposures(market).vega == approx(put.exposures(market, 0.25).vega, rel=1e-12)
+    assert aged.exposures(market).vega < 0.5 * put.exposures(market).vega
+    assert aged.trade_cost(1.0, market) < 0.5 * put.trade_cost(1.0, market)
+    # Storage stays at age zero, so reading a position twice does not age it twice.
+    assert line.instrument.held_for == 0.0
+    assert line.current(0.5 + 0.75).remaining == approx(0.25)
+
+
+def test_a_put_past_its_expiry_is_worth_its_payoff_and_carries_no_exposure():
+    market = _market()
+    put = inst.IndexPut(maturity=0.5, strike_over_spot=1.0).struck(market)
+    crashed = replace(market, index=90.0)
+    expired = simulator._Position(instrument=put, units=1.0, reference=None, opened_at=0.0)
+    assert expired.mark(crashed, 0.7) == approx(10.0)
+    assert expired.mark(market, 0.7) == approx(0.0)
+    assert expired.current(0.7).exposures(market).vega == 0.0
+
+
+def test_futures_and_swaps_do_not_age():
+    market = _market()
+    future = inst.EquityFuture(maturity=0.25)
+    line = simulator._Position(instrument=future, units=3.0, reference=market.forward(0.25),
+                               opened_at=0.0)
+    assert line.mark(market, 0.0) == line.mark(market, 0.9)
+    assert simulator._book_theta([line], market, 0.3) == 0.0
+
+
+def test_book_theta_is_the_decay_the_mark_will_show_and_is_the_puts_alone():
+    market = _market()
+    put = inst.IndexPut(maturity=1.0, strike_over_spot=0.90).struck(market)
+    option = simulator._Position(instrument=put, units=4.0, reference=None, opened_at=0.0)
+    future = simulator._Position(instrument=inst.EquityFuture(maturity=0.25), units=-2.0,
+                                 reference=market.forward(0.25), opened_at=0.0)
+    day = 1.0 / 365.0
+    decay = 4.0 * (put.value(market, 0.6 - day) - put.value(market, 0.6)) * 365.0
+    assert simulator._book_theta([option, future], market, 0.4) == approx(decay, rel=1e-9)
+    assert decay < 0.0
+
+
+def test_the_attribution_charges_the_hedge_for_time_in_the_theta_bar():
+    frame = _consistent_ledger(24.0, 0.0)
+    frame["hedge_theta"] = -3.0
+    pieces = attribution.attribute(frame, EQUITY_WEIGHT)
+    years = (frame.index[-1] - frame.index[0]).days / 365.0
+    assert pieces["theta"].sum() == approx(-3.0 * years, rel=0.02)
+    assert (pieces["theta"].iloc[1:] < 0.0).all()
+
+
+def _flat_world():
+    """The backtest fixture with the index stopped, so the only thing that can move a held
+    put's mark is the clock. Futures and swaps are flat in a flat market, which leaves the
+    put as the whole of any change in the hedge mark between two rebalances."""
+    from vahedge.market.scenarios import sub_account_path
+
+    path, policy, survival, deaths, proxy, mix = _backtest_fixture()
+    flat = np.ones(path.index.size)
+    years = (path.dates - path.dates[0]).days.to_numpy(dtype=float) / 365.0
+    stopped = replace(path, index=flat,
+                      fund=sub_account_path(flat, path.curves, path.cash_rate, mix, years),
+                      label="flat")
+    return stopped, policy, survival, deaths, proxy, mix
+
+
+def test_in_a_flat_market_the_hedge_mark_moves_between_rebalances_by_the_puts_own_theta():
+    path, policy, survival, deaths, proxy, mix = _flat_world()
+    # Futures and puts, without the swap: a receive-fixed swap accrues its carry in its mark, so
+    # with it in the book the hedge mark rises in a flat market for a reason that has nothing to
+    # do with the puts, and the test would be asserting about the sum of two things.
+    book = replace(strategies.matrix()["S3"],
+                   instruments=strategies.equity_only() + strategies.put_leg(),
+                   rebalance="monthly")
+    run = simulator.run(path, policy, survival, deaths, proxy, book, _smile(),
+                        years_at_start=2.0, equity_weight=mix.equity_weight)
+    ledger = run.ledger
+    steps = ledger["hedge_mark"].diff().iloc[1:]
+    quiet = ~ledger["rebalanced"].iloc[1:]
+    days = pd.Series((ledger.index[1:] - ledger.index[:-1]).days / 365.0, index=steps.index)
+    expected = ledger["hedge_theta"].shift(1).iloc[1:] * days
+    held = run.positions["units_index_put"].reindex(ledger.index, method="ffill").iloc[1:]
+
+    assert quiet.sum() > 300
+    # Nothing moved but the clock, so the mark of a long put falls and the mark of a short put
+    # rises, every day, without exception. The test's own proxy is small and its curvature has
+    # the wrong sign, so the solve here is short the puts; the assertion does not depend on it.
+    assert (np.sign(steps[quiet]) == -np.sign(held[quiet])).all()
+    # And the move is what the ledger said its theta was the day before. A one-day forward
+    # difference over a calendar that steps across weekends, so a few per cent and not exact.
+    assert approx(expected[quiet].to_numpy(), rel=0.05) == steps[quiet].to_numpy()
+    # Time is the main cost of holding the position and not a rounding term beside the spreads:
+    # 2.45 index units of decay against 0.33 of spread on this path, so over seven times.
+    assert float(steps[quiet].abs().sum()) > 5.0 * float(ledger["trade_cost"].sum())
+
+
+def test_the_book_exposure_and_the_solve_both_see_a_held_put_at_its_remaining_life():
+    """Marking the put right and sizing it wrong would leave the ledger honest and the hedge
+    wrong: the solve would credit a nine-month-old put with the gamma and vega of a new one."""
+    market = _market()
+    exposure = sizing.Exposures(delta=-30.0, gamma=20.0, vega=0.5, rho=-0.01)
+    strategy = replace(strategies.matrix()["S3"], instruments=strategies.put_leg(1.0, 0.90))
+    book, _, _, _ = simulator._rebalance([], strategy, market, exposure, 100.0,
+                                         policy_time=0.0, cost_multiple=1.0)
+    line = book[0]
+    assert line.instrument.held_for == 0.0
+
+    later = 0.5
+    held = simulator._book_exposure(book, market, later)
+    fresh = line.instrument.exposures(market)
+    assert held.vega == approx(line.units * line.instrument.exposures(market, 0.5).vega,
+                               rel=1e-12)
+    assert abs(held.vega) < abs(line.units * fresh.vega)
+
+    # A rebalance at the later date keeps the put and re-solves with it at its remaining life.
+    kept, _, _, second = simulator._rebalance(book, strategy, market, exposure, 100.0,
+                                              policy_time=later, cost_multiple=1.0)
+    assert second.instruments[0].held_for == approx(later)
+    assert kept[0].instrument.held_for == 0.0 and kept[0].opened_at == 0.0
+
+
+def test_a_rebalance_moves_value_between_cash_and_positions_without_creating_any():
+    """Trading at the mark is a swap of one asset for another. Cash received for a closed put or
+    paid for a resized one has to be at the same aged value the book is carried at, or a held
+    option would be bought and sold for different prices on one date and the difference would
+    land in net worth as a profit or a loss with no market move behind it. The spread is the
+    only cost and is charged on its own line."""
+    start = _market()
+    exposure = sizing.Exposures(delta=-30.0, gamma=20.0, vega=0.5, rho=-0.01)
+    strategy = replace(strategies.matrix()["S3"],
+                       instruments=strategies.equity_only() + strategies.put_leg(1.0, 0.90),
+                       overlay=strategies.macro_leg(tenor=2.0))
+    book, *_ = simulator._rebalance([], strategy, start, exposure, 100.0,
+                                    policy_time=0.0, cost_multiple=1.0)
+    later = replace(start, index=start.index * 0.99)
+
+    # 0.4 years: everything is kept and resized. 0.8: the solved put is past its roll point
+    # (a quarter of a year left of one) and the two-year overlay is not.
+    for time, solved_rolled in ((0.4, False), (0.8, True)):
+        before = sum(line.mark(later, time) for line in book)
+        after_book, cost, cash_delta, _ = simulator._rebalance(
+            book, strategy, later, exposure, 100.0, policy_time=time, cost_multiple=1.0)
+        after = sum(line.mark(later, time) for line in after_book)
+        assert cost > 0.0
+        assert cash_delta + (after - before) == approx(0.0, abs=1e-9), time
+        opened = sorted(line.opened_at for line in after_book if line.role == "solved"
+                        and isinstance(line.instrument, inst.IndexPut))
+        assert (opened == [time]) == solved_rolled

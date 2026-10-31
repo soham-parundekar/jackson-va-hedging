@@ -105,13 +105,6 @@ class HedgePositions:
             [instrument.notional(market) for instrument in self.instruments]
         )))
 
-    def value(self, market, struck) -> float:
-        """Mark of the whole hedge book, given where each position was struck."""
-        return float(np.sum([
-            units * instrument.value(market, strike)
-            for instrument, units, strike in zip(self.instruments, self.units, struck)
-        ]))
-
 
 def insurer_exposures(greeks, equity_weight: float = 1.0, vega: str = "current") -> Exposures:
     """The insurer's own exposure through the guarantee, which is what has to be offset.

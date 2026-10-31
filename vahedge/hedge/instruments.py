@@ -31,10 +31,11 @@ option. For a hedge whose rate exposure is a parallel shift on a single-factor c
 right level of detail; it would not be for a curve-shape hedge, which is why none is claimed.
 
 The total return swap is the one Jackson holds that is missing, and it is missing on purpose. A
-version of it lived here and was taken out: everything in this module is stateless, marked off
-today's market and nothing else, and a swap marked that way reports a financing rho that its own
-profit and loss can never realise, so the solve would have sized it for an exposure that was not
-there. Doing it properly needs a position that knows how long it has been held. `strategies.py`
+version of it lived here and was taken out: everything in this module is marked off today's
+market and nothing else, apart from the age an index put is handed by the simulator, and a swap
+marked that way reports a financing rho that its own profit and loss can never realise, so the
+solve would have sized it for an exposure that was not there. Doing it properly needs a position
+that remembers when it was struck, which is what the simulator's position record is. `strategies.py`
 carries the longer version of that decision and what it costs - one instrument pays a spread per
 trade and the other a spread per day, so which is cheaper turns on rebalancing frequency, and E3
 sweeps the frequency without being able to answer that particular comparison.
@@ -235,6 +236,7 @@ class IndexPut:
     strike_over_spot: float
     strike: float | None = None     # fixed once struck; None means struck at this market
     label: str = "index put"
+    held_for: float = 0.0           # years since it was struck; see ``aged``
 
     def struck(self, market: HedgeMarket) -> "IndexPut":
         """The tradeable instrument, with its strike fixed at this market.
@@ -247,8 +249,26 @@ class IndexPut:
         """
         return replace(self, strike=market.index * self.strike_over_spot)
 
+    def aged(self, held_for: float) -> "IndexPut":
+        """The same contract ``held_for`` years after it was struck.
+
+        Striking fixes the strike and ageing fixes the life: without it a held put is priced at
+        its original tenor every day it is held, in a flat market included, so the premium
+        never runs off. On a one-year put struck ten per cent out of the money that is 3.90 per
+        hundred of index at the strike date and 0.97 at the roll date nine months later with
+        nothing else moved, and the programme was being charged none of the difference. The
+        position carries its own ``opened_at``; the instrument stays at age zero in storage and
+        is aged on the way into a mark, an exposure or a trade, by whoever knows the date.
+        """
+        return replace(self, held_for=max(held_for, 0.0))
+
+    @property
+    def remaining(self) -> float:
+        """Years to expiry. Zero once the contract has run its full life, never negative."""
+        return max(self.maturity - self.held_for, 0.0)
+
     def _terms(self, market: HedgeMarket, maturity: float | None = None):
-        maturity = self.maturity if maturity is None else maturity
+        maturity = self.remaining if maturity is None else maturity
         strike = self.strike if self.strike is not None else market.index * self.strike_over_spot
         discount = float(market.curve.discount(max(maturity, 1e-8)))
         forward = market.forward(max(maturity, 1e-8))

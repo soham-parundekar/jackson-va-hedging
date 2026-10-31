@@ -293,8 +293,8 @@ truncation biases the discounted index away from being a martingale. The tests c
 martingale property directly.
 
 **The long-run level is the parameter that matters and the one the data has least to say
-about.** Almost all of the liability's volatility exposure sits in $\theta$ - 866 per point
-against 27 for the current variance - and $\theta$ is fitted to options none of which mature past
+about.** Almost all of the liability's volatility exposure sits in $\theta$ - 868 per point
+against 26 for the current variance - and $\theta$ is fitted to options none of which mature past
 3.23 years, applied to a liability that runs 45. It is not free: pinning it to the realised
 ten-year level plus the issuer's one-point margin, which is the methodology Note 6 describes,
 costs four times the volatility error beyond two years and drives mean reversion to its bound,
@@ -544,6 +544,19 @@ and a solved option position also rolls when its strike drifts away from its tar
 overlay does not: a macro put spread bought for a crash should not be closed at the first sign of
 the crash, and a strike band that closed it was costing the strategy most of what it was bought
 for.
+
+**A held put is older than it was.** A position is stored as the instrument it was struck as, with
+the date it was opened, and everything that reads it - the mark, the exposures that go into the
+sizing solve and the band test, the spread on a trade - sees the remaining life, which is the tenor
+less the time held. Futures and swaps do not age in this model, so the rule applies to puts only.
+The first version priced a held put at its original tenor on every day. A one-year put struck 10%
+out of the money is worth 3.90 per hundred of index when it is bought and 0.97 nine months later,
+at the roll date, with nothing else moved, and the programme was being charged none of that. The
+decay is recorded in the ledger as `hedge_theta`, the one-day forward difference of the mark
+itself, and the attribution's theta bar is the liability's passage of time plus the hedge's. Aged
+puts are still priced at the ledger's single marking volatility, so what decays is time value at a
+constant volatility; the term structure of volatility for a put with three months to run is not
+modelled. The Item 7A comparisons strike a book at one date and shock it, so they are unaffected.
 
 Profit is reconciled rather than asserted. The ledger carries cash, the hedge mark and the
 liability, and their change adds to the reported period profit by construction, with the

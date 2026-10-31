@@ -31,7 +31,7 @@ Three things come out that a single path cannot give:
 
 1. The *distribution* of residual volatility, and where the realised decade sits inside it.
 2. Whether the ranking survives. On the realised path the put leg bought about four more points
-   of variance removed - 95.6 per cent against 91.2 - for 13.7 per cent of account value in cost.
+   of variance removed - 95.4 per cent against 91.2 - for 11.3 per cent of account value in cost.
    Four points on one path is not a finding; the share of reorderings on which it holds is.
 3. How often the proxy is asked for a state it was never fitted at. The realised path already
    extrapolates on 36 per cent of rebalances, and a resampled path wanders further. Reported

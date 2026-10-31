@@ -150,8 +150,8 @@ def volatility_indices(panel: pd.DataFrame) -> pd.DataFrame:
 
 # Each row is (name of the quoted tenor, its length in years, name of the target, its length).
 # The first is an interpolation and the two below it reach outward, which is the direction the
-# option leg actually needs: the puts run one and two years and six months is as far as free
-# data goes, so the outward rows are the only test of that extension there is.
+# option leg actually needs: the puts run six months and, in the macro spread, two years, and six
+# months is as far as free data goes, so the outward rows are the only test of that extension.
 TENOR_COMPARISONS = (
     ("three_month", 0.25, "one_month", scenarios.VIX_TENOR_YEARS),
     ("one_month", scenarios.VIX_TENOR_YEARS, "six_month", scenarios.VIX6M_TENOR_YEARS),

@@ -91,10 +91,22 @@ class _Position:
     opened_at: float           # policy time, for the option roll rule
     role: str = "solved"       # "solved" or "overlay"; the overlay is not sized by the solve
 
-    def mark(self, market) -> float:
+    def current(self, policy_time: float):
+        """The instrument as it stands at ``policy_time``.
+
+        A put has run down by the time since ``opened_at`` and everything that prices it - the
+        mark, the exposures going into the sizing solve, the spread on a trade - has to see the
+        shorter life. Futures and swaps do not age in this model, so they come back unchanged.
+        """
         if isinstance(self.instrument, inst.IndexPut):
-            return self.units * self.instrument.value(market)
-        return self.units * self.instrument.value(market, self.reference)
+            return self.instrument.aged(policy_time - self.opened_at)
+        return self.instrument
+
+    def mark(self, market, policy_time: float) -> float:
+        instrument = self.current(policy_time)
+        if isinstance(instrument, inst.IndexPut):
+            return self.units * instrument.value(market)
+        return self.units * instrument.value(market, self.reference)
 
 
 def anniversary_indices(path, step_days: float = DAYS_PER_YEAR) -> np.ndarray:
@@ -375,7 +387,8 @@ def run(
         trade_cost = 0.0
         cash_delta = 0.0
         rebalancing = day == 0 or (calendar[day] and (
-            not on_band or _drifted(exposure, book, market, strategy, float(account[day]))
+            not on_band or _drifted(exposure, book, market, strategy, float(account[day]),
+                                    float(policy_year[day]))
         ))
         if rebalancing:
             book, trade_cost, cash_delta, solved = _rebalance(
@@ -394,8 +407,10 @@ def run(
                 "solved_notional": solved.notional(market),
             })
 
-        hedge_mark = float(sum(line.mark(market) for line in book))
-        hedge = _book_exposure(book, market)
+        now = float(policy_year[day])
+        hedge_mark = float(sum(line.mark(market, now) for line in book))
+        hedge = _book_exposure(book, market, now)
+        hedge_theta = _book_theta(book, market, now)
         cash += cash_flow[day] + interest - trade_cost - carry
         rows.append({
             "date": path.dates[day],
@@ -421,6 +436,7 @@ def run(
             "hedge_gamma": hedge.gamma,
             "hedge_vega": hedge.vega,
             "hedge_rho_per_bp": hedge.rho,
+            "hedge_theta": hedge_theta,
             "hedge_mark": hedge_mark,
             "cash": cash,
             "cash_flow": cash_flow[day],
@@ -465,8 +481,8 @@ def shock_response(strategy: Strategy, market, exposure, account_value: float,
     """
     book, _, _, solved = _rebalance([], strategy, market, exposure, account_value,
                                     policy_time=0.0, cost_multiple=1.0)
-    base = sum(line.mark(market) for line in book)
-    changes = {name: sum(line.mark(shocked) for line in book) - base
+    base = sum(line.mark(market, 0.0) for line in book)
+    changes = {name: sum(line.mark(shocked, 0.0) for line in book) - base
                for name, shocked in shocked_markets.items()}
     return changes, solved
 
@@ -493,13 +509,15 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
             kept_options.append(line)
 
     # The instruments the solve is allowed to use: the linear specs, plus whichever options
-    # survive the roll test as they actually stand, plus freshly struck ones for the rest.
+    # survive the roll test as they actually stand - aged to today, so the solve sees the gamma
+    # and vega a nine-month-old put has left and not the ones it was bought with - plus freshly
+    # struck ones for the rest.
     kept_by_spec = {_put_key(line.instrument): line for line in kept_options}
     solve_instruments, matched = [], []
     for spec in strategy.instruments:
         if isinstance(spec, inst.IndexPut):
             existing = kept_by_spec.pop(_put_key_spec(spec), None)
-            instrument = existing.instrument if existing else spec.struck(market)
+            instrument = existing.current(policy_time) if existing else spec.struck(market)
             solve_instruments.append(instrument)
             matched.append(existing)
         else:
@@ -518,7 +536,7 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
     # Linear positions are marked daily, so the old book is realised into cash and the new one
     # is struck at today's level. Only the change in units pays a spread.
     for line in linear:
-        cash_delta += line.mark(market)
+        cash_delta += line.mark(market, policy_time)
     old_linear = _netted(linear)
     new_book: list = []
     for spec, instrument, existing, units in zip(
@@ -533,8 +551,10 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
                 change = units - previous
                 cost += instrument.trade_cost(change, market)
                 cash_delta -= change * instrument.value(market)
+            # Stored at age zero with its own opening date; the age is applied when it is read.
             new_book.append(_Position(
-                instrument=instrument, units=float(units), reference=None,
+                instrument=existing.instrument if existing else instrument,
+                units=float(units), reference=None,
                 opened_at=existing.opened_at if existing else policy_time,
             ))
         else:
@@ -546,8 +566,8 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
             ))
 
     for line in rolled_options:
-        cash_delta += line.mark(market)
-        cost += line.instrument.trade_cost(line.units, market)
+        cash_delta += line.mark(market, policy_time)
+        cost += line.current(policy_time).trade_cost(line.units, market)
 
     for spec, share in strategy.overlay:
         units = share * account_value / market.index
@@ -559,8 +579,8 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
         )
         if existing is None or _needs_roll(existing, market, policy_time):
             if existing is not None:
-                cash_delta += existing.mark(market)
-                cost += existing.instrument.trade_cost(existing.units, market)
+                cash_delta += existing.mark(market, policy_time)
+                cost += existing.current(policy_time).trade_cost(existing.units, market)
             struck = spec.struck(market)
             cost += struck.trade_cost(units, market)
             cash_delta -= units * struck.value(market)
@@ -568,8 +588,9 @@ def _rebalance(book, strategy: Strategy, market, exposure, account_value: float,
                                       opened_at=policy_time, role="overlay"))
         else:
             change = units - existing.units
-            cost += existing.instrument.trade_cost(change, market)
-            cash_delta -= change * existing.instrument.value(market)
+            aged = existing.current(policy_time)
+            cost += aged.trade_cost(change, market)
+            cash_delta -= change * aged.value(market)
             new_book.append(_Position(instrument=existing.instrument, units=float(units),
                                       reference=None, opened_at=existing.opened_at,
                                       role="overlay"))
@@ -628,14 +649,30 @@ def _reference(instrument, market):
     return float(market.curve.zero(instrument.duration))
 
 
-def _book_exposure(book, market) -> sizing.Exposures:
+def _book_exposure(book, market, policy_time: float) -> sizing.Exposures:
     total = sizing.Exposures()
     for line in book:
-        total = total + line.instrument.exposures(market) * line.units
+        total = total + line.current(policy_time).exposures(market) * line.units
     return total
 
 
-def _drifted(exposure, book, market, strategy: Strategy, account_value: float) -> bool:
+def _book_theta(book, market, policy_time: float) -> float:
+    """What the book's mark loses per year to the passage of time, market held where it is.
+
+    A one-day forward difference of the same ``mark`` the ledger uses, so the number is the
+    decay the mark will actually show if nothing else moves, not a closed-form theta that could
+    drift from it. It is negative for a long put book and zero for futures and swaps, whose
+    marks do not age. The attribution reads it lagged by a day, like every other Greek.
+    """
+    step = 1.0 / DAYS_PER_YEAR
+    return float(sum(
+        line.mark(market, policy_time + step) - line.mark(market, policy_time)
+        for line in book
+    ) / step)
+
+
+def _drifted(exposure, book, market, strategy: Strategy, account_value: float,
+             policy_time: float) -> bool:
     """Whether a band strategy has moved far enough to be worth a trade.
 
     The band is on the delta left open as a share of the contract value, because that is what
@@ -643,7 +680,7 @@ def _drifted(exposure, book, market, strategy: Strategy, account_value: float) -
     """
     if not book:
         return True
-    left = exposure.delta + _book_exposure(book, market).delta
+    left = exposure.delta + _book_exposure(book, market, policy_time).delta
     return bool(abs(left) > strategy.band * account_value)
 
 

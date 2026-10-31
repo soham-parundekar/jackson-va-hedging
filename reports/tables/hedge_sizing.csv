@@ -3,5 +3,5 @@ position,size
 as a multiple of account value,-0.1450
 "receive-fixed 10-year swap, target per basis point",58.8738
 the notional that carries it,71692.1592
-"long volatility, per point of current variance",27.2159
-"volatility exposure beyond any listed maturity, per point",866.4794
+"long volatility, per point of current variance",25.7492
+"volatility exposure beyond any listed maturity, per point",868.3134

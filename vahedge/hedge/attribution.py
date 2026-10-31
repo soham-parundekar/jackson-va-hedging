@@ -22,7 +22,8 @@ between rebalances.
 luck. The insurer is short convexity through the guarantee, so realised variance costs money
 whether markets rise or fall: the term is one half gamma times the squared move, gamma is
 negative, and the square is not. This is the bar that pays for a put position, and comparing it
-against the premium is the whole of the S2-against-S3 question.
+against the theta bar, which is where the put's premium runs off, is the whole of the
+S2-against-S3 question.
 
 *Basis* is the part of the sub-account's move that the index did not explain. With the funds
 modelled as a weighted portfolio of index, bond and cash sleeves this term is mechanical and
@@ -152,9 +153,13 @@ def attribute(ledger: pd.DataFrame, equity_weight: float) -> pd.DataFrame:
         )
     else:
         out["anniversary"] = 0.0
-    # The liability's own passage of time, at the rate the proxy's interpolation implies, with
-    # the sign flipped because the insurer is short it.
-    out["theta"] = -lagged("theta") * d_time
+    # The passage of time on both sides. The liability's is the rate the proxy's interpolation
+    # implies, sign flipped because the insurer is short it. The hedge's is the decay in the
+    # mark of the puts it holds, read from the ledger the same way; it is zero for futures and
+    # swaps. This is where the premium for convexity shows up: the gamma bar earns it back or
+    # does not, and a put book that was never charged for time would have shown a gamma bar
+    # with nothing to set against it.
+    out["theta"] = (-lagged("theta") + lagged("hedge_theta")) * d_time
     out["cost"] = -(ledger["trade_cost"].to_numpy() + ledger["carry_cost"].to_numpy())
 
     out["total"] = ledger["pnl"].to_numpy()

@@ -373,12 +373,13 @@ def put_design(setup) -> pd.DataFrame:
     unit of vega than a long one.
 
     Two measurements per design, because one of them alone picks the wrong point, and that is not
-    a hypothetical. On the whole replay window's two axes the three one-year designs are all
-    dominated and the sweep reads as a clean verdict for short tenors. Add the worst window in the
-    sample as a third axis and nothing is dominated: the long-dated puts pay more through the
-    crash, which is what they were bought for. The first version of this function measured only
-    the window and the conclusion it supported was an artefact of the ten years in which nothing
-    happened.
+    a hypothetical. On the whole replay window's two axes, the decade's result and the residual,
+    four of the nine designs are dominated, two of them one-year puts, and the sweep reads as a
+    verdict for short tenors. Add the worst window in the sample as a third axis and the one-year
+    designs come back: the long-dated puts pay more through the crash, which is what they were
+    bought for. Two quarter-year designs stay dominated. The first version of this function
+    measured only the window and the conclusion it supported was an artefact of the ten years in
+    which nothing happened.
 
     The disclosure is the reason this is worth running rather than a tidy-up. Jackson's equity
     option book averaged 0.24 years of remaining term at 31 December 2025 - three months, against
@@ -425,8 +426,14 @@ def put_design(setup) -> pd.DataFrame:
                 "premium_pct_of_index": put.struck(reference).value(reference) / 100.0,
             })
     table = pd.DataFrame(rows)
+    # A cell is dominated if another is no worse on the decade's result, on the residual and on
+    # the stress outcome. The first axis was the spread cost until held puts started to age.
+    # The spread is only the part of the option bill that is paid in cash, and the premium
+    # running off is larger, so a frontier drawn on spreads ranked the cells by the smaller
+    # number. The spread stays in the table beside it. Drawn on spreads eight of the nine cells
+    # are on the frontier, on the result seven are, and S3's own cell is on both.
     table["on_frontier"] = [
-        not ((table["total_cost_pct"] <= row["total_cost_pct"])
+        not ((table["total_pnl_pct"] >= row["total_pnl_pct"])
              & (table["pnl_sd_pct"] <= row["pnl_sd_pct"])
              & (table["stress_total_pnl_pct"] >= row["stress_total_pnl_pct"])
              & (table.index != index)).any()
@@ -658,7 +665,8 @@ def main() -> None:
           f"{stress_name}")
     for _, row in design.sort_values(["tenor_years", "strike_over_spot"]).iterrows():
         print(f"  {row['tenor_years']:.2f}y  K/S {row['strike_over_spot']:.2f}  "
-              f"sd {100*row['pnl_sd_pct']:6.3f}%  cost {100*row['total_cost_pct']:6.2f}%  "
+              f"sd {100*row['pnl_sd_pct']:6.3f}%  spreads {100*row['total_cost_pct']:6.2f}%  "
+              f"decade {100*row['total_pnl_pct']:+6.1f}%  "
               f"{stress_name} total {100*row['stress_total_pnl_pct']:+6.2f}% "
               f"worst day {100*row['stress_worst_day_pct']:+6.2f}%  "
               f"gamma per unit of cost {row['gamma_per_cost']:7.0f}"
@@ -671,7 +679,7 @@ def main() -> None:
               f"on the frontier {bool(row['on_frontier'])}")
     dominated = design[~design["on_frontier"]]
     if not dominated.empty:
-        print("  dominated on all three of cost, residual and the stress outcome: "
+        print("  dominated on all three of decade result, residual and the stress outcome: "
               + ", ".join(f"{r['tenor_years']:.2f}y/{r['strike_over_spot']:.2f}"
                           for _, r in dominated.iterrows()))
 

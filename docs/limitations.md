@@ -55,7 +55,7 @@ value today and less moneyness, so the sweep understates how far behaviour alone
 
 **The long-run variance is extrapolated by a factor of fourteen.** The option chain reaches 3.23
 years and the projection runs 45. Almost all of the liability's volatility exposure is in the
-long-run level - 866 per point against 27 for the current variance - and that level is set by a fit
+long-run level - 868 per point against 26 for the current variance - and that level is set by a fit
 to options none of which mature past three years.
 
 It is not a free parameter: pinning it to the realised ten-year level plus the issuer's own
@@ -88,9 +88,10 @@ before the chain was quoted.
 reversion at 4.80 has a half-life of seven weeks, so the model is almost fully reverted to its
 long-run level by six months, and carrying a one-month quote out to six months lands 1.22
 volatility points low on average against VIX6M - 0.68 low from a three-month quote. The option
-leg's level is extended by the same mapping out to one and two years, where nothing free can
-check it, so its puts are priced too cheaply and the 21.67% ten-year option cost is a lower bound
-rather than an estimate. The effect on the residual is not signed: too low a volatility misstates
+leg's level is extended by the same mapping: S3's six-month puts sit at the far end of what
+VIX6M checks, and S6's two-year spread is past anything free data reaches. Puts priced too cheaply
+lose less premium than they would at market quotes, so the premium that runs off over the decade
+is a lower bound rather than an estimate. The effect on the residual is not signed: too low a volatility misstates
 the put's own vega and gamma as well as its price.
 
 **The thirty-day skew is two thirds as deep as the market's.** The calibrated parameters generate
@@ -154,6 +155,14 @@ but two assertions had been written to the unit and duly failed on an upgrade. T
 the table against the quoted figure to a tenth of its own reported error, four units on 866 and
 two on 5,887, which is tighter than any change worth noticing and no longer a test of which numpy
 wrote the file.
+
+The long-run vega has moved once more since, and not because of the environment. The split of the
+vega is a remainder, the combined bump less the current-variance bump, and the second of those was
+a forward difference against a central difference for the first. The forward bias, which is
+curvature times the bump, was booked to the long-run half. Both are central now: 1.47 per point
+moves from the long-run half to the current one, 866.85 to 868.31 and 27.2 to 25.7 on the same
+numpy, with the sum unchanged at 894.06. The tests quote 868 and 26 and the same tenth of the
+error.
 
 **Extrapolation is the condition on every hedging result.** The realised path asks the proxy for a
 state outside its design on 36% of rebalance dates. That is reported with every run rather than
@@ -222,6 +231,14 @@ itself. On a forty-five-year guarantee these are the larger risks.
 
 **The equity hedge is a frictionless futures overlay.** No contract granularity, no roll basis, no
 margin funding.
+
+**A held put decays at a constant volatility.** The put's remaining life is tracked and its mark
+runs down with the clock, but it is priced at the ledger's single marking volatility on every day
+of its life. What the programme pays for time is therefore the theta of one Black-Scholes level,
+and the term structure a six-month put would have been repriced on as it shortened is not
+modelled. The direction is known and the size is not: the fitted term structure slopes upward at
+these tenors, so a shortening put would have lost some of its volatility as well, and the decade's
+result for the put strategies is too good by an amount this project has not measured.
 
 **The two tables carrying a drawdown predate the convention the code now uses.** A drawdown is
 measured from a high-water mark, and that mark starts at zero: before the first day the programme
@@ -306,15 +323,21 @@ than by where the hedge looks good.
 
 The selection that does exist is the option leg's two parameters. S3's put tenor and strike were
 picked off the sweep in E3 - that is, off the same replay the strategy is then scored on - and
-`strategies.py` says so where they are set. What bounds it is that the whole grid is published
-and none of it is hidden: across the nine cells of the three-by-three sweep the residual standard
-deviation runs 0.135% to 0.163% of account value and the cost 5.2% to 21.5%, every cell sits on
-the frontier once the crisis outcome is an axis, and no cell dominates another. The conclusion the
-project draws from this is a ranking of instrument sets, and the ranking does not depend on the
-choice: the *worst* cell of the put grid still leaves a tighter residual than the *best* cell of
-S2 over any rebalance frequency, 0.163% against 0.188%. A reader who prefers a different tenor or
-strike can read their own cell out of `reports/tables/hedge_put_design.csv` and the ordering is
-unchanged.
+`strategies.py` says so where they are set. They were picked while a held put was marked at its
+original tenor and so lost no time value; the sweep has since been rerun with the put aging, every
+figure in it moved, and the six-month, ten per cent cell stayed on the frontier, so the pick was
+left where it was rather than made a second time on the corrected numbers. What bounds the
+selection is that the whole grid is published and none of it is hidden. Across the nine cells the
+residual standard deviation runs 0.134% to 0.167% of account value, the spread cost 3.7% to 21.3%
+and the decade's result -21.4% to -58.6%. Seven of the nine sit on the frontier once the crisis
+outcome is an axis; the two that do not are the quarter-year puts at 0.90 and 0.85, each beaten on
+all three measures by a longer put. The conclusion the project draws from this is a ranking of
+instrument sets, and the ranking does not depend on the choice: the *worst* cell of the put grid
+still leaves a tighter residual than the *best* cell of S2 over any rebalance frequency, 0.167%
+against 0.188%. That ranking is on residual variation only. On the decade's result every put cell
+finishes between 18 and 55 points behind weekly S2, so a reader who weighs the result as heavily as the
+residual will prefer a different instrument set, and can read their own cell out of
+`reports/tables/hedge_put_design.csv`.
 
 **One realised decade, widened but not escaped.** The bootstrap experiment resamples the decade's
 equity days into other orderings, which gives the hedging result a distribution rather than a

@@ -49,16 +49,20 @@ from .sizing import DEFAULT_WEIGHTS
 
 # Strike and tenor of the puts in S3, picked off the sweep in E3 rather than assumed, and a
 # trade-off rather than a winner. The first version held a one-year put ten per cent down with
-# nothing behind the choice. Against it, six months at the same strike costs 13.7 per cent of
-# account value over the ten-year window instead of 21.2 and leaves a slightly smaller average
-# residual, 0.137 against 0.142 per cent a day, because a listed option's spread is charged on
-# its vega while the hedge is bought for its gamma and that ratio rises as the tenor shortens.
-# What it gives up is the tail: through covid the one-year put returned 3.3 per cent of account
-# value against the six-month's 1.9. So the short tenor buys a third off the running cost for
-# about a point and a half of crisis upside, which is the trade taken here and is reversible by
-# changing these two numbers. The whole grid is on the frontier once the crisis outcome is an
-# axis, and E3 prints it. Jackson's own equity option book averaged 0.24 years of remaining
-# term at 31 December 2025, shorter than either.
+# nothing behind the choice. Against it, six months at the same strike pays 11.3 per cent of
+# account value in spreads over the ten-year window instead of 20.2, finishes the decade at -41.8
+# per cent of account value instead of -50.9 once the premium running off is counted, and leaves
+# the same residual, 0.140 per cent a day against 0.141. A listed option's spread is charged on
+# its vega while the hedge is bought for its gamma, and that ratio rises as the tenor shortens.
+# What the short tenor gives up is the tail: through covid the one-year put returned 3.0 per cent
+# of account value against the six-month's 1.5. So it saves about nine points over the decade for
+# a point and a half of crisis upside, which is the trade taken here and is reversible by changing
+# these two numbers. The sweep was first run while a held put was marked at its original tenor,
+# and these two numbers were picked then. Re-running it with the put aging moved every figure
+# above and kept the six-month, ten per cent cell on the frontier, so it was not picked again.
+# Seven of the nine cells are on the frontier and E3 prints all of them. Jackson's put options had
+# a weighted average term of 0.24 years at 31 December 2025 (Item 7A, REF-001), shorter than
+# either.
 PUT_TENOR_YEARS = 0.5
 PUT_STRIKE = 0.90
 # The macro hedge in S6: a two-year put spread well out of the money. A spread rather than a
@@ -72,11 +76,13 @@ MACRO_STRIKES = (0.80, 0.60)
 # rather than an economic hedge, which is the distinction W5 is built to measure.
 MACRO_NOTIONAL_SHARE = 0.25
 # S4's band, as a share of account value of delta left open. Sized to be a cost-control device
-# rather than a disguise for daily rebalancing: the liability's curvature is around a quarter of
-# the account value, so a one per cent index move opens about a quarter of a per cent of delta,
-# and a band of two per cent takes a sustained move of several days to breach. The first version
-# used a quarter of a per cent, which fired most days and made S4 cost twice what weekly
-# rebalancing did - the opposite of what the strategy is for. Swept in E3.
+# rather than a disguise for daily rebalancing. The liability's curvature at the valuation date is
+# 67,662 on an account of about 100,000 (greeks.csv, economic basis), so a one per cent move in
+# the index opens about 0.68 per cent of account value in delta and a band of two per cent is
+# breached by a move of around three per cent, which is a few days of ordinary volatility. A
+# quarter of a per cent, the first version, was breached by an index move of 0.37 per cent, fired
+# most days and made S4 cost twice what weekly rebalancing did - the opposite of what the
+# strategy is for. Swept in E3.
 BAND_SHARE = 0.02
 
 

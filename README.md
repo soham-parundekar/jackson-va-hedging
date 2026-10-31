@@ -37,33 +37,36 @@ model's own curve implies a benefit base over account value falling from 0.94 to
 four years on the down shock and from 1.01 to 0.86 on the up shock, two independent readings
 landing within a few points of each other without being made to.
 
-**A delta and rho hedge removes most of the daily variation. Convexity removes most of the rest,
-and costs two hundred and seventy times as much to trade.**
+**A delta and rho hedge removes most of the daily variation. Convexity takes out another 44% of
+what is left, and the decade ends 44 points of account value behind the hedge without it.**
 
 One policy, three years in force, rolled along realised history from September 2016 to September
 2026, on Jackson's disclosed fund mix. The table is the daily-rebalancing rows of the frequency
 sweep; the crisis replays below rebalance weekly, which is what the strategies carry by default.
 
-| Hedge | Residual daily sd | Trading cost over the decade |
-|---|---|---|
-| Unhedged | 0.656% | - |
-| Futures | 0.304% | 0.05% |
-| Plus a receive-fixed swap | 0.188% | 0.08% |
-| Plus listed puts | 0.139% | 21.67% |
+| Hedge | Residual daily sd | Trading cost over the decade | Result over the decade |
+|---|---|---|---|
+| Unhedged | 0.656% | - | +70.1% |
+| Futures | 0.304% | 0.05% | +4.3% |
+| Plus a receive-fixed swap | 0.188% | 0.08% | -6.2% |
+| Plus listed puts | 0.141% | 18.01% | -50.2% |
 
 All figures as a share of account value. The rate leg costs almost nothing to trade and takes out
-a third of what the equity leg left. The option leg takes out another quarter at two hundred and
-seventy times the cost, and the put design sweep says most of that cost is in the tenor rather
-than the protection: a quarter-year put at 0.90 of spot costs 7.7% of account value over the
-decade against 21.2% for a one-year put at the same strike, for almost the same residual.
+a third of what the equity leg left. The option leg takes out another quarter of the residual
+standard deviation, pays more than two hundred times as much in spreads, and gives up a further 44
+points of result over the decade because a put that is held loses its time value whether or not it
+is traded. The put design sweep puts much of that in the tenor: a quarter-year put at 0.90 of spot
+ends the decade at -28.5% against -50.9% for a one-year put at the same strike, at a residual of
+0.156% against 0.141%, and returns 0.2% through covid against 3.0%.
 
-Trading cost is commission, spread and carry, and on the first two rows it is not what the hedge
-cost. Funding the losses the equity leg realised against a rising market ran a hundred to three
-hundred times larger, and the section below on what the rider earned puts a number on it.
+Trading cost is commission, spread and carry. On the option leg it is the smaller part of the
+bill, and on the first two rows it is not what the hedge cost either: funding the losses the
+equity leg realised against a rising market ran a hundred to three hundred times larger, and the
+section below on what the rider earned puts a number on it.
 
 February and March 2020 makes the point better than the summary statistics. The unhedged guarantee
 lost 22.0% of account value in twenty-four trading days. Futures alone recovered two thirds of it,
-futures and swaps left 2.7%, and the option leg turned it into a 1.9% gain. Volmageddon is the
+futures and swaps left 2.7%, and the option leg turned it into a 1.5% gain. Volmageddon is the
 opposite case: an 8.8% index move with the thirty-day volatility index tripling over the window,
 where futures and swaps remove 74.5% of the variance against 94% in covid, because instruments
 carrying no vega were never going to catch a volatility event. The one-year level the puts are
@@ -76,7 +79,7 @@ Resampling the decade's equity days into thirty other orderings puts the realise
 93rd to 100th percentile of the distribution on every strategy. The delta-and-rho hedge removes
 91% of the daily variance on the path that happened and a median of 81% across reorderings of the
 same days. The ranking survives - the richer hedge is tighter on 90 to 100% of reorderings - but
-the put leg's edge over futures-and-swaps is about a third smaller than the single path suggested.
+the put leg's edge over futures-and-swaps is 30 to 45% smaller than the single path suggested.
 And on 27 to 37% of reorderings the hedged book's worst single day is *worse* than the unhedged
 book's, which is where variance and tail risk part company.
 
@@ -150,8 +153,8 @@ binds in the states a delta hedge is busy in.
 
 Reported net income under identical positions is 9 to 15% more variable than the economic outcome,
 and the multiple *rises* as the hedge gets tighter. The own-credit adjustment, which no hedge
-targets, has a daily standard deviation of 0.127% of account value against 0.153% for the whole of
-the best-hedged strategy's net income - and under ASU 2018-12 it is reported outside net income.
+targets, has a daily standard deviation of 0.127% of account value against 0.156% for the whole of
+S3's net income - and under ASU 2018-12 it is reported outside net income.
 Credit spreads widen when equity markets fall, so that piece is a natural offset to the guarantee
 that the accounting boundary turns into a mismatch.
 
@@ -222,9 +225,12 @@ data/raw/                   FRED panel, SPX option chain, SOA mortality, figures
 data/processed/             built by make data and make calibrate; gitignored, reproducible from raw
 vahedge/
   market/                   curve bootstrap and NSS fit, Heston, Hull-White, the option chain,
-                            the simulator, and the realised-history scenarios
-  liability/                the rate sheet, the contract recursion, cohorts, mortality, behaviour
-  valuation/                the engine, Greeks, the regression proxy, nested valuation, break-even
+                            the simulator, the realised-history scenarios, and state.py, which
+                            assembles one valuation date's market from the committed data
+  liability/                the rate sheet, the contract recursion, cohorts, mortality, behaviour,
+                            and the buffered index-linked annuity the guarantee book is offset with
+  valuation/                the engine, Greeks, the regression proxy, nested valuation, the
+                            curvature taken from nested bumps, break-even
   hedge/                    instruments, sizing, strategies, the daily simulator, attribution
   capital/                  the statutory lens and the reporting-basis lens
   report/                   figures, drawn from the committed tables
@@ -241,9 +247,9 @@ references/                 the sources themselves, with a register saying what 
 notebooks/                  the results end to end, in reading order
 ```
 
-## Four things that took a rewrite
+## Five things that took a rewrite
 
-Worth flagging because all four were wrong in a way that looked right.
+Worth flagging because all five were wrong in a way that looked right.
 
 **Two models of the same liability.** The valuation, the Greeks and every disclosure validation
 were produced by an earlier single-factor implementation - lognormal equity on a deterministic
@@ -274,6 +280,17 @@ revenue and the curve turns back up. On the 2016 curve it never crosses zero at 
 had no root to find - and it reported the top of its bracket as the fee, with a convergence flag
 beside it that nothing was reading. The first table built on it said the rider was worth 800 basis
 points. It now returns a NaN and a reason, and a test holds it to that in both directions.
+
+**Puts that never aged.** The hedge simulator held its index puts at the tenor they were bought
+at and priced them that way on every later day, so a six-month put bought at the start of the
+window was still a six-month put a quarter later. Time decay on the option leg never reached the
+ledger, the Greeks the solve matched were those of a fresh option, and every result with a put in
+it was too good by the premium that had run off. A put now carries the time it has been held for;
+the mark, the exposures and the trade costs all read the remaining life, and the attribution
+charges the hedge's own decay to the theta bar. With daily rebalancing, a six-month put at 0.90 of
+spot ends the decade at -50.2% of account value where it ended at -17.2%. The spread bill moved
+the other way, 21.67% to 18.01%, partly because spreads are charged on vega and an aged put has
+less of it. The futures and swap hedges hold nothing that ages and did not move beyond rounding.
 
 ## Scope
 

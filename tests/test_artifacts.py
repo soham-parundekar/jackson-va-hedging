@@ -702,7 +702,13 @@ def test_the_put_grid_choice_does_not_decide_the_ranking():
 
     grid = pd.read_csv(paths.TABLES / "hedge_put_design.csv")
     assert len(grid) == 9, f"the sweep is now {len(grid)} cells, not the three-by-three"
-    assert bool(grid["on_frontier"].all()), "a cell has dropped off the frontier"
+    # Seven of nine. The quarter-year cells at 0.90 and 0.85 are each beaten on the decade's
+    # result, the residual and the covid outcome together, by the half-year and the one-year
+    # cell at 0.95. The count was nine of nine while a held put was marked at its original
+    # tenor and the cost axis was the spreads paid.
+    assert int(grid["on_frontier"].sum()) == 7, "the number of cells on the frontier has changed"
+    held = grid[(grid["tenor_years"] == 0.5) & (grid["strike_over_spot"] == 0.90)]
+    assert bool(held["on_frontier"].all()), "S3's own cell is no longer on the frontier"
 
     # The spreads the prose quotes, to the precision the quantity has rather than the precision
     # it is printed at. Both ends are nested Monte Carlo carried through the option sizing, and
@@ -710,9 +716,11 @@ def test_the_put_grid_choice_does_not_decide_the_ranking():
     # first version of this test pinned to one decimal and duly failed on, against a rerun that
     # had changed nothing. A guard that fires on an environment is not a guard.
     spread = [100 * float(grid["pnl_sd_pct"].min()), 100 * float(grid["pnl_sd_pct"].max())]
-    assert approx([0.135, 0.163], rel=0.03) == spread, f"the grid's residual now spans {spread}"
+    assert approx([0.134, 0.167], rel=0.03) == spread, f"the grid's residual now spans {spread}"
     cost = [100 * float(grid["total_cost_pct"].min()), 100 * float(grid["total_cost_pct"].max())]
-    assert approx([5.2, 21.5], rel=0.05) == cost, f"the grid's cost now spans {cost}"
+    assert approx([3.7, 21.3], rel=0.05) == cost, f"the grid's spreads now span {cost}"
+    result = [100 * float(grid["total_pnl_pct"].min()), 100 * float(grid["total_pnl_pct"].max())]
+    assert approx([-58.6, -21.4], rel=0.05) == result, f"the grid's result now spans {result}"
 
     # The claim itself, which is an ordering and reproduces far better than either level: the
     # margin is fifteen per cent of the put cell and moved by four tenths of a point across
@@ -998,22 +1006,23 @@ def test_the_methodology_document_figures_match_the_tables_they_came_from():
     flows = table("cash_flow_profile")
     assert round(float(flows.loc[flows["policy_year"] == 20, "prob_exhausted"].iloc[0]), 2) == 0.78
 
-    # "866 per point against 27 for the current variance", and the $136 standard error, which
+    # "868 per point against 26 for the current variance", and the $136 standard error, which
     # the Greeks table and the convergence table state separately and have to agree on.
     #
     # The long-run vega is checked to a tenth of its own reported standard error rather than to
     # the unit, and that is the one figure in this file with a loosened tolerance. It is a
     # difference of two differences of Monte Carlo levels, so a change of float summation order
     # moves it far more than it moves anything else here: on numpy 2.5 against the 2.2 that wrote
-    # the table it comes out at 866.85 rather than 866.48, with every well-conditioned figure in
-    # the same row reproducing to eight digits. Asserting the last unit of a quantity whose own
-    # noise is 40 was pinning a digit the method does not carry, and the first symptom was this
-    # line failing on an upgrade. A tenth of the standard error is still four units on 866, which
-    # is tighter than the figure is worth and far tighter than any real change would be.
+    # the earlier tables the combined vega is 894.06 rather than 893.70, with every
+    # well-conditioned figure in the same row reproducing to eight digits. Asserting the last
+    # unit of a quantity whose own noise is 40 was pinning a digit the method does not carry, and
+    # the first symptom was this line failing on an upgrade. A tenth of the standard error is
+    # still four units on 868, which is tighter than the figure is worth and far tighter than any
+    # real change would be.
     greeks = table("greeks")
     economic = greeks[greeks["basis"].str.startswith("economic")].iloc[0]
-    assert abs(float(economic["vega_long_run"]) - 866) < 0.1 * float(economic["vega_std_error"])
-    assert round(float(economic["vega_current"])) == 27
+    assert abs(float(economic["vega_long_run"]) - 868) < 0.1 * float(economic["vega_std_error"])
+    assert round(float(economic["vega_current"])) == 26
     assert round(float(economic["level_std_error"])) == 136
     # "the reported figure came out 38 per cent above the quantity the field was named for,
     # 93,480 where the number is 67,662", and the -14,501 the conversion term is worth
@@ -1270,7 +1279,7 @@ def test_the_model_risk_and_rider_economics_figures_match_their_tables():
     off = risk[risk["model"] != "calibrated"]
     across = off.pivot_table(index="model", columns="strategy", values="extra_sd_pct",
                              aggfunc="mean")
-    quoted = {"flat volatility": (-0.0017, -0.0024, -0.0016),
+    quoted = {"flat volatility": (-0.0017, -0.0024, -0.0015),
               "long-run vol 17%": (+0.0004, +0.0002, -0.0002),
               "long-run vol 26%": (-0.0011, -0.0011, -0.0003)}
     for model, cells in quoted.items():
@@ -1318,6 +1327,23 @@ def test_the_model_risk_and_rider_economics_figures_match_their_tables():
     ratio = funding / futures["hedge_cost_bp"]
     assert [round(float(ratio.min())), round(float(ratio.max()))] == [97, 333]
 
+    # "Adding the puts to the swap hedge costs ... 355 basis points a year for the one at issue
+    # (-509 against -154), 292 for the deferring cohort, 168 for first income, 73 for drawing.
+    # The late cohort comes out 3 basis points better." And the split at issue: 121 of trading
+    # and carry, 176 in the guarantee net of hedge and 59 of interest.
+    puts = decade[decade["strategy"] == "S3"].set_index("cohort")
+    swap = futures.set_index("cohort")
+    gap = (swap["net_bp"] - puts["net_bp"]).round().astype(int)
+    assert gap.to_dict() == {"at issue": 355, "deferring": 292, "first income": 168,
+                             "drawing": 73, "late": -3}
+    assert [round(float(puts.loc["at issue", "net_bp"])),
+            round(float(swap.loc["at issue", "net_bp"]))] == [-509, -154]
+    assert [round(float(puts.loc["at issue", "hedge_cost_bp"])),
+            round(float(puts.loc["at issue", "uncovered_cost_bp"]
+                        - swap.loc["at issue", "uncovered_cost_bp"])),
+            round(float(swap.loc["at issue", "cash_interest_bp"]
+                        - puts.loc["at issue", "cash_interest_bp"]))] == [121, 176, 59]
+
     # "An annual rate on an eleven-day window ... the covid column takes five weeks - 24 trading
     # days - and multiplies them by eleven"
     windows = economics.groupby("scenario")[["days", "years"]].first()
@@ -1339,6 +1365,36 @@ def test_the_model_risk_and_rider_economics_figures_match_their_tables():
     # "it stops getting cheaper near 5%" - the fee curve's minimum, not an endpoint
     curve = table("rider_fee_curve").set_index("fee_pct")
     assert round(float(curve["value"].idxmin()), 4) == 0.05
+
+
+def test_the_macro_overlay_is_priced_on_the_result_it_gives_up_and_not_on_its_spreads():
+    """The macro frontier says the spreads are the smaller part of what the overlay costs.
+
+    While held options were marked at their original tenor the only cost the simulator charged was
+    the spread, and the price per point of drawdown avoided was quoted on it. With the time decay
+    in the ledger the overlay's two-year spread loses most of its premium before the roll, and the
+    decade's result falls by roughly four times what the spreads account for. The ratio is pinned
+    loosely because it is a property of the grid, not a constant, and the price column is held to
+    the definition the script's comment gives.
+    """
+    import numpy as np
+    import pandas as pd
+
+    grid = pd.read_csv(paths.TABLES / "macro_hedge_frontier.csv")
+    overlay = grid[grid["notional_share"] > 0.0]
+    assert len(overlay) == 9
+    assert bool((overlay["extra_result_given_up_pct"] > 2.0 * overlay["extra_cost_pct"]).all()), (
+        "the overlay's time decay is no longer the larger part of its bill")
+
+    priced = overlay[overlay["drawdown_avoided_pct"] > 1e-6]
+    expected = 1e4 * priced["extra_result_given_up_pct"] / (100.0 * priced["drawdown_avoided_pct"])
+    assert np.allclose(priced["bp_of_result_per_point_avoided"], expected, rtol=1e-9)
+    unpriced = overlay[overlay["drawdown_avoided_pct"] <= 1e-6]
+    assert unpriced["bp_of_result_per_point_avoided"].isna().all()
+
+    cheapest = priced.loc[priced["bp_of_result_per_point_avoided"].idxmin()]
+    assert (cheapest["long_strike"], cheapest["short_strike"], cheapest["notional_share"]) == (
+        0.90, 0.70, 0.125)
 
 
 def test_the_value_error_above_the_money_matches_the_band_table():
@@ -1441,21 +1497,21 @@ def test_the_notebook_only_figures_match_the_tables_they_came_from():
 
     # Section 6: "The unhedged guarantee lost 22.0% of account value over the episode. Futures
     # alone recovered two thirds of that, futures and swaps left 2.7%, and adding the option leg
-    # turned it into a 1.9% gain."
+    # turned it into a 1.5% gain."
     covid = table("hedge_crisis_replays").query("episode == 'covid'").set_index("strategy")
     pnl = 100 * covid["total_pnl_pct"]
-    assert [round(float(pnl[s]), 1) for s in ("S0", "S2", "S3")] == [-22.0, -2.7, 1.9]
+    assert [round(float(pnl[s]), 1) for s in ("S0", "S2", "S3")] == [-22.0, -2.7, 1.5]
     recovered = (float(pnl["S0"]) - float(pnl["S1"])) / float(pnl["S0"])
     assert round(recovered, 2) == 0.69, f"futures recovered {recovered:.0%}, not two thirds"
 
-    # "a median 0.041 points of residual against 0.058 on the realised path, for twelve points of
+    # "a median 0.039 points of residual against 0.055 on the realised path, for ten points of
     # cost" - the edge is computed path by path in the ranking table, not as a difference of the
-    # two strategies' own medians, which gives 0.050 and is a different statistic.
+    # two strategies' own medians, which gives 0.051 and is a different statistic.
     ranking = table("real_world_ranking")
     leg = ranking.query("arm == 'as drawn' and richer == 'S3' and simpler == 'S2'").iloc[0]
-    assert round(100 * float(leg["median_sd_edge_pct"]), 3) == 0.041
-    assert round(100 * float(leg["realised_sd_edge_pct"]), 3) == 0.058
-    assert round(100 * float(leg["median_cost_gap_pct"])) == 13, "twelve point something"
+    assert round(100 * float(leg["median_sd_edge_pct"]), 3) == 0.039
+    assert round(100 * float(leg["realised_sd_edge_pct"]), 3) == 0.055
+    assert round(100 * float(leg["median_cost_gap_pct"])) == 10, "ten point something"
     assert [round(float(v), 1) for v in ranking["share_tighter"]] == [1.0] * 5 + [0.9]
 
     # Section 6's external check: the disclosed offset series, year by year
@@ -1531,14 +1587,14 @@ def test_the_notebook_only_figures_match_the_tables_they_came_from():
         assert round(moved, 1) == model_move, f"{direction}: the model moves {moved:.2f} points"
 
     # Section 8: "9 to 15% more variable than the economic outcome ... on every hedged strategy",
-    # and the own-credit adjustment's 0.127% against S3's 0.153%
+    # and the own-credit adjustment's 0.127% against S3's 0.156%
     lens = table("reporting_lens").set_index("strategy")
     hedged = lens.drop(index="S0")["net_income_sd_multiple"]
     extra = [round(100 * (float(hedged.min()) - 1)), round(100 * (float(hedged.max()) - 1))]
     assert extra == [9, 15], f"the hedged strategies run {extra[0]} to {extra[1]}% more variable"
     assert float(hedged.min()) > 1.0, "every hedged strategy is claimed to be more variable"
     assert round(100 * float(lens["oci_sd_pct"].iloc[0]), 3) == 0.127
-    assert round(100 * float(lens.loc["S3", "net_income_sd_pct"]), 3) == 0.153
+    assert round(100 * float(lens.loc["S3", "net_income_sd_pct"]), 3) == 0.156
 
     # "a correlation of +0.006 ... over eighteen quarters, which at that sample size could not have
     # detected anything smaller than about 0.47"
@@ -1686,10 +1742,10 @@ def test_the_sizing_weight_table_in_the_documents_reads_its_vega_column_right():
     weights = pd.read_csv(paths.TABLES / "hedge_sizing_weights.csv")
     put = weights[weights["strategy"] == "S3"].set_index("objective")
     expected = {
-        "gamma and vega equal, the default": (0.137, 13.73, 95, 78),
-        "gamma ten times vega": (0.137, 14.89, 100, 82),
-        "gamma a hundred times vega": (0.137, 14.90, 100, 82),
-        "vega ten times gamma": (0.153, 3.98, 17, 13),
+        "gamma and vega equal, the default": (0.140, 11.31, 95, 80),
+        "gamma ten times vega": (0.139, 11.95, 100, 84),
+        "gamma a hundred times vega": (0.139, 11.95, 100, 84),
+        "vega ten times gamma": (0.154, 4.22, 17, 13),
     }
     assert set(put.index) == set(expected), f"the objectives changed: {sorted(put.index)}"
     for objective, (residual, cost, gamma, vega) in expected.items():
@@ -1704,6 +1760,9 @@ def test_the_sizing_weight_table_in_the_documents_reads_its_vega_column_right():
     for column in ("pnl_sd_pct", "total_cost_pct", "gamma_removed", "vega_removed"):
         assert flat[column].nunique() == 1, f"S2's {column} moved with the weights"
 
-    # "worth eleven points of trading cost" - the spread the heading claims
+    # "worth eight points of trading cost and twenty-five of decade result" - the two spreads the
+    # heading claims, each across the four objectives.
     spread = 100 * (put["total_cost_pct"].max() - put["total_cost_pct"].min())
-    assert round(spread) == 11, f"the cost spread is {spread:.2f} points"
+    assert round(spread) == 8, f"the cost spread is {spread:.2f} points"
+    result = 100 * (put["total_pnl_pct"].max() - put["total_pnl_pct"].min())
+    assert round(result) == 25, f"the decade-result spread is {result:.2f} points"

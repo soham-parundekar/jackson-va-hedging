@@ -8,7 +8,11 @@ the Greeks week to week. It is bought so that a severe fall does not take the st
 position with it, and that is a different number on a different basis.
 
 So this sweeps the spread's size and its strikes and reports two things against each other: what
-it costs over the whole replay window, and how far capital falls through covid with it in place.
+it takes out of the decade's result over the whole replay window, and how far capital falls
+through covid with it in place. The decade's result rather than the spreads paid, because a
+two-year spread held for eighteen months loses most of its premium to time before it is rolled and
+the spread is the smaller part of that bill: at 0.90/0.70 and an eighth of account value the
+spreads are 0.81% of account value and the result given up is 3.27%.
 
 Both bases are reported and in covid they coincide, which was not the expectation and is worth
 stating rather than hiding. The surrender value floor binds when the guarantee is a net asset,
@@ -24,8 +28,8 @@ notional. Size is a decision, not an output.
 
 What this cannot say is whether the capital protection is worth its price, because that needs a
 cost of capital and the project has no defensible figure for one. What it gives instead is the
-exchange rate: basis points of running cost per point of capital drawdown avoided, so the
-judgement is explicit rather than buried.
+exchange rate: basis points of the decade's result given up per point of capital drawdown
+avoided, so the judgement is explicit rather than buried.
 
 One limitation decides how far the strike sweep can be read. The worst window the free index
 history reaches is covid, where the index bottomed at 0.66 of its starting level. A spread struck
@@ -105,6 +109,12 @@ def frontier(setup) -> pd.DataFrame:
             "long_strike": strikes[0], "short_strike": strikes[1],
             "notional_share": size,
             "cost_whole_window_pct": whole.summary["total_cost_pct"],
+            # Spreads are the part of the bill that is paid in cash. A two-year spread is held
+            # for a year and a half before it rolls, and what it loses in time over that is
+            # larger, so the decade's result is recorded too. It is the whole programme's, not
+            # the overlay's, and the overlay's own share is the difference from the no-overlay
+            # row: the solve does not see the overlay, so nothing else in the book depends on it.
+            "result_whole_window_pct": whole.summary["total_pnl_pct"],
             "sd_whole_window_pct": whole.summary["pnl_sd_pct"],
             "crisis_economic_total_pct": crisis.summary["total_pnl_pct"],
             # Peak to trough rather than start to end, because a capital constraint is breached
@@ -138,17 +148,25 @@ def frontier(setup) -> pd.DataFrame:
     table = pd.DataFrame(rows)
     baseline = table[table["notional_share"] == 0.0].iloc[0]
     table["extra_cost_pct"] = table["cost_whole_window_pct"] - baseline["cost_whole_window_pct"]
+    # What the overlay took out of the decade's result, spreads and time decay together and net
+    # of whatever it paid back in the one crash the free history reaches.
+    table["extra_result_given_up_pct"] = (
+        baseline["result_whole_window_pct"] - table["result_whole_window_pct"]
+    )
     # Drawdowns are negative, so a smaller fall is a larger number and the improvement is the
     # variant less the baseline. The first version had this the other way round and read every
     # worsening as protection bought, which made the worst row in the grid the recommended one.
     table["drawdown_avoided_pct"] = (
         table["crisis_statutory_drawdown_pct"] - baseline["crisis_statutory_drawdown_pct"]
     )
-    # Basis points of running cost over ten years per point of statutory drawdown avoided. Blank
-    # where the overlay avoided nothing, because a ratio against zero is not a price.
-    table["bp_of_cost_per_point_avoided"] = np.where(
+    # Basis points of the decade's result given up per point of statutory drawdown avoided. The
+    # numerator was the spreads paid until held puts started to age; the spread is the cash part
+    # of the bill and the time decay on a spread held for eighteen months is several times
+    # larger, so a price quoted on the spreads alone is a quarter of the real one. Blank where the
+    # overlay avoided nothing, because a ratio against zero is not a price.
+    table["bp_of_result_per_point_avoided"] = np.where(
         table["drawdown_avoided_pct"] > 1e-6,
-        1e4 * table["extra_cost_pct"] / (100.0 * table["drawdown_avoided_pct"]),
+        1e4 * table["extra_result_given_up_pct"] / (100.0 * table["drawdown_avoided_pct"]),
         np.nan,
     )
     return table
@@ -165,30 +183,32 @@ def main() -> None:
 
     print(f"Macro put spread against statutory capital in {STRESS_EPISODE}, "
           f"{100*table['share_of_crisis_days_floored'].iloc[0]:.0f}% of crisis days floored")
-    print("  strikes      size   cost 10y   crisis drawdown: economic  statutory   "
-          "avoided   bp per point")
+    print("  strikes      size   spreads 10y   result 10y   crisis drawdown: economic  "
+          "statutory   avoided   bp per point")
     for _, row in table.iterrows():
         label = ("no overlay" if row["notional_share"] == 0.0
                  else f"{row['long_strike']:.2f}/{row['short_strike']:.2f}")
-        price = ("" if not np.isfinite(row["bp_of_cost_per_point_avoided"])
-                 else f"{row['bp_of_cost_per_point_avoided']:11.0f}")
+        price = ("" if not np.isfinite(row["bp_of_result_per_point_avoided"])
+                 else f"{row['bp_of_result_per_point_avoided']:11.0f}")
         print(f"  {label:<11s} {row['notional_share']:5.3f}  "
               f"{100*row['cost_whole_window_pct']:8.2f}%  "
+              f"{100*row['result_whole_window_pct']:+10.1f}%  "
               f"{100*row['crisis_economic_drawdown_pct']:+20.2f}% "
               f"{100*row['crisis_statutory_drawdown_pct']:+10.2f}% "
               f"{100*row['drawdown_avoided_pct']:+8.2f}%{price}")
 
-    paid = table[np.isfinite(table["bp_of_cost_per_point_avoided"])]
+    paid = table[np.isfinite(table["bp_of_result_per_point_avoided"])]
     if paid.empty:
         print("\n  No overlay in the grid reduced the statutory drawdown. On this crisis the "
               "spread is premium with nothing bought, and the strikes are the reason to check "
               "before the size is.")
     else:
-        best = paid.loc[paid["bp_of_cost_per_point_avoided"].idxmin()]
+        best = paid.loc[paid["bp_of_result_per_point_avoided"].idxmin()]
         print(f"\n  Cheapest protection in the grid: {best['long_strike']:.2f}/"
               f"{best['short_strike']:.2f} at {best['notional_share']:.3f} of account value, "
               f"{100*best['drawdown_avoided_pct']:.2f} points of statutory drawdown avoided for "
-              f"{100*best['extra_cost_pct']:.2f}% of ten years' cost")
+              f"{100*best['extra_result_given_up_pct']:.2f} points of the decade's result "
+              f"({100*best['extra_cost_pct']:.2f} of it in spreads)")
     print(f"\nwrote {paths.TABLES / 'macro_hedge_frontier.csv'}")
 
 

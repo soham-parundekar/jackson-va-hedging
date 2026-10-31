@@ -18,7 +18,7 @@ These establish that the arithmetic closes before anything is asked of the econo
 | The rate shock is parallel in the zero rate and in the forward | exact to 1e-15 at seven maturities, and symmetric in the two legs | `tests/test_market_models.py` |
 | A guarantee reserve at a year end is in money of that year | exact on a single-year cash flow, and independent of the curve before its own date | `tests/test_statutory.py` |
 | The floor's reach against every disclosed surrender share | 67.9% to 68.8% of paths, adding 9.80% to 10.42% of account | `run_statutory.py` |
-| The sizing weights, over the one ratio the solve can act on | S2 identical on all four objectives, S3's cost 3.98% to 14.90% | `run_hedge_experiments.py` |
+| The sizing weights, over the one ratio the solve can act on | S2 identical on all four objectives, S3's cost 4.22% to 11.95% | `run_hedge_experiments.py` |
 | Every public function the library defines is called from somewhere | the sweep that found four orphans across three passes, now standing | `tests/test_artifacts.py` |
 | Nested comparison coverage | post-event fit only, moneyness 0.0 to 1.00; the pre-event fit is held to a cash-flow identity instead | `reports/tables/proxy_delta_nodes.csv`, `docs/limitations.md` |
 | Hull-White's bond price seen from a future date | martingale identity holds to 1e-9 at a = 0.05 and 0.27 | `tests/test_market_models.py` |
@@ -108,7 +108,7 @@ policy, and it halves as paths quadruple - 2.01, 1.96 and 1.99 across the three 
 `monte_carlo_convergence.csv`. Greeks are taken on common random numbers and each carries the
 standard error of its own paired difference: the equity exposure's is 164 on 14,501, rho's is 19
 on 5,887 per 100bp, vega's is 40 on 894. The vega error belongs to the two vegas together, which
-is what the volatility bump moved; quoting it against the 27 of current variance alone would read
+is what the volatility bump moved; quoting it against the 26 of current variance alone would read
 as a Greek worth less than its own noise. A Greek whose error is a third of its value is not a
 risk number, and printing the error is the only way to know.
 
@@ -137,11 +137,11 @@ at 105 is under a tenth of one standard error.
 The Heston parameters come from one afternoon's SPX chain, 28 September 2026. Two Cboe index
 histories make that one-day fit testable across a decade, and neither enters the calibration.
 
-**The term structure, carried outward.** The chain reaches 3.23 years and the puts in the hedge
-run one and two, so the option leg's volatility level is extended from a quoted tenor by the
-model's own variance curve. Six months is as far as free data goes, so the outward direction is
-only testable there - and it is the direction that matters, because the inward test the project
-ran first says nothing about the extension it actually uses.
+**The term structure, carried outward.** The chain reaches 3.23 years. S3's puts run six months
+and the macro spread in S6 two years, so the option leg's volatility level is extended from a
+quoted tenor by the model's own variance curve. Six months is as far as free data goes, so the
+outward direction is only testable there - and it is the direction that matters, because the
+inward test the project ran first says nothing about the extension it actually uses.
 
 | Quoted | Carried to | Direction | Mean error | Within two points |
 |---|---|---|---|---|
@@ -156,8 +156,10 @@ almost entirely to its long-run 21.68%, giving a term structure slope of about +
 curve between one and six months is steeper than the model's.
 
 Two consequences follow, and they point in opposite directions on the two things the project
-concluded. The option leg's volatility is extended by the same mapping out to one and two years,
-so its puts are priced too cheaply and the 21.67% ten-year option cost is a lower bound. And the
+concluded. S3's six-month puts sit at the far end of what VIX6M checks, where the mapping runs low,
+and the macro spread is extended by it to two years, which nothing free can check. Puts priced too
+cheaply lose less premium than they would at market quotes, so the decade's premium run-off is a
+lower bound rather than an estimate. And the
 fitted long-run level of 21.68% comes out looking too *low* rather than too high - which is the
 opposite direction from the issuer's described 19.12% and so independent support, from a source
 the calibration never touched, for the decision to let the chain reject that level.
@@ -418,25 +420,34 @@ every run.
 ## Hedging
 
 **Hypothesis 5 holds on variance and is incomplete on the residual.** A delta and rho hedge
-removes a substantial share of the daily variation, and adding convexity removes most of the
-rest - which means the residual is not dominated by implied volatility so much as by the absence
-of an instrument for it.
+removes a substantial share of the daily variation, and adding convexity removes another 44% of
+the variance that is left - 4.6% of the unhedged variance remains against 8.2% after the swap -
+which means the residual is not dominated by implied volatility so much as by the absence of an
+instrument for it.
 
 Residual daily standard deviation over the ten-year replay, as a share of account value, at daily
 rebalancing and base costs:
 
-| Strategy | Residual sd | Trading cost over the decade |
-|---|---|---|
-| S1, futures | 0.304% | 0.05% |
-| S2, plus a receive-fixed swap | 0.188% | 0.08% |
-| S3, plus listed puts | 0.139% | 21.67% |
+| Strategy | Residual sd | Trading cost over the decade | Result over the decade |
+|---|---|---|---|
+| S1, futures | 0.304% | 0.05% | +4.3% |
+| S2, plus a receive-fixed swap | 0.188% | 0.08% | -6.2% |
+| S3, plus listed puts | 0.141% | 18.01% | -50.2% |
 
 The rate leg costs almost nothing to trade and takes out a third of what the equity leg left. The
-option leg takes out another quarter and costs two hundred and seventy times as much to trade.
+option leg takes out another quarter and costs more than two hundred times as much to trade.
 
-The cost column is commission, spread and carry. On the first two rows it is not what running the
-hedge cost: funding the losses the equity leg realised against a rising market was a hundred to
-three hundred times larger, and the section on what the rider earned measures it.
+The cost column is commission, spread and carry, and on the option leg it is the smaller part of
+what the leg cost. A held put loses its time value whether or not anything is traded, and the last
+column counts it: S3 finishes the decade 44 points of account value behind S2, against 11 points
+in the first version of this table, which marked a put that had been held for nine months at the
+price of a new one. The 33 points between those two figures are the premium running off. They sit
+in the attribution's theta bar, which is the other side of the gamma bar, and the sections below
+that compare the put leg's edge with its price should be read with that bill in view.
+
+On the first two rows the trading cost is not what running the hedge cost either: funding the
+losses the equity leg realised against a rising market was a hundred to three hundred times
+larger, and the section on what the rider earned measures it.
 
 ### The hedge against the one external check there is
 
@@ -557,15 +568,15 @@ Chosen by what happened rather than by what flatters a hedge, and deliberately d
 
 | Episode | Days | Index | Rates | Peak vol | Unhedged | S1 | S2 | S3 |
 |---|---|---|---|---|---|---|---|---|
-| volmageddon | 11 | -8.8% | +18bp | 26.5% | -1.96% | 59.1% | 74.5% | 97.9% |
-| Q4 2018 | 64 | -19.5% | -32bp | 26.0% | -9.13% | 84.2% | 96.1% | 98.8% |
+| volmageddon | 11 | -8.8% | +18bp | 26.5% | -1.96% | 59.1% | 74.5% | 97.8% |
+| Q4 2018 | 64 | -19.5% | -32bp | 26.0% | -9.13% | 84.2% | 96.1% | 98.9% |
 | covid | 24 | -33.8% | -79bp | 45.4% | -22.00% | 85.7% | 94.1% | 98.9% |
 | 2022 double | 197 | -24.4% | +228bp | 26.2% | +1.16% | 73.7% | 98.5% | 99.1% |
 
 Unhedged is the episode's total profit as a share of account value; the strategy columns are
 variance reduction. February and March 2020 is the clearest case: the unhedged guarantee lost 22%
 of account value in twenty-four trading days, futures alone recovered two thirds of it, futures
-and swaps left 2.7%, and the option leg turned it into a 1.9% gain.
+and swaps left 2.7%, and the option leg turned it into a 1.5% gain.
 
 Volmageddon is the opposite case and the one worth dwelling on. An 8.8% index move with volatility
 doubling, and the futures-and-swaps hedge removes only 74.5% of the variance against 94% in covid.
@@ -613,10 +624,10 @@ on the window's mean financing rate plus the 4% equity risk premium the statutor
 |---|---|---|---|---|---|---|
 | as drawn | S1 | 61.3% | 70.7% | 75.9% | 77.7% | 93rd |
 | | S2 | 70.4% | 81.3% | 89.0% | 91.2% | 97th |
-| | S3 | 75.3% | 87.2% | 93.1% | 95.6% | 100th |
+| | S3 | 74.7% | 86.6% | 93.3% | 95.4% | 100th |
 | re-centred | S1 | 63.3% | 69.6% | 73.7% | 77.7% | 100th |
 | | S2 | 79.0% | 85.6% | 87.7% | 91.2% | 100th |
-| | S3 | 82.7% | 89.4% | 94.4% | 95.6% | 100th |
+| | S3 | 82.6% | 89.8% | 92.8% | 95.4% | 100th |
 
 Variance removed against that path's own unhedged run, paired, because the paths differ by a
 factor of five in how much variance there is to remove. The 91% that the delta-and-rho hedge takes
@@ -624,33 +635,37 @@ out of the realised decade is the 97th percentile of what reorderings of the sam
 and the median is 81%. The realised backtest did not measure the hedge; it measured the hedge on a
 favourable ordering of a favourable decade.
 
-**The sizing objective has one operative degree of freedom, and it is worth eleven points of
-trading cost.** The weights on the four factors looked like four assumptions and are not. The
+**The sizing objective has one operative degree of freedom, and it is worth eight points of
+trading cost and twenty-five of decade result.** The weights on the four factors looked like four assumptions and are not. The
 equity future reaches delta alone and the swap rho alone, so both absorb whatever the put brings
 with them and close exactly at any weights; only gamma and vega compete, because both run through
 the put's single unit count. Over the whole replay:
 
 | Objective | Residual sd | Cost | Gamma closed | Vega, multiple of its starting size |
 |---|---|---|---|---|
-| gamma and vega equal (the default) | 0.137% | 13.73% | 95% | 78x |
-| gamma ten times vega | 0.137% | 14.89% | 100% | 82x |
-| gamma a hundred times vega | 0.137% | 14.90% | 100% | 82x |
-| vega ten times gamma | 0.153% | 3.98% | 17% | 13x |
+| gamma and vega equal (the default) | 0.140% | 11.31% | 95% | 80x |
+| gamma ten times vega | 0.139% | 11.95% | 100% | 84x |
+| gamma a hundred times vega | 0.139% | 11.95% | 100% | 84x |
+| vega ten times gamma | 0.154% | 4.22% | 17% | 13x |
 
 S2, which has no put, comes out identical on all four rows, which is the control: with two
 instruments reaching two factors exactly there is no residual for a weight to allocate.
 
 Two things in that table were not visible before it existed. Favouring gamma buys the last five
-points of curvature for a point and a sixth of cost over the decade; favouring vega gives up most
-of the curvature and three quarters of the cost for twelve per cent more residual variation. And
+points of curvature for two thirds of a point of trading cost, and for a point and three quarters
+of decade result once the premium running off is counted (-43.5% against -41.8%). Favouring vega
+gives up most of the curvature and three fifths of the trading cost, and the decade result
+improves by 23 points to -18.8%, for ten per cent more residual standard deviation. The result
+column is what makes that last trade look as lopsided as it is; on trading cost alone it looked
+like a bargain worth seven points, and on result it is worth three times that. And
 the hedge's vega is not hedged in any direction that matters - the put takes the book's small
 volatility exposure dozens of times further from zero on every objective, which is the price of
 reaching gamma through an option and is reported here rather than left in the residual.
 
-**The ranking survives, and the put leg's edge is a third smaller than it looked.** S2 beats S1 on
+**The ranking survives, and the put leg's edge is 30 to 45% smaller than it looked.** S2 beats S1 on
 100% of reorderings in both arms. S3 beats S2 on 100% in the as-drawn arm and 90% in the
-re-centred one. But S3's median edge over S2 is 0.041 and 0.033 points of residual standard
-deviation against 0.058 on the realised path, for 12.6 and 9.2 points of extra cost. The
+re-centred one. But S3's median edge over S2 is 0.039 and 0.030 points of residual standard
+deviation against 0.055 on the realised path, for 10.2 and 7.3 points of extra cost. The
 conclusion that convexity is worth buying holds; the size of what it buys was overstated by the
 one path.
 
@@ -676,7 +691,7 @@ episodes:
 
 | Misspecification | S1 | S2 | S3 |
 |---|---|---|---|
-| flat volatility, no skew | -0.0017 | -0.0024 | -0.0016 |
+| flat volatility, no skew | -0.0017 | -0.0024 | -0.0015 |
 | long-run volatility 17% | +0.0004 | +0.0002 | -0.0002 |
 | long-run volatility 26% | -0.0011 | -0.0011 | -0.0003 |
 
@@ -720,19 +735,25 @@ benefit base a year:
 |---|---|---|---|---|---|---|
 | at issue | unhedged | 223 | +38 | 0.0 | -230 | **+491** |
 | | delta and rho | 223 | -47 | 0.5 | +330 | **-154** |
-| | plus puts | 223 | -56 | 145.4 | +213 | **-191** |
+| | plus puts | 223 | -106 | 121.1 | +506 | **-509** |
 | deferring | unhedged | 229 | +40 | 0.0 | -260 | **+529** |
 | | delta and rho | 229 | -35 | 0.3 | +217 | **-24** |
-| | plus puts | 229 | -42 | 103.6 | +136 | **-53** |
+| | plus puts | 229 | -86 | 85.4 | +373 | **-315** |
 | first income | unhedged | 227 | +40 | 0.0 | -204 | **+471** |
 | | delta and rho | 227 | -50 | 0.2 | +276 | **-99** |
-| | plus puts | 227 | -53 | 59.1 | +228 | **-113** |
+| | plus puts | 227 | -81 | 50.3 | +363 | **-267** |
 | drawing | unhedged | 202 | +33 | 0.0 | -159 | **+393** |
 | | delta and rho | 202 | -42 | 0.2 | +232 | **-72** |
-| | plus puts | 202 | -43 | 26.8 | +211 | **-79** |
+| | plus puts | 202 | -53 | 22.3 | +271 | **-145** |
 | late | unhedged | 167 | +14 | 0.0 | +6 | **+174** |
 | | delta and rho | 167 | -52 | 0.2 | +367 | **-252** |
-| | plus puts | 167 | -52 | 9.8 | +364 | **-259** |
+| | plus puts | 167 | -52 | 8.1 | +356 | **-249** |
+
+Adding the puts to the swap hedge costs the cohorts with most of the guarantee still ahead of
+them the most: 355 basis points a year for the one at issue (-509 against -154), 292 for the
+deferring cohort, 168 for first income, 73 for drawing. The late cohort comes out 3 basis points
+better. At issue the 355 splits into 121 of trading and carry, 176 in the guarantee net of hedge
+and 59 of interest.
 
 **The cost of a futures-and-swaps hedge is not its trading cost.** The frontier table puts S2's
 cost over the decade at 0.08% of account value, and that figure is right for what it measures:
@@ -809,16 +830,16 @@ economic outcome, on every hedged strategy:
 
 | Strategy | Economic sd | Net income sd | Multiple | OCI sd | Comprehensive sd |
 |---|---|---|---|---|---|
-| S0 unhedged | 0.656% | 0.688% | 1.05 | 0.127% | 0.572% |
+| S0 unhedged | 0.656% | 0.687% | 1.05 | 0.127% | 0.572% |
 | S1 | 0.310% | 0.338% | 1.09 | 0.127% | 0.248% |
 | S2 | 0.195% | 0.216% | 1.11 | 0.127% | 0.161% |
-| S3 | 0.137% | 0.153% | 1.11 | 0.127% | 0.142% |
-| S5 | 0.158% | 0.182% | 1.15 | 0.127% | 0.126% |
+| S3 | 0.140% | 0.156% | 1.12 | 0.127% | 0.140% |
+| S5 | 0.163% | 0.187% | 1.15 | 0.127% | 0.128% |
 
 Daily standard deviations as a share of the account value at the start, in per cent. These runs
-rebalance weekly, which is what the strategies carry by default, so the economic column sits a
-little above the daily-rebalancing figures in the hedging table two sections up rather than
-matching them. An earlier version printed the raw fractions with a per-cent sign and was out by a
+rebalance weekly, which is what the strategies carry by default, so the economic column does not
+match the daily-rebalancing figures in the hedging table two sections up: it is a little above
+them for S1 and S2 and level with them for S3. An earlier version printed the raw fractions with a per-cent sign and was out by a
 factor of a hundred against that table.
 
 The multiple *rises* as the hedge gets tighter, which is the mechanism rather than a paradox: the
@@ -827,8 +848,8 @@ and are not in the hedge's target, so what is removed from the numerator is not 
 gap.
 
 The own-credit line is the one no hedge targets. Its daily standard deviation is 0.127% of account
-value against 0.153% for S3's hedged net income - five sixths of the entire residual the tightest
-hedge in the study leaves - and under ASU 2018-12 its movement goes to other comprehensive income
+value against 0.156% for S3's hedged net income - four fifths of the entire residual S3 leaves -
+and under ASU 2018-12 its movement goes to other comprehensive income
 rather than through net income. Credit spreads widen
 when equity markets fall, so that piece is a natural offset to the guarantee - and the rule books
 it outside net income, which is what Item 7A means when it says the company does not use hedging
@@ -859,7 +880,7 @@ that nothing large and negative is visible, which is what the disclosure itself 
 | A convexity ratio on the wrong side of two | Not observed; 1.88 up and 2.13 down |
 | A model sensitivity *below* the disclosed one | Not observed; the model is above on all 18 |
 | A delta and rho hedge that fails to reduce variance | Not observed; 74% to 99% across the episodes |
-| A residual uncorrelated with implied volatility | **Partly observed.** Adding convexity removes most of the residual that delta and rho leave, so the residual is better described as the absence of a convexity instrument than as a volatility exposure |
+| A residual uncorrelated with implied volatility | **Partly observed.** Adding convexity removes 44% of the variance that delta and rho leave, so the residual is better described as the absence of a convexity instrument than as a volatility exposure |
 | Reported net income no more volatile than the economic outcome | Not observed; 1.05 to 1.15 |
 | The gap closable by behaviour alone | **Observed.** Behaviour closes the rate half and not the equity half; the equity half is moneyness |
 

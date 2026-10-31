@@ -339,6 +339,35 @@ def test_the_equity_greeks_are_derivatives_in_the_log_index_and_not_in_the_shock
     assert result.equity_exposure == approx(-400.0 + 70.0 * np.log1p(-bump**2), rel=1e-12)
 
 
+class _VolatilityValuer:
+    """A liability that is exactly quadratic in the current and in the long-run volatility.
+
+    The split of the vega is a remainder: the combined move less the current-variance move. A
+    forward difference on the second leaves its curvature term in the first, so the check needs
+    a price that has curvature in the current volatility and a closed form on both halves.
+    """
+
+    def __init__(self, a: float, c: float, d: float, e: float):
+        self.a, self.c, self.d, self.e = a, c, d, e
+
+    def value(self, book, state, attribution=None, equity_shock: float = 0.0, **_):
+        now, long_run = np.sqrt(state.heston.v0), np.sqrt(state.heston.theta)
+        return _Priced(self.a * now + self.c * now**2 + self.d * long_run + self.e * long_run**2)
+
+
+def test_both_halves_of_the_vega_are_central_differences():
+    """The combined vega was central and the current-variance leg forward, so the long-run vega
+    - defined as what is left - carried the forward difference's bias, c times the bump, and the
+    two reported numbers summed to something neither difference had measured."""
+    book, state = _small_book(), _state()
+    valuer = _VolatilityValuer(a=300.0, c=4000.0, d=900.0, e=-2500.0)
+    result = greeks.compute(valuer, book, state, np.full(book.size, 0.8), vol_bump=0.01)
+
+    now, long_run = np.sqrt(state.heston.v0), np.sqrt(state.heston.theta)
+    assert result.vega_current == approx(0.01 * (300.0 + 2.0 * 4000.0 * now), rel=1e-9)
+    assert result.vega_long_run == approx(0.01 * (900.0 - 2.0 * 2500.0 * long_run), rel=1e-9)
+
+
 def test_asymmetry_refuses_a_shock_it_was_not_given():
     valuer, book, state = _valuer(), _small_book(), _state()
     table = greeks.disclosed_shocks(valuer, book, state, np.full(book.size, 0.8),
